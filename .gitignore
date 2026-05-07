@@ -42,3 +42,7 @@ go.work.sum
 *.db-shm
 /logs/
 /bin/
+
+# Frontend
+web/node_modules/
+src/web/dist/
