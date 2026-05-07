@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: oklch(0.98 0 0);
+  --color-foreground: oklch(0.145 0.01 286);
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: oklch(0.145 0.01 286);
+  --color-border: oklch(0.92 0.004 286);
+  --color-primary: oklch(0.145 0.01 286);
+  --color-primary-foreground: oklch(0.98 0 0);
+  --color-muted: oklch(0.96 0.004 286);
+  --color-muted-foreground: oklch(0.5 0.01 286);
+  --color-accent: oklch(0.96 0.004 286);
+  --color-accent-foreground: oklch(0.145 0.01 286);
+  --color-destructive: oklch(0.577 0.245 27.325);
+  --color-emerald: oklch(0.723 0.191 160);
+  --color-amber: oklch(0.769 0.188 70);
+  --color-stone: oklch(0.8 0.01 80);
+  --radius: 0.75rem;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  .dark {
+    --color-background: oklch(0.145 0.01 286);
+    --color-foreground: oklch(0.98 0 0);
+    --color-card: oklch(0.17 0.01 286);
+    --color-card-foreground: oklch(0.98 0 0);
+    --color-border: oklch(0.25 0.01 286);
+    --color-primary: oklch(0.98 0 0);
+    --color-primary-foreground: oklch(0.145 0.01 286);
+    --color-muted: oklch(0.2 0.01 286);
+    --color-muted-foreground: oklch(0.6 0.01 286);
+    --color-accent: oklch(0.2 0.01 286);
+    --color-accent-foreground: oklch(0.98 0 0);
+    color-scheme: dark;
+  }
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted-foreground);
+}

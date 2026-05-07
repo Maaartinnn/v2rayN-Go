@@ -9,6 +9,7 @@ import (
 	"v2rayn-go/config"
 	"v2rayn-go/core"
 	"v2rayn-go/database"
+	"v2rayn-go/web"
 
 	"github.com/kardianos/service"
 )
@@ -44,9 +45,11 @@ func (a *App) run() {
 	}
 	log.Println("Database initialized successfully")
 
-	// TODO: 启动 Web 服务器
-	// TODO: 启动订阅自动更新定时器
-	log.Printf("v2rayN-Go is running. Web UI: http://127.0.0.1:%d", a.cfg.WebPort)
+	// 启动 Web 服务器
+	webServer := web.NewServer(a.cfg, a.core)
+	if err := webServer.Start(); err != nil {
+		log.Printf("Web server error: %v", err)
+	}
 }
 
 // Stop 实现 service.Interface，服务停止时调用
@@ -197,9 +200,11 @@ func RunDirect(cfg *config.AppConfig) error {
 	log.Printf("Web UI: http://127.0.0.1:%d", cfg.WebPort)
 	log.Printf("Press Ctrl+C to stop")
 
-	// TODO: 启动 Web 服务器
-	_ = app // 将在后续阶段使用
+	// 启动 Web 服务器
+	webServer := web.NewServer(cfg, app.core)
+	if err := webServer.Start(); err != nil {
+		return fmt.Errorf("web server error: %w", err)
+	}
 
-	// 阻塞等待
-	select {}
+	return nil
 }
