@@ -1,17 +1,20 @@
 import { motion } from 'framer-motion'
-import { Home, Server, FileText, Settings, Download } from 'lucide-react'
+import { Home, Server, FileText, Settings, Download, Globe } from 'lucide-react'
 import { useStore } from '../store'
-
-const navItems = [
-  { id: 'home', icon: Home, label: 'Home' },
-  { id: 'nodes', icon: Server, label: 'Nodes' },
-  { id: 'logs', icon: FileText, label: 'Logs' },
-  { id: 'settings', icon: Settings, label: 'Settings' },
-  { id: 'updater', icon: Download, label: 'Cores' },
-]
+import { useI18n, useT } from '../lib/i18n'
 
 export function Sidebar() {
   const { currentView, setCurrentView, isConnected } = useStore()
+  const { lang, setLang } = useI18n()
+  const t = useT()
+
+  const navItems = [
+    { id: 'home', icon: Home, label: t('nav.home') },
+    { id: 'nodes', icon: Server, label: t('nav.nodes') },
+    { id: 'logs', icon: FileText, label: t('nav.logs') },
+    { id: 'settings', icon: Settings, label: t('nav.settings') },
+    { id: 'updater', icon: Download, label: t('nav.cores') },
+  ]
 
   return (
     <nav className="fixed left-0 top-0 bottom-0 w-16 bg-card border-r border-border flex flex-col items-center py-4 z-50">
@@ -69,6 +72,18 @@ export function Sidebar() {
           )
         })}
       </div>
+
+      {/* Language toggle */}
+      <motion.button
+        onClick={() => setLang(lang === 'en' ? 'zh' : 'en')}
+        className="w-10 h-10 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        title={lang === 'en' ? '切换中文' : 'Switch to English'}
+      >
+        <Globe size={18} strokeWidth={1.5} />
+        <span className="absolute text-[8px] font-bold mt-5">{lang.toUpperCase()}</span>
+      </motion.button>
     </nav>
   )
 }

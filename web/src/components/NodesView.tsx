@@ -4,12 +4,14 @@ import { Wifi, WifiOff, RefreshCw, Trash2, Plus, Clipboard } from 'lucide-react'
 import { useStore } from '../store'
 import type { Profile } from '../store'
 import { profileApi } from '../lib/api'
+import { useT } from '../lib/i18n'
 
 export function NodesView() {
   const { profiles, setProfiles, activeProfile, setActiveProfile } = useStore()
   const [loading, setLoading] = useState(false)
   const [importText, setImportText] = useState('')
   const [showImport, setShowImport] = useState(false)
+  const t = useT()
 
   useEffect(() => {
     loadProfiles()
@@ -88,7 +90,7 @@ export function NodesView() {
     <div className="max-w-2xl mx-auto py-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-medium">Nodes</h1>
+        <h1 className="text-xl font-medium">{t('nodes.title')}</h1>
         <div className="flex gap-2">
           <motion.button
             onClick={handlePingAll}
@@ -97,7 +99,7 @@ export function NodesView() {
             whileTap={{ scale: 0.95 }}
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            Test All
+            {t('nodes.test_all')}
           </motion.button>
           <motion.button
             onClick={() => setShowImport(!showImport)}
@@ -105,7 +107,7 @@ export function NodesView() {
             whileTap={{ scale: 0.95 }}
           >
             <Plus size={14} />
-            Import
+            {t('nodes.import')}
           </motion.button>
         </div>
       </div>
@@ -123,7 +125,7 @@ export function NodesView() {
               <textarea
                 value={importText}
                 onChange={(e) => setImportText(e.target.value)}
-                placeholder="Paste share links here (vmess://, vless://, trojan://, ss://, ...)&#10;One link per line"
+                placeholder={t('nodes.import_placeholder')}
                 className="w-full h-24 bg-muted rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-border"
               />
               <div className="flex justify-end gap-2 mt-2">
@@ -131,13 +133,13 @@ export function NodesView() {
                   onClick={() => { setShowImport(false); setImportText('') }}
                   className="px-3 py-1.5 text-sm rounded-lg text-muted-foreground hover:text-foreground"
                 >
-                  Cancel
+                  {t('nodes.cancel')}
                 </button>
                 <button
                   onClick={handleImport}
                   className="px-3 py-1.5 text-sm rounded-lg bg-primary text-primary-foreground hover:opacity-90"
                 >
-                  Import
+                  {t('nodes.import')}
                 </button>
               </div>
             </div>
@@ -155,8 +157,8 @@ export function NodesView() {
               className="text-center py-16 text-muted-foreground"
             >
               <Clipboard size={32} className="mx-auto mb-3 opacity-50" />
-              <p className="text-sm">No nodes yet</p>
-              <p className="text-xs mt-1">Import share links or add a subscription</p>
+              <p className="text-sm">{t('nodes.no_nodes')}</p>
+              <p className="text-xs mt-1">{t('nodes.import_hint')}</p>
             </motion.div>
           ) : (
             profiles.map((profile) => (
@@ -173,9 +175,7 @@ export function NodesView() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3 min-w-0">
-                    {/* Latency dot */}
                     <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getLatencyDot(profile.test_result)}`} />
-
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium truncate">{profile.name}</span>

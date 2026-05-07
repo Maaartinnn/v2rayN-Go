@@ -5,25 +5,28 @@ import { NodesView } from './components/NodesView'
 import { LogConsole } from './components/LogConsole'
 import { useWebSocket } from './lib/useWebSocket'
 import { useStore } from './store'
+import { useT } from './lib/i18n'
 import { motion, AnimatePresence } from 'framer-motion'
 
 function SettingsView() {
+  const t = useT()
   return (
     <div className="max-w-2xl mx-auto py-6">
-      <h1 className="text-xl font-medium mb-6">Settings</h1>
+      <h1 className="text-xl font-medium mb-6">{t('settings.title')}</h1>
       <div className="bg-card rounded-2xl border border-border p-6">
-        <p className="text-sm text-muted-foreground">Settings panel coming soon...</p>
+        <p className="text-sm text-muted-foreground">{t('settings.coming_soon')}</p>
       </div>
     </div>
   )
 }
 
 function UpdaterView() {
+  const t = useT()
   return (
     <div className="max-w-2xl mx-auto py-6">
-      <h1 className="text-xl font-medium mb-6">Core Manager</h1>
+      <h1 className="text-xl font-medium mb-6">{t('cores.title')}</h1>
       <div className="bg-card rounded-2xl border border-border p-6">
-        <p className="text-sm text-muted-foreground">Core download & update panel coming soon...</p>
+        <p className="text-sm text-muted-foreground">{t('cores.coming_soon')}</p>
       </div>
     </div>
   )

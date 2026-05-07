@@ -2,9 +2,11 @@ import { motion } from 'framer-motion'
 import { Power, Zap, ArrowUp, ArrowDown } from 'lucide-react'
 import { useStore } from '../store'
 import { coreApi } from '../lib/api'
+import { useT } from '../lib/i18n'
 
 export function HomeView() {
   const { isConnected, activeProfile, metrics } = useStore()
+  const t = useT()
 
   const handleToggle = async () => {
     try {
@@ -47,7 +49,7 @@ export function HomeView() {
             />
           </div>
           <span className="ml-3 text-sm text-muted-foreground">
-            {isConnected ? 'Connected' : 'Disconnected'}
+            {isConnected ? t('home.connected') : t('home.disconnected')}
           </span>
         </div>
 
@@ -70,7 +72,7 @@ export function HomeView() {
         {/* Current node info */}
         <div className="text-center mb-6">
           <p className="text-lg font-medium">
-            {activeProfile ? activeProfile.name : 'No node selected'}
+            {activeProfile ? activeProfile.name : t('home.no_node')}
           </p>
           {activeProfile && (
             <p className="text-sm text-muted-foreground mt-1">
@@ -89,14 +91,14 @@ export function HomeView() {
             <div className="flex items-center gap-2">
               <ArrowUp size={14} className="text-emerald" />
               <div>
-                <p className="text-xs text-muted-foreground">Upload</p>
+                <p className="text-xs text-muted-foreground">{t('home.upload')}</p>
                 <p className="text-sm font-medium">{formatBytes(metrics.upload_speed)}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <ArrowDown size={14} className="text-amber" />
               <div>
-                <p className="text-xs text-muted-foreground">Download</p>
+                <p className="text-xs text-muted-foreground">{t('home.download')}</p>
                 <p className="text-sm font-medium">{formatBytes(metrics.download_speed)}</p>
               </div>
             </div>
@@ -108,7 +110,7 @@ export function HomeView() {
           <div className="flex items-center justify-center gap-2 mt-4 pt-4 border-t border-border">
             <Zap size={14} className="text-muted-foreground" />
             <span className="text-sm text-muted-foreground">
-              Latency: {activeProfile.test_result}
+              {t('home.latency')}: {activeProfile.test_result}
             </span>
           </div>
         )}
