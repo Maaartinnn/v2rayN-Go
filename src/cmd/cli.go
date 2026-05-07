@@ -1,0 +1,92 @@
+package cmd
+
+import (
+	"fmt"
+	"log"
+	"os"
+
+	"v2rayn-go/config"
+	"v2rayn-go/service"
+)
+
+// Run 解析命令行参数并执行相应操作
+func Run(cfg *config.AppConfig) {
+	// 如果没有参数，直接以前台模式运行
+	if len(os.Args) < 2 {
+		if err := service.RunDirect(cfg); err != nil {
+			log.Fatalf("Failed to run: %v", err)
+		}
+		return
+	}
+
+	command := os.Args[1]
+
+	switch command {
+	case "install":
+		if err := service.InstallService(cfg); err != nil {
+			log.Fatalf("Failed to install service: %v", err)
+		}
+		fmt.Println("Service installed. Use 'v2rayN-Go start' to start it.")
+
+	case "uninstall":
+		if err := service.UninstallService(cfg); err != nil {
+			log.Fatalf("Failed to uninstall service: %v", err)
+		}
+		fmt.Println("Service uninstalled.")
+
+	case "start":
+		if err := service.StartService(cfg); err != nil {
+			log.Fatalf("Failed to start service: %v", err)
+		}
+		fmt.Println("Service started.")
+
+	case "stop":
+		if err := service.StopService(cfg); err != nil {
+			log.Fatalf("Failed to stop service: %v", err)
+		}
+		fmt.Println("Service stopped.")
+
+	case "restart":
+		if err := service.RestartService(cfg); err != nil {
+			log.Fatalf("Failed to restart service: %v", err)
+		}
+		fmt.Println("Service restarted.")
+
+	case "daemon":
+		// 以系统服务模式运行（由服务管理器调用）
+		if err := service.RunAsService(cfg); err != nil {
+			log.Fatalf("Failed to run as service: %v", err)
+		}
+
+	case "help", "--help", "-h":
+		printUsage()
+
+	default:
+		fmt.Printf("Unknown command: %s\n\n", command)
+		printUsage()
+		os.Exit(1)
+	}
+}
+
+func printUsage() {
+	fmt.Println(`v2rayN-Go - A lightweight proxy control center
+
+Usage:
+  v2rayN-Go [command]
+
+Commands:
+  (no args)     Run in foreground mode (for development/debugging)
+  install       Register as system service with auto-start
+  uninstall     Remove system service
+  start         Start the system service
+  stop          Stop the system service
+  restart       Restart the system service
+  daemon        Run as system service (called by service manager)
+  help          Show this help message
+
+Examples:
+  v2rayN-Go                # Run directly in foreground
+  v2rayN-Go install        # Install as system service
+  v2rayN-Go start          # Start the service
+  v2rayN-Go stop           # Stop the service`)
+}
