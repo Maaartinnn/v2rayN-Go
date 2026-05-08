@@ -22,6 +22,7 @@ type CoreType string
 const (
 	CoreTypeXray    CoreType = "xray"
 	CoreTypeSingBox CoreType = "sing-box"
+	CoreTypeMihomo  CoreType = "mihomo"
 )
 
 // CoreStatus 内核运行状态
@@ -48,6 +49,7 @@ type LogEntry struct {
 	Time    time.Time `json:"time"`
 	Level   string    `json:"level"`
 	Content string    `json:"content"`
+	Source  string    `json:"source"` // 日志来源: "system", "xray", "sing-box", "mihomo"
 }
 
 // CoreAdminManager 管理外部内核进程的生命周期
@@ -261,13 +263,27 @@ func (m *CoreAdminManager) LogChannel() <-chan LogEntry {
 	return m.logChan
 }
 
-// getCoreBinaryPath 获取内核可执行文件路径
+// getCoreSubDir 获取内核嵌套子目录名
+func getCoreSubDir(coreType CoreType) string {
+	switch coreType {
+	case CoreTypeXray:
+		return "xray"
+	case CoreTypeSingBox:
+		return "sing_box"
+	case CoreTypeMihomo:
+		return "mihomo"
+	default:
+		return string(coreType)
+	}
+}
+
+// getCoreBinaryPath 获取内核可执行文件路径 (bin/xray/xray.exe, bin/sing_box/sing-box.exe, bin/mihomo/mihomo.exe)
 func (m *CoreAdminManager) getCoreBinaryPath(coreType CoreType) string {
 	binName := string(coreType)
 	if runtime.GOOS == "windows" {
 		binName += ".exe"
 	}
-	return filepath.Join(m.cfg.BinDir, binName)
+	return filepath.Join(m.cfg.BinDir, getCoreSubDir(coreType), binName)
 }
 
 // buildCoreArgs 构建内核启动参数
@@ -277,6 +293,8 @@ func (m *CoreAdminManager) buildCoreArgs(coreType CoreType, configPath string) [
 		return []string{"run", "-config", configPath}
 	case CoreTypeSingBox:
 		return []string{"run", "-c", configPath}
+	case CoreTypeMihomo:
+		return []string{"-f", configPath}
 	default:
 		return []string{"run", "-config", configPath}
 	}
@@ -299,7 +317,8 @@ func (m *CoreAdminManager) emitLog(coreType CoreType, level, content string) {
 	entry := LogEntry{
 		Time:    time.Now(),
 		Level:   level,
-		Content: fmt.Sprintf("[%s] %s", coreType, content),
+		Content: content,
+		Source:  string(coreType),
 	}
 
 	select {

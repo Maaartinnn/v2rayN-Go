@@ -550,12 +550,27 @@ func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Determine binary name
+	// Determine binary name and nested directory
 	binName := coreName
 	if runtime.GOOS == "windows" {
 		binName += ".exe"
 	}
-	destPath := filepath.Join(s.cfg.BinDir, binName)
+	// Map core name to sub-directory
+	subDir := coreName
+	switch coreName {
+	case "xray":
+		subDir = "xray"
+	case "sing-box":
+		subDir = "sing_box"
+	case "mihomo":
+		subDir = "mihomo"
+	}
+	coreDir := filepath.Join(s.cfg.BinDir, subDir)
+	if err := os.MkdirAll(coreDir, 0755); err != nil {
+		jsonError(w, "Failed to create core directory: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	destPath := filepath.Join(coreDir, binName)
 
 	// Save uploaded file
 	dst, err := os.Create(destPath)

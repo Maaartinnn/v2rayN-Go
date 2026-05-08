@@ -24,6 +24,7 @@ export interface LogEntry {
   time: string
   level: string
   content: string
+  source: string // "system", "xray", "sing-box", "mihomo"
 }
 
 export interface Metrics {

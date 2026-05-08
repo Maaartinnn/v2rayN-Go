@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Wifi, WifiOff, RefreshCw, Trash2, Plus, Clipboard, Search, ScanLine, Layers } from 'lucide-react'
+import { Wifi, WifiOff, RefreshCw, Trash2, Plus, Clipboard, Search, ScanLine, Layers, PenLine } from 'lucide-react'
 import { useStore } from '../store'
 import type { Profile } from '../store'
 import { profileApi, profileEnhancedApi, groupsApi } from '../lib/api'
 import { useT } from '../lib/i18n'
+import { NodeEditForm } from './NodeEditForm'
 
 export function NodesView() {
   const { profiles, setProfiles, activeProfile, setActiveProfile } = useStore()
@@ -15,6 +16,7 @@ export function NodesView() {
   const [selectedGroup, setSelectedGroup] = useState<string>('')
   const [groups, setGroups] = useState<{ ID: number; name: string }[]>([])
   const [dedupResult, setDedupResult] = useState<string>('')
+  const [showManualAdd, setShowManualAdd] = useState(false)
   const t = useT()
 
   useEffect(() => {
@@ -155,6 +157,20 @@ export function NodesView() {
         </h1>
         <div className="flex gap-2">
           <motion.button
+            onClick={() => { setShowManualAdd(!showManualAdd); setShowImport(false) }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
+            style={{
+              backgroundColor: 'var(--color-muted)',
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-muted-foreground)',
+              fontFamily: 'var(--font-heading)',
+            }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <PenLine size={13} />
+            手动添加
+          </motion.button>
+          <motion.button
             onClick={handlePingAll}
             disabled={loading}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
@@ -281,6 +297,16 @@ export function NodesView() {
           >
             {dedupResult}
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Manual Add Form */}
+      <AnimatePresence>
+        {showManualAdd && (
+          <NodeEditForm
+            onClose={() => setShowManualAdd(false)}
+            onSaved={loadProfiles}
+          />
         )}
       </AnimatePresence>
 
