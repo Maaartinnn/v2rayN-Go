@@ -24,6 +24,7 @@ func Init(cfg *config.AppConfig) error {
 	if err := DB.AutoMigrate(
 		&Profile{},
 		&Subscription{},
+		&NodeGroup{},
 		&RoutingRule{},
 		&AppSetting{},
 	); err != nil {

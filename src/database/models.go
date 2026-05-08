@@ -46,9 +46,10 @@ type Profile struct {
 	SortOrder    int       `json:"sort_order"`                     // 排序顺序
 	IsActive     bool      `gorm:"default:false" json:"is_active"` // 是否为当前激活节点
 
-	// 订阅信息
+	// 订阅与分组信息
 	SubscriptionID uint   `json:"subscription_id"`            // 所属订阅 ID
-	GroupName      string `gorm:"size:256" json:"group_name"` // 分组名称
+	GroupID        uint   `json:"group_id"`                   // 所属分组 ID
+	GroupName      string `gorm:"size:256" json:"group_name"` // 分组名称（冗余字段，便于查询）
 }
 
 // Subscription 订阅源
@@ -64,8 +65,25 @@ type Subscription struct {
 	UpdateInterval int       `gorm:"default:86400" json:"update_interval"` // 更新间隔（秒）
 	LastUpdateTime time.Time `json:"last_update_time"`                     // 最后更新时间
 
+	// 请求设置
+	UserAgent string `gorm:"size:512" json:"user_agent"` // 自定义 User-Agent
+
+	// 分组
+	GroupID uint `json:"group_id"` // 所属分组 ID
+
 	// 订阅信息
-	UserInfo string `gorm:"type:text" json:"user_info"` // 用户信息（流量等）
+	UserInfo  string `gorm:"type:text" json:"user_info"` // 用户信息（流量等）
+	NodeCount int    `json:"node_count"`                 // 节点数量（计算字段）
+}
+
+// NodeGroup 节点分组
+type NodeGroup struct {
+	gorm.Model
+
+	Name        string `gorm:"size:256;uniqueIndex" json:"name"` // 分组名称
+	Description string `gorm:"size:512" json:"description"`      // 分组描述
+	SortOrder   int    `json:"sort_order"`                       // 排序顺序
+	Color       string `gorm:"size:32" json:"color"`             // 分组颜色标识
 }
 
 // RoutingRule 路由规则

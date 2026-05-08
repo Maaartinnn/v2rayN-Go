@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
@@ -57,6 +58,10 @@ func (s *Server) Start() error {
 
 	mux.HandleFunc("/api/subscriptions", s.handleSubscriptions)
 	mux.HandleFunc("/api/subscriptions/refresh-all", s.handleRefreshAll)
+
+	mux.HandleFunc("/api/groups", s.handleGroups)
+	mux.HandleFunc("/api/profiles/dedup", s.handleProfileDedup)
+	mux.HandleFunc("/api/profiles/import-image", s.handleProfileImportImage)
 
 	mux.HandleFunc("/api/settings", s.handleSettings)
 
@@ -285,6 +290,182 @@ func (s *Server) handleRefreshAll(w http.ResponseWriter, r *http.Request) {
 
 	go s.subSvc.UpdateAllSubscriptions()
 	jsonOK(w, map[string]string{"status": "refreshing"})
+}
+
+// ========== Groups API ==========
+
+func (s *Server) handleGroups(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		var groups []database.NodeGroup
+		database.DB.Order("sort_order ASC").Find(&groups)
+		jsonOK(w, groups)
+
+	case http.MethodPost:
+		var group database.NodeGroup
+		if err := json.NewDecoder(r.Body).Decode(&group); err != nil {
+			jsonError(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		if err := database.DB.Create(&group).Error; err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		jsonOK(w, group)
+
+	case http.MethodPut:
+		var group database.NodeGroup
+		if err := json.NewDecoder(r.Body).Decode(&group); err != nil {
+			jsonError(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		if group.ID == 0 {
+			jsonError(w, "Missing group ID", http.StatusBadRequest)
+			return
+		}
+		if err := database.DB.Save(&group).Error; err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		jsonOK(w, group)
+
+	case http.MethodDelete:
+		var req struct {
+			ID uint `json:"id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonError(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		// Clear group references from profiles
+		database.DB.Model(&database.Profile{}).Where("group_id = ?", req.ID).Updates(map[string]interface{}{"group_id": 0, "group_name": ""})
+		database.DB.Delete(&database.NodeGroup{}, req.ID)
+		jsonOK(w, map[string]string{"status": "deleted"})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// ========== Profile Dedup ==========
+
+func (s *Server) handleProfileDedup(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var profiles []database.Profile
+	database.DB.Order("sort_order ASC").Find(&profiles)
+
+	seen := make(map[string]bool)
+	var duplicates []uint
+
+	for _, p := range profiles {
+		// Create a unique key based on address + port + protocol
+		key := fmt.Sprintf("%s:%d:%s", p.Address, p.Port, p.Protocol)
+		if p.UUID != "" {
+			key += ":" + p.UUID
+		}
+		if seen[key] {
+			duplicates = append(duplicates, p.ID)
+		} else {
+			seen[key] = true
+		}
+	}
+
+	if len(duplicates) > 0 {
+		database.DB.Delete(&database.Profile{}, duplicates)
+	}
+
+	jsonOK(w, map[string]interface{}{
+		"removed": len(duplicates),
+		"total":   len(profiles),
+	})
+}
+
+// ========== Profile Import from Image ==========
+
+func (s *Server) handleProfileImportImage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse multipart form (max 10MB)
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		jsonError(w, "Failed to parse form: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var imageURL string
+
+	// Check for uploaded file
+	file, _, err := r.FormFile("image")
+	if err == nil {
+		defer file.Close()
+		// Read file bytes
+		data, err := io.ReadAll(file)
+		if err != nil {
+			jsonError(w, "Failed to read file", http.StatusInternalServerError)
+			return
+		}
+		// Try to decode QR from image bytes
+		links, decodeErr := parser.DecodeQRFromBytes(data)
+		if decodeErr != nil {
+			jsonError(w, "No QR code found in image: "+decodeErr.Error(), http.StatusBadRequest)
+			return
+		}
+		importParsedLinks(w, links)
+		return
+	}
+
+	// Check for image URL
+	imageURL = r.FormValue("url")
+	if imageURL == "" {
+		jsonError(w, "No image file or URL provided", http.StatusBadRequest)
+		return
+	}
+
+	// Download image from URL
+	resp, err := http.Get(imageURL)
+	if err != nil {
+		jsonError(w, "Failed to download image: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		jsonError(w, "Failed to read image data", http.StatusInternalServerError)
+		return
+	}
+
+	links, decodeErr := parser.DecodeQRFromBytes(data)
+	if decodeErr != nil {
+		jsonError(w, "No QR code found in image: "+decodeErr.Error(), http.StatusBadRequest)
+		return
+	}
+
+	importParsedLinks(w, links)
+}
+
+func importParsedLinks(w http.ResponseWriter, links []string) {
+	profiles, err := parser.ParseLinks(links)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var maxOrder int
+	database.DB.Model(&database.Profile{}).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
+
+	for i, profile := range profiles {
+		profile.SortOrder = maxOrder + i + 1
+		database.DB.Create(profile)
+	}
+
+	jsonOK(w, map[string]int{"imported": len(profiles)})
 }
 
 // ========== Settings API ==========
