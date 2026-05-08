@@ -38,6 +38,26 @@ export const subscriptionApi = {
   refreshAll: () => api.post('/subscriptions/refresh-all'),
 }
 
+// ========== Groups API ==========
+export const groupsApi = {
+  list: () => api.get('/groups'),
+  create: (data: { name: string; description?: string; color?: string }) =>
+    api.post('/groups', data),
+  update: (data: { ID: number; name: string; description?: string; color?: string }) =>
+    api.put('/groups', data),
+  delete: (id: number) => api.delete('/groups', { data: { id } }),
+}
+
+// ========== Profile Enhancements ==========
+export const profileEnhancedApi = {
+  dedup: () => api.post('/profiles/dedup'),
+  importImage: (formData: FormData) =>
+    api.post('/profiles/import-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
+    }),
+}
+
 // ========== Routing API ==========
 export const routingApi = {
   list: () => api.get('/routing-rules'),

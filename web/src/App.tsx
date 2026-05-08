@@ -4,6 +4,7 @@ import { HomeView } from './components/HomeView'
 import { NodesView } from './components/NodesView'
 import { LogConsole } from './components/LogConsole'
 import { SettingsView } from './components/SettingsView'
+import { SubscriptionsView } from './components/SubscriptionsView'
 import { useWebSocket } from './lib/useWebSocket'
 import { useStore } from './store'
 import { useT, initTheme } from './lib/i18n'
@@ -64,6 +65,7 @@ function RoutingView() {
 const views: { [key: string]: React.FC } = {
   home: HomeView,
   nodes: NodesView,
+  subscriptions: SubscriptionsView,
   logs: LogConsole,
   settings: SettingsView,
   updater: UpdaterView,
@@ -87,6 +89,7 @@ export default function App() {
   const viewTitles: Record<string, string> = {
     home: t('nav.home'),
     nodes: t('nav.nodes'),
+    subscriptions: t('subs.title'),
     logs: t('nav.logs'),
     settings: t('nav.settings'),
     updater: t('nav.cores'),

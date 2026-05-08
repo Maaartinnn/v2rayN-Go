@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Wifi, WifiOff, RefreshCw, Trash2, Plus, Clipboard, Search } from 'lucide-react'
+import { Wifi, WifiOff, RefreshCw, Trash2, Plus, Clipboard, Search, ScanLine, Layers } from 'lucide-react'
 import { useStore } from '../store'
 import type { Profile } from '../store'
-import { profileApi } from '../lib/api'
+import { profileApi, profileEnhancedApi, groupsApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 
 export function NodesView() {
@@ -12,10 +12,14 @@ export function NodesView() {
   const [importText, setImportText] = useState('')
   const [showImport, setShowImport] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedGroup, setSelectedGroup] = useState<string>('')
+  const [groups, setGroups] = useState<{ ID: number; name: string }[]>([])
+  const [dedupResult, setDedupResult] = useState<string>('')
   const t = useT()
 
   useEffect(() => {
     loadProfiles()
+    loadGroups()
   }, [])
 
   const loadProfiles = async () => {
@@ -87,15 +91,56 @@ export function NodesView() {
     return 'var(--color-error)'
   }
 
+  const loadGroups = async () => {
+    try {
+      const res = await groupsApi.list()
+      setGroups(res.data || [])
+    } catch {
+      setGroups([])
+    }
+  }
+
+  const handleDedup = async () => {
+    try {
+      const res = await profileEnhancedApi.dedup()
+      const data = res.data
+      setDedupResult(`Removed ${data.removed} duplicates from ${data.total} nodes`)
+      setTimeout(() => setDedupResult(''), 5000)
+      await loadProfiles()
+    } catch (err) {
+      console.error('Dedup failed:', err)
+    }
+  }
+
+  const handleImageImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const formData = new FormData()
+    formData.append('image', file)
+    try {
+      const res = await profileEnhancedApi.importImage(formData)
+      if (res.data.imported > 0) {
+        await loadProfiles()
+      }
+    } catch (err) {
+      console.error('Image import failed:', err)
+    }
+    // Reset input
+    e.target.value = ''
+  }
+
   const filteredProfiles = profiles.filter((p) => {
-    if (!searchQuery) return true
-    const q = searchQuery.toLowerCase()
-    return (
-      p.name.toLowerCase().includes(q) ||
-      p.address.toLowerCase().includes(q) ||
-      p.protocol.toLowerCase().includes(q) ||
-      p.group_name.toLowerCase().includes(q)
-    )
+    const matchesSearch = !searchQuery || (() => {
+      const q = searchQuery.toLowerCase()
+      return (
+        p.name.toLowerCase().includes(q) ||
+        p.address.toLowerCase().includes(q) ||
+        p.protocol.toLowerCase().includes(q) ||
+        p.group_name.toLowerCase().includes(q)
+      )
+    })()
+    const matchesGroup = !selectedGroup || p.group_name === selectedGroup
+    return matchesSearch && matchesGroup
   })
 
   return (
@@ -141,27 +186,103 @@ export function NodesView() {
         </div>
       </div>
 
-      {/* Search bar */}
-      <div className="relative mb-4">
-        <Search
-          size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2"
-          style={{ color: 'var(--color-text-muted)' }}
-        />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder={t('common.search') + '...'}
-          className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border"
+      {/* Toolbar: search + group filter + actions */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="relative flex-1">
+          <Search
+            size={14}
+            className="absolute left-3 top-1/2 -translate-y-1/2"
+            style={{ color: 'var(--color-text-muted)' }}
+          />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('common.search') + '...'}
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border"
+            style={{
+              backgroundColor: 'var(--color-overlay)',
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-foreground)',
+              fontFamily: 'var(--font-heading)',
+            }}
+          />
+        </div>
+        {/* Group filter */}
+        {groups.length > 0 && (
+          <select
+            value={selectedGroup}
+            onChange={(e) => setSelectedGroup(e.target.value)}
+            className="px-3 py-2 text-xs rounded-lg border cursor-pointer"
+            style={{
+              backgroundColor: 'var(--color-overlay)',
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-foreground)',
+              fontFamily: 'var(--font-heading)',
+            }}
+          >
+            <option value="">{t('nodes.all_groups')}</option>
+            {groups.map((g) => (
+              <option key={g.ID} value={g.name}>{g.name}</option>
+            ))}
+          </select>
+        )}
+        {/* Dedup button */}
+        <motion.button
+          onClick={handleDedup}
+          className="flex items-center gap-1 px-2.5 py-2 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
           style={{
-            backgroundColor: 'var(--color-overlay)',
+            backgroundColor: 'var(--color-muted)',
             borderColor: 'var(--color-border)',
-            color: 'var(--color-foreground)',
+            color: 'var(--color-muted-foreground)',
             fontFamily: 'var(--font-heading)',
           }}
-        />
+          whileTap={{ scale: 0.95 }}
+          title={t('nodes.dedup')}
+        >
+          <Layers size={13} />
+        </motion.button>
+        {/* QR Image import */}
+        <motion.button
+          onClick={() => {
+            const input = document.createElement('input')
+            input.type = 'file'
+            input.accept = 'image/*'
+            input.onchange = (e) => handleImageImport(e as unknown as React.ChangeEvent<HTMLInputElement>)
+            input.click()
+          }}
+          className="flex items-center gap-1 px-2.5 py-2 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
+          style={{
+            backgroundColor: 'var(--color-muted)',
+            borderColor: 'var(--color-border)',
+            color: 'var(--color-muted-foreground)',
+            fontFamily: 'var(--font-heading)',
+          }}
+          whileTap={{ scale: 0.95 }}
+          title={t('nodes.import_qr')}
+        >
+          <ScanLine size={13} />
+        </motion.button>
       </div>
+
+      {/* Dedup result toast */}
+      <AnimatePresence>
+        {dedupResult && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="mb-3 px-4 py-2 rounded-lg text-xs font-medium"
+            style={{
+              backgroundColor: 'var(--color-success-dim)',
+              color: 'var(--color-success)',
+              fontFamily: 'var(--font-heading)',
+            }}
+          >
+            {dedupResult}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Import panel */}
       <AnimatePresence>

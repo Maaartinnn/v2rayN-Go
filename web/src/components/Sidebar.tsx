@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { Home, Server, FileText, Settings, Download, Route, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Home, Server, FileText, Settings, Download, Route, Link, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useStore } from '../store'
 import { useT } from '../lib/i18n'
 
@@ -15,6 +15,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const navItems = [
     { id: 'home', icon: Home, label: t('nav.home') },
     { id: 'nodes', icon: Server, label: t('nav.nodes') },
+    { id: 'subscriptions', icon: Link, label: t('subs.title') },
     { id: 'routing', icon: Route, label: t('nav.routing') },
     { id: 'updater', icon: Download, label: t('nav.cores') },
     { id: 'logs', icon: FileText, label: t('nav.logs') },
