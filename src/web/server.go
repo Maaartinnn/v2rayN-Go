@@ -72,6 +72,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/groups", s.handleGroups)
 
 	mux.HandleFunc("/api/cores", s.handleCores)
+	mux.HandleFunc("/api/cores/download-url", s.handleCoreDownloadURL)
 	mux.HandleFunc("/api/cores/download", s.handleCoreDownload)
 	mux.HandleFunc("/api/cores/upload", s.handleCoreUpload)
 
@@ -523,6 +524,39 @@ func (s *Server) handleCoreDownload(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	jsonOK(w, map[string]string{"status": "downloading", "core": req.CoreName})
+}
+
+func (s *Server) handleCoreDownloadURL(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		CoreName    string `json:"core_name"`
+		DownloadURL string `json:"download_url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if req.CoreName == "" {
+		jsonError(w, "Missing core_name", http.StatusBadRequest)
+		return
+	}
+	if req.DownloadURL == "" {
+		jsonError(w, "Missing download_url", http.StatusBadRequest)
+		return
+	}
+
+	go func() {
+		if err := s.updater.DownloadCoreFromURL(req.CoreName, req.DownloadURL, nil); err != nil {
+			log.Printf("Failed to download core %s from URL: %v", req.CoreName, err)
+		}
+	}()
+
+	jsonOK(w, map[string]string{"status": "downloading", "core": req.CoreName, "url": req.DownloadURL})
 }
 
 func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {

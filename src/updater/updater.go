@@ -215,9 +215,84 @@ func (u *Updater) DownloadCore(coreName string, progressFn func(downloaded, tota
 	return nil
 }
 
+// DownloadCoreFromURL 从自定义 URL 下载内核
+func (u *Updater) DownloadCoreFromURL(coreName, downloadURL string, progressFn func(downloaded, total int64)) error {
+	cores := u.GetSupportedCores()
+	var coreInfo *CoreInfo
+	for i := range cores {
+		if cores[i].Name == coreName {
+			coreInfo = &cores[i]
+			break
+		}
+	}
+	if coreInfo == nil {
+		return fmt.Errorf("unsupported core: %s", coreName)
+	}
+
+	// 确保内核子目录存在
+	coreDir := filepath.Join(u.cfg.BinDir, coreInfo.SubDir)
+	if err := os.MkdirAll(coreDir, 0755); err != nil {
+		return fmt.Errorf("failed to create core directory: %w", err)
+	}
+
+	log.Printf("Downloading %s from custom URL: %s", coreName, downloadURL)
+
+	// 下载到临时文件
+	tmpFile, err := os.CreateTemp("", "v2rayn-core-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	tmpFile.Close()
+	defer os.Remove(tmpPath)
+
+	if err := u.downloadFile(downloadURL, tmpPath, progressFn); err != nil {
+		return fmt.Errorf("failed to download: %w", err)
+	}
+
+	// 解压到内核子目录
+	binPath := filepath.Join(coreDir, coreInfo.BinaryName)
+	if err := u.extractBinary(tmpPath, downloadURL, binPath, coreInfo.BinaryName); err != nil {
+		return fmt.Errorf("failed to extract: %w", err)
+	}
+
+	// Linux/macOS 添加执行权限
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(binPath, 0755); err != nil {
+			return fmt.Errorf("failed to set executable permission: %w", err)
+		}
+	}
+
+	log.Printf("Successfully downloaded %s from custom URL to %s", coreName, binPath)
+	return nil
+}
+
+// getBaseURL 获取 GitHub API 基础 URL（支持镜像）
+func (u *Updater) getBaseURL() string {
+	if u.cfg.GitHubMirror != "" {
+		mirror := strings.TrimRight(u.cfg.GitHubMirror, "/")
+		// 如果镜像 URL 不包含 /api/ 路径，添加它
+		if !strings.Contains(mirror, "/api/") {
+			return mirror + "/api"
+		}
+		return mirror
+	}
+	return "https://api.github.com"
+}
+
+// getDownloadBaseURL 获取下载基础 URL（支持镜像加速）
+func (u *Updater) getDownloadBaseURL(originalURL string) string {
+	if u.cfg.GitHubMirror != "" {
+		mirror := strings.TrimRight(u.cfg.GitHubMirror, "/")
+		// 替换 github.com 为镜像地址
+		return strings.Replace(originalURL, "https://github.com", mirror, 1)
+	}
+	return originalURL
+}
+
 // getLatestRelease 获取 GitHub 仓库的最新 release
 func (u *Updater) getLatestRelease(repo string) (*GitHubRelease, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repo)
+	url := fmt.Sprintf("%s/repos/%s/releases/latest", u.getBaseURL(), repo)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -320,7 +395,7 @@ func (u *Updater) findAssetURL(assets []GitHubAsset, coreName string) (string, e
 			continue
 		}
 
-		return asset.BrowserDownloadURL, nil
+		return u.getDownloadBaseURL(asset.BrowserDownloadURL), nil
 	}
 
 	return "", fmt.Errorf("no matching asset found for %s/%s (core: %s)", osName, archName, coreName)

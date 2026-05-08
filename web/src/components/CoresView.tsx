@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
-import { Download, Upload, Loader2, HardDrive } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Download, Upload, Loader2, HardDrive, Link, X } from 'lucide-react'
 import { coresApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 
@@ -11,12 +11,15 @@ interface CoreInfo {
   version: string
   latest_version: string
   binary_name: string
+  sub_dir: string
 }
 
 export function CoresView() {
   const [cores, setCores] = useState<CoreInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState<string>('')
+  const [customUrlCore, setCustomUrlCore] = useState<string>('')
+  const [customUrl, setCustomUrl] = useState('')
   const t = useT()
 
   useEffect(() => {
@@ -45,6 +48,23 @@ export function CoresView() {
       }, 5000)
     } catch (err) {
       console.error('Download failed:', err)
+      setDownloading('')
+    }
+  }
+
+  const handleCustomUrlDownload = async () => {
+    if (!customUrlCore || !customUrl.trim()) return
+    setDownloading(customUrlCore)
+    try {
+      await coresApi.downloadUrl(customUrlCore, customUrl.trim())
+      setCustomUrlCore('')
+      setCustomUrl('')
+      setTimeout(async () => {
+        await loadCores()
+        setDownloading('')
+      }, 5000)
+    } catch (err) {
+      console.error('Custom URL download failed:', err)
       setDownloading('')
     }
   }
@@ -161,6 +181,25 @@ export function CoresView() {
 
                 {/* Actions */}
                 <div className="flex items-center gap-2">
+                  {/* Custom URL button */}
+                  <motion.button
+                    onClick={() => {
+                      setCustomUrlCore(customUrlCore === core.name ? '' : core.name)
+                      setCustomUrl('')
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
+                    style={{
+                      backgroundColor: customUrlCore === core.name ? 'var(--color-accent-dim)' : 'var(--color-muted)',
+                      borderColor: customUrlCore === core.name ? 'var(--color-primary)' : 'var(--color-border)',
+                      color: customUrlCore === core.name ? 'var(--color-accent-warm)' : 'var(--color-muted-foreground)',
+                      fontFamily: 'var(--font-heading)',
+                    }}
+                    whileTap={{ scale: 0.95 }}
+                    title={t('cores.download_custom')}
+                  >
+                    <Link size={13} />
+                  </motion.button>
+
                   {/* Upload button */}
                   <motion.button
                     onClick={() => handleUpload(core.name)}
@@ -200,6 +239,59 @@ export function CoresView() {
                   </motion.button>
                 </div>
               </div>
+
+              {/* Custom URL input */}
+              <AnimatePresence>
+                {customUrlCore === core.name && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="flex items-center gap-2 mt-4 pt-4 border-t" style={{ borderColor: 'var(--color-border-subtle)' }}>
+                      <input
+                        type="text"
+                        value={customUrl}
+                        onChange={(e) => setCustomUrl(e.target.value)}
+                        placeholder="https://mirror.example.com/releases/download/v1.0.0/xray-windows-64.zip"
+                        className="flex-1 px-3 py-2 text-xs rounded-lg border"
+                        style={{
+                          backgroundColor: 'var(--color-overlay)',
+                          borderColor: 'var(--color-border)',
+                          color: 'var(--color-foreground)',
+                          fontFamily: 'var(--font-mono)',
+                        }}
+                      />
+                      <motion.button
+                        onClick={handleCustomUrlDownload}
+                        disabled={!customUrl.trim() || downloading === core.name}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                        style={{
+                          backgroundColor: 'var(--color-primary)',
+                          color: 'var(--color-primary-foreground)',
+                          fontFamily: 'var(--font-heading)',
+                        }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        {downloading === core.name ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <Download size={13} />
+                        )}
+                        {t('cores.download_custom')}
+                      </motion.button>
+                      <button
+                        onClick={() => { setCustomUrlCore(''); setCustomUrl('') }}
+                        className="p-2 rounded-md transition-colors cursor-pointer"
+                        style={{ color: 'var(--color-text-muted)' }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           ))}
         </div>

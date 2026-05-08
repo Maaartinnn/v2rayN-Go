@@ -70,6 +70,8 @@ export const routingApi = {
 export const coresApi = {
   list: () => api.get('/cores'),
   download: (coreName: string) => api.post('/cores/download', { core_name: coreName }),
+  downloadUrl: (coreName: string, downloadUrl: string) =>
+    api.post('/cores/download-url', { core_name: coreName, download_url: downloadUrl }),
   upload: (formData: FormData) =>
     api.post('/cores/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

@@ -32,6 +32,10 @@ func ParseLink(link string) (*database.Profile, error) {
 		return parseHysteria(link)
 	case strings.HasPrefix(link, "tuic://"):
 		return parseTuic(link)
+	case strings.HasPrefix(link, "wireguard://") || strings.HasPrefix(link, "wg://"):
+		return parseWireGuard(link)
+	case strings.HasPrefix(link, "anytls://"):
+		return parseAnytls(link)
 	default:
 		return nil, fmt.Errorf("unsupported protocol: %s", link[:min(len(link), 20)])
 	}

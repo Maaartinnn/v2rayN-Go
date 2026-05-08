@@ -222,6 +222,36 @@ func buildSingboxOutbound(p *database.Profile) (*SingboxOutbound, error) {
 		outbound.UUID = p.UUID
 		outbound.Password = p.Security
 
+	case "wireguard":
+		outbound.Type = "wireguard"
+		outbound.Server = p.Address
+		outbound.ServerPort = p.Port
+		outbound.UUID = p.UUID     // Private key
+		outbound.Password = p.Host // Interface address (e.g. 10.0.0.2/32)
+		// PublicKey and Reserved stored in extra fields
+		outbound.Security = p.PublicKey // Reuse Security field for public_key
+		outbound.Network = p.Path       // Reuse Network field for reserved bytes
+
+	case "anytls":
+		outbound.Type = "anytls"
+		outbound.Server = p.Address
+		outbound.ServerPort = p.Port
+		outbound.Password = p.UUID
+
+	case "socks":
+		outbound.Type = "socks"
+		outbound.Server = p.Address
+		outbound.ServerPort = p.Port
+		outbound.UUID = p.UUID         // Username
+		outbound.Password = p.Security // Password (reuse Security field)
+
+	case "http":
+		outbound.Type = "http"
+		outbound.Server = p.Address
+		outbound.ServerPort = p.Port
+		outbound.UUID = p.UUID         // Username
+		outbound.Password = p.Security // Password (reuse Security field)
+
 	default:
 		return nil, fmt.Errorf("unsupported protocol for sing-box: %s", p.Protocol)
 	}

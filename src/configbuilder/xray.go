@@ -312,6 +312,30 @@ func buildXrayOutbound(p *database.Profile) (*XrayOutbound, error) {
 			},
 		}
 
+	case "socks":
+		outbound.Protocol = "socks"
+		outbound.Settings = &XrayOutboundSettings{
+			Servers: []XrayServer{
+				{
+					Address:  p.Address,
+					Port:     p.Port,
+					Password: p.UUID,
+				},
+			},
+		}
+
+	case "http":
+		outbound.Protocol = "http"
+		outbound.Settings = &XrayOutboundSettings{
+			Servers: []XrayServer{
+				{
+					Address:  p.Address,
+					Port:     p.Port,
+					Password: p.UUID,
+				},
+			},
+		}
+
 	default:
 		return nil, fmt.Errorf("unsupported protocol for xray: %s", p.Protocol)
 	}
