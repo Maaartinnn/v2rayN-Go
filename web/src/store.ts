@@ -34,6 +34,15 @@ export interface Metrics {
   download_total: number
 }
 
+export interface DownloadProgress {
+  core_name: string
+  downloaded: number
+  total: number
+  percentage: number
+  status: string // "downloading", "complete", "error"
+  error?: string
+}
+
 interface AppState {
   // Core
   isConnected: boolean
@@ -50,6 +59,16 @@ interface AppState {
   // Metrics
   metrics: Metrics
   setMetrics: (m: Partial<Metrics>) => void
+
+  // Download progress
+  downloadProgress: Record<string, DownloadProgress>
+  setDownloadProgress: (coreName: string, progress: DownloadProgress) => void
+  clearDownloadProgress: (coreName: string) => void
+
+  // Toast notifications
+  toasts: Array<{ id: number; message: string; type: 'success' | 'error' | 'info' }>
+  addToast: (message: string, type: 'success' | 'error' | 'info') => void
+  removeToast: (id: number) => void
 
   // Logs
   logs: LogEntry[]
@@ -80,6 +99,34 @@ export const useStore = create<AppState>((set) => ({
   // Metrics
   metrics: { upload_speed: 0, download_speed: 0, upload_total: 0, download_total: 0 },
   setMetrics: (m) => set((state) => ({ metrics: { ...state.metrics, ...m } })),
+
+  // Download progress
+  downloadProgress: {},
+  setDownloadProgress: (coreName, progress) => set((state) => ({
+    downloadProgress: { ...state.downloadProgress, [coreName]: progress },
+  })),
+  clearDownloadProgress: (coreName) => set((state) => {
+    const { [coreName]: _, ...rest } = state.downloadProgress
+    return { downloadProgress: rest }
+  }),
+
+  // Toast notifications
+  toasts: [],
+  addToast: (message, type) => {
+    const id = Date.now()
+    set((state) => ({
+      toasts: [...state.toasts, { id, message, type }],
+    }))
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+      set((state) => ({
+        toasts: state.toasts.filter((t) => t.id !== id),
+      }))
+    }, 5000)
+  },
+  removeToast: (id) => set((state) => ({
+    toasts: state.toasts.filter((t) => t.id !== id),
+  })),
 
   // Logs
   logs: [],

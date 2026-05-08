@@ -105,6 +105,9 @@ const enUS = {
   'cores.download_custom': 'Custom URL',
   'cores.download_upload': 'Upload Binary',
   'cores.latest': 'Latest',
+  'cores.has_update': 'Update Available',
+  'cores.upload_binary': 'Upload Binary',
+  'cores.upload_archive': 'Upload Archive',
 
   // Routing
   'routing.title': 'Routing Rules',

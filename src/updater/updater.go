@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -151,7 +152,92 @@ func (u *Updater) CheckAllUpdates() []CoreInfo {
 	return cores
 }
 
-// DownloadCore 下载指定内核的最新版本
+// GetLocalCores 获取所有内核的本地信息（不访问网络）
+func (u *Updater) GetLocalCores() []CoreInfo {
+	cores := u.GetSupportedCores()
+	for i := range cores {
+		binPath := filepath.Join(u.cfg.BinDir, cores[i].SubDir, cores[i].BinaryName)
+		if _, err := os.Stat(binPath); err == nil {
+			cores[i].Version = u.GetInstalledVersion(cores[i].Name)
+		}
+	}
+	return cores
+}
+
+// GetInstalledVersion 获取已安装内核的版本号
+func (u *Updater) GetInstalledVersion(coreName string) string {
+	cores := u.GetSupportedCores()
+	var coreInfo *CoreInfo
+	for i := range cores {
+		if cores[i].Name == coreName {
+			coreInfo = &cores[i]
+			break
+		}
+	}
+	if coreInfo == nil {
+		return ""
+	}
+
+	binPath := filepath.Join(u.cfg.BinDir, coreInfo.SubDir, coreInfo.BinaryName)
+	if _, err := os.Stat(binPath); err != nil {
+		return ""
+	}
+
+	// 尝试通过执行 --version / version / -v 获取版本号
+	versionArgs := [][]string{
+		{"version"},
+		{"--version"},
+		{"-v"},
+		{"-version"},
+	}
+
+	for _, args := range versionArgs {
+		cmd := exec.Command(binPath, args...)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			continue
+		}
+		version := parseVersionFromOutput(string(output))
+		if version != "" {
+			return version
+		}
+	}
+
+	// 无法获取版本号，返回 "installed"
+	return "installed"
+}
+
+// parseVersionFromOutput 从命令输出中解析版本号
+func parseVersionFromOutput(output string) string {
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// 查找 v 开头的版本号，如 v1.8.0, v26.3.27
+		idx := strings.Index(line, "v")
+		if idx >= 0 {
+			// 从 v 开始提取版本号（数字和点）
+			versionStart := idx
+			versionEnd := versionStart + 1
+			for versionEnd < len(line) {
+				c := line[versionEnd]
+				if (c >= '0' && c <= '9') || c == '.' {
+					versionEnd++
+				} else {
+					break
+				}
+			}
+			if versionEnd > versionStart+1 {
+				return line[versionStart:versionEnd]
+			}
+		}
+	}
+	return ""
+}
+
+// DownloadCore 下载指定内核的最新版本（支持镜像降级）
 func (u *Updater) DownloadCore(coreName string, progressFn func(downloaded, total int64)) error {
 	cores := u.GetSupportedCores()
 	var coreInfo *CoreInfo
@@ -171,7 +257,7 @@ func (u *Updater) DownloadCore(coreName string, progressFn func(downloaded, tota
 		return fmt.Errorf("failed to create core directory: %w", err)
 	}
 
-	// 获取最新 release
+	// 获取最新 release（已支持镜像降级）
 	release, err := u.getLatestRelease(coreInfo.Repo)
 	if err != nil {
 		return fmt.Errorf("failed to get latest release: %w", err)
@@ -183,9 +269,17 @@ func (u *Updater) DownloadCore(coreName string, progressFn func(downloaded, tota
 		return fmt.Errorf("failed to find asset: %w", err)
 	}
 
-	log.Printf("Downloading %s from %s", coreName, downloadURL)
+	// 构建候选下载 URL（镜像 + 原始）
+	originalURL := ""
+	for _, asset := range release.Assets {
+		if strings.EqualFold(asset.Name, filepath.Base(downloadURL)) ||
+			strings.Contains(asset.BrowserDownloadURL, filepath.Base(downloadURL)) {
+			originalURL = asset.BrowserDownloadURL
+			break
+		}
+	}
 
-	// 下载到临时文件
+	// 尝试下载，支持降级
 	tmpFile, err := os.CreateTemp("", "v2rayn-core-*.tmp")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
@@ -194,13 +288,20 @@ func (u *Updater) DownloadCore(coreName string, progressFn func(downloaded, tota
 	tmpFile.Close()
 	defer os.Remove(tmpPath)
 
-	if err := u.downloadFile(downloadURL, tmpPath, progressFn); err != nil {
-		return fmt.Errorf("failed to download: %w", err)
+	downloadErr := u.downloadFile(downloadURL, tmpPath, progressFn)
+	if downloadErr != nil && originalURL != "" && originalURL != downloadURL {
+		log.Printf("Mirror download failed for %s: %v, trying original URL...", coreName, downloadErr)
+		// 清空临时文件重新下载
+		os.Remove(tmpPath)
+		downloadErr = u.downloadFile(originalURL, tmpPath, progressFn)
+	}
+	if downloadErr != nil {
+		return fmt.Errorf("failed to download: %w", downloadErr)
 	}
 
 	// 解压到内核子目录
 	binPath := filepath.Join(coreDir, coreInfo.BinaryName)
-	if err := u.extractBinary(tmpPath, downloadURL, binPath, coreInfo.BinaryName); err != nil {
+	if err := u.ExtractBinary(tmpPath, downloadURL, binPath, coreInfo.BinaryName); err != nil {
 		return fmt.Errorf("failed to extract: %w", err)
 	}
 
@@ -252,7 +353,7 @@ func (u *Updater) DownloadCoreFromURL(coreName, downloadURL string, progressFn f
 
 	// 解压到内核子目录
 	binPath := filepath.Join(coreDir, coreInfo.BinaryName)
-	if err := u.extractBinary(tmpPath, downloadURL, binPath, coreInfo.BinaryName); err != nil {
+	if err := u.ExtractBinary(tmpPath, downloadURL, binPath, coreInfo.BinaryName); err != nil {
 		return fmt.Errorf("failed to extract: %w", err)
 	}
 
@@ -290,10 +391,42 @@ func (u *Updater) getDownloadBaseURL(originalURL string) string {
 	return originalURL
 }
 
-// getLatestRelease 获取 GitHub 仓库的最新 release
+// getLatestRelease 获取 GitHub 仓库的最新 release（支持镜像降级）
 func (u *Updater) getLatestRelease(repo string) (*GitHubRelease, error) {
-	url := fmt.Sprintf("%s/repos/%s/releases/latest", u.getBaseURL(), repo)
+	// 构建候选 URL 列表：优先镜像，降级原站
+	var candidateURLs []string
+	mirrorBase := u.getBaseURL()
+	originalBase := "https://api.github.com"
 
+	primaryURL := fmt.Sprintf("%s/repos/%s/releases/latest", mirrorBase, repo)
+	candidateURLs = append(candidateURLs, primaryURL)
+
+	// 如果镜像不同于原站，添加原站作为降级
+	originalURL := fmt.Sprintf("%s/repos/%s/releases/latest", originalBase, repo)
+	if primaryURL != originalURL {
+		candidateURLs = append(candidateURLs, originalURL)
+	}
+
+	var lastErr error
+	for i, url := range candidateURLs {
+		release, err := u.fetchRelease(url)
+		if err == nil {
+			if i > 0 {
+				log.Printf("GitHub mirror failed, fallback to original succeeded for %s", repo)
+			}
+			return release, nil
+		}
+		lastErr = err
+		if i == 0 && len(candidateURLs) > 1 {
+			log.Printf("GitHub mirror request failed for %s: %v, trying original...", repo, err)
+		}
+	}
+
+	return nil, fmt.Errorf("all GitHub API endpoints failed for %s: %w", repo, lastErr)
+}
+
+// fetchRelease 从指定 URL 获取 release 信息
+func (u *Updater) fetchRelease(url string) (*GitHubRelease, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -308,7 +441,7 @@ func (u *Updater) getLatestRelease(repo string) (*GitHubRelease, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned %d", resp.StatusCode)
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
 	var release GitHubRelease
@@ -401,8 +534,8 @@ func (u *Updater) findAssetURL(assets []GitHubAsset, coreName string) (string, e
 	return "", fmt.Errorf("no matching asset found for %s/%s (core: %s)", osName, archName, coreName)
 }
 
-// extractBinary 从压缩包中提取可执行文件到目标路径
-func (u *Updater) extractBinary(archivePath, downloadURL, destPath, binaryName string) error {
+// ExtractBinary 从压缩包中提取可执行文件到目标路径（公开方法，供外部调用）
+func (u *Updater) ExtractBinary(archivePath, downloadURL, destPath, binaryName string) error {
 	if strings.HasSuffix(downloadURL, ".zip") || strings.HasSuffix(strings.ToLower(downloadURL), ".zip") {
 		return extractFromZip(archivePath, destPath, binaryName)
 	}

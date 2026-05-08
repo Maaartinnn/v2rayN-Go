@@ -78,6 +78,7 @@ export const routingApi = {
 // ========== Core Hub API ==========
 export const coresApi = {
   list: () => api.get('/cores'),
+  checkUpdates: () => api.get('/cores/check-updates'),
   download: (coreName: string) => api.post('/cores/download', { core_name: coreName }),
   downloadUrl: (coreName: string, downloadUrl: string) =>
     api.post('/cores/download-url', { core_name: coreName, download_url: downloadUrl }),

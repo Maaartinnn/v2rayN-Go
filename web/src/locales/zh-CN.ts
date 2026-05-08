@@ -105,6 +105,9 @@ const zhCN = {
   'cores.download_custom': '自定义 URL',
   'cores.download_upload': '上传二进制',
   'cores.latest': '最新版',
+  'cores.has_update': '有更新',
+  'cores.upload_binary': '上传二进制',
+  'cores.upload_archive': '上传压缩包',
 
   // 路由
   'routing.title': '路由规则',

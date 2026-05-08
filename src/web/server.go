@@ -44,15 +44,26 @@ func (w *wsConn) Close() error {
 	return w.conn.Close()
 }
 
+// downloadState 下载状态
+type downloadState struct {
+	CoreName   string `json:"core_name"`
+	Downloaded int64  `json:"downloaded"`
+	Total      int64  `json:"total"`
+	Percentage int    `json:"percentage"`
+	Status     string `json:"status"` // "downloading", "complete", "error"
+	Error      string `json:"error,omitempty"`
+}
+
 // Server Web 服务器
 type Server struct {
-	cfg       *config.AppConfig
-	coreMgr   *core.CoreAdminManager
-	subSvc    *subscription.Service
-	pingSvc   *subscription.PingService
-	updater   *updater.Updater
-	upgrader  websocket.Upgrader
-	wsClients sync.Map
+	cfg             *config.AppConfig
+	coreMgr         *core.CoreAdminManager
+	subSvc          *subscription.Service
+	pingSvc         *subscription.PingService
+	updater         *updater.Updater
+	upgrader        websocket.Upgrader
+	wsClients       sync.Map
+	activeDownloads sync.Map // map[string]*downloadState
 }
 
 // NewServer 创建 Web 服务器
@@ -94,6 +105,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/strategy-groups", s.handleStrategyGroups)
 
 	mux.HandleFunc("/api/cores", s.handleCores)
+	mux.HandleFunc("/api/cores/check-updates", s.handleCoresCheckUpdates)
 	mux.HandleFunc("/api/cores/download-url", s.handleCoreDownloadURL)
 	mux.HandleFunc("/api/cores/download", s.handleCoreDownload)
 	mux.HandleFunc("/api/cores/upload", s.handleCoreUpload)
@@ -529,8 +541,28 @@ func (s *Server) handleCores(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cores := s.updater.CheckAllUpdates()
+	// 只返回本地信息，不访问网络，毫秒级响应
+	cores := s.updater.GetLocalCores()
 	jsonOK(w, cores)
+}
+
+func (s *Server) handleCoresCheckUpdates(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 检查所有内核的最新版本（访问 GitHub API，支持镜像降级）
+	cores := s.updater.CheckAllUpdates()
+	latestVersions := make(map[string]string)
+	for _, c := range cores {
+		if c.LatestVer != "" {
+			latestVersions[c.Name] = c.LatestVer
+		}
+	}
+	jsonOK(w, map[string]interface{}{
+		"latest_versions": latestVersions,
+	})
 }
 
 func (s *Server) handleCoreDownload(w http.ResponseWriter, r *http.Request) {
@@ -552,9 +584,46 @@ func (s *Server) handleCoreDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 检查是否已在下载中
+	if _, exists := s.activeDownloads.Load(req.CoreName); exists {
+		jsonError(w, "Download already in progress", http.StatusConflict)
+		return
+	}
+
+	// 初始化下载状态
+	state := &downloadState{CoreName: req.CoreName, Status: "downloading"}
+	s.activeDownloads.Store(req.CoreName, state)
+
 	go func() {
-		if err := s.updater.DownloadCore(req.CoreName, nil); err != nil {
+		defer s.activeDownloads.Delete(req.CoreName)
+
+		err := s.updater.DownloadCore(req.CoreName, func(downloaded, total int64) {
+			state.Downloaded = downloaded
+			state.Total = total
+			if total > 0 {
+				state.Percentage = int(downloaded * 100 / total)
+			}
+			s.broadcastToAll(map[string]interface{}{
+				"type":    "download_progress",
+				"payload": state,
+			})
+		})
+
+		if err != nil {
+			state.Status = "error"
+			state.Error = err.Error()
 			log.Printf("Failed to download core %s: %v", req.CoreName, err)
+			s.broadcastToAll(map[string]interface{}{
+				"type":    "download_complete",
+				"payload": map[string]interface{}{"core_name": req.CoreName, "success": false, "error": err.Error()},
+			})
+		} else {
+			state.Status = "complete"
+			state.Percentage = 100
+			s.broadcastToAll(map[string]interface{}{
+				"type":    "download_complete",
+				"payload": map[string]interface{}{"core_name": req.CoreName, "success": true},
+			})
 		}
 	}()
 
@@ -585,9 +654,45 @@ func (s *Server) handleCoreDownloadURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 检查是否已在下载中
+	if _, exists := s.activeDownloads.Load(req.CoreName); exists {
+		jsonError(w, "Download already in progress", http.StatusConflict)
+		return
+	}
+
+	state := &downloadState{CoreName: req.CoreName, Status: "downloading"}
+	s.activeDownloads.Store(req.CoreName, state)
+
 	go func() {
-		if err := s.updater.DownloadCoreFromURL(req.CoreName, req.DownloadURL, nil); err != nil {
+		defer s.activeDownloads.Delete(req.CoreName)
+
+		err := s.updater.DownloadCoreFromURL(req.CoreName, req.DownloadURL, func(downloaded, total int64) {
+			state.Downloaded = downloaded
+			state.Total = total
+			if total > 0 {
+				state.Percentage = int(downloaded * 100 / total)
+			}
+			s.broadcastToAll(map[string]interface{}{
+				"type":    "download_progress",
+				"payload": state,
+			})
+		})
+
+		if err != nil {
+			state.Status = "error"
+			state.Error = err.Error()
 			log.Printf("Failed to download core %s from URL: %v", req.CoreName, err)
+			s.broadcastToAll(map[string]interface{}{
+				"type":    "download_complete",
+				"payload": map[string]interface{}{"core_name": req.CoreName, "success": false, "error": err.Error()},
+			})
+		} else {
+			state.Status = "complete"
+			state.Percentage = 100
+			s.broadcastToAll(map[string]interface{}{
+				"type":    "download_complete",
+				"payload": map[string]interface{}{"core_name": req.CoreName, "success": true},
+			})
 		}
 	}()
 
@@ -619,11 +724,6 @@ func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Determine binary name and nested directory
-	binName := coreName
-	if runtime.GOOS == "windows" {
-		binName += ".exe"
-	}
 	// Map core name to sub-directory
 	subDir := coreName
 	switch coreName {
@@ -639,19 +739,53 @@ func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Failed to create core directory: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Determine binary name
+	binName := coreName
+	if runtime.GOOS == "windows" {
+		binName += ".exe"
+	}
 	destPath := filepath.Join(coreDir, binName)
 
-	// Save uploaded file
-	dst, err := os.Create(destPath)
-	if err != nil {
-		jsonError(w, "Failed to create file: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer dst.Close()
+	// Check if uploaded file is an archive
+	fileName := strings.ToLower(header.Filename)
+	isArchive := strings.HasSuffix(fileName, ".zip") || strings.HasSuffix(fileName, ".tar.gz") || strings.HasSuffix(fileName, ".tgz")
 
-	if _, err := io.Copy(dst, file); err != nil {
-		jsonError(w, "Failed to save file: "+err.Error(), http.StatusInternalServerError)
-		return
+	if isArchive {
+		// Save archive to temp file first
+		tmpFile, err := os.CreateTemp("", "v2rayn-upload-*.tmp")
+		if err != nil {
+			jsonError(w, "Failed to create temp file: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		tmpPath := tmpFile.Name()
+		defer os.Remove(tmpPath)
+
+		if _, err := io.Copy(tmpFile, file); err != nil {
+			tmpFile.Close()
+			jsonError(w, "Failed to save temp file: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		tmpFile.Close()
+
+		// Extract binary from archive
+		if err := s.updater.ExtractBinary(tmpPath, header.Filename, destPath, binName); err != nil {
+			jsonError(w, "Failed to extract binary from archive: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		// Save as raw binary
+		dst, err := os.Create(destPath)
+		if err != nil {
+			jsonError(w, "Failed to create file: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer dst.Close()
+
+		if _, err := io.Copy(dst, file); err != nil {
+			jsonError(w, "Failed to save file: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// Set executable permission on non-Windows
@@ -659,7 +793,7 @@ func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
 		os.Chmod(destPath, 0755)
 	}
 
-	log.Printf("Uploaded core binary: %s (%s)", coreName, header.Filename)
+	log.Printf("Uploaded core: %s (%s)", coreName, header.Filename)
 	jsonOK(w, map[string]string{"status": "uploaded", "core": coreName, "path": destPath})
 }
 

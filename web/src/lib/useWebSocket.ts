@@ -4,7 +4,7 @@ import { useStore } from '../store'
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const { addLog, setMetrics, setCoreStatuses } = useStore()
+  const { addLog, setMetrics, setCoreStatuses, setDownloadProgress, clearDownloadProgress, addToast } = useStore()
 
   const connect = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -30,6 +30,17 @@ export function useWebSocket() {
           case 'status':
             setCoreStatuses(data.payload)
             break
+          case 'download_progress':
+            setDownloadProgress(data.payload.core_name, data.payload)
+            break
+          case 'download_complete':
+            if (data.payload.success) {
+              addToast(`${data.payload.core_name} 下载完成`, 'success')
+            } else {
+              addToast(`${data.payload.core_name} 下载失败: ${data.payload.error}`, 'error')
+            }
+            clearDownloadProgress(data.payload.core_name)
+            break
         }
       } catch {
         // ignore parse errors
@@ -44,7 +55,7 @@ export function useWebSocket() {
     ws.onerror = () => {
       ws.close()
     }
-  }, [addLog, setMetrics, setCoreStatuses])
+  }, [addLog, setMetrics, setCoreStatuses, setDownloadProgress, clearDownloadProgress, addToast])
 
   useEffect(() => {
     connect()
