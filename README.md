@@ -249,4 +249,4 @@ GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o v2rayN-Go-da
 
 ## 📄 License
 
-[MIT License](LICENSE)
+[GNU General Public License v3.0](LICENSE)
