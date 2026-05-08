@@ -6,36 +6,11 @@ import { LogConsole } from './components/LogConsole'
 import { SettingsView } from './components/SettingsView'
 import { SubscriptionsView } from './components/SubscriptionsView'
 import { CoresView } from './components/CoresView'
+import { RoutingView } from './components/RoutingView'
 import { useWebSocket } from './lib/useWebSocket'
 import { useStore } from './store'
 import { useT, initTheme } from './lib/i18n'
 import { motion, AnimatePresence } from 'framer-motion'
-
-function RoutingView() {
-  const t = useT()
-  return (
-    <div className="max-w-3xl mx-auto">
-      <h1
-        className="text-xl font-semibold mb-6"
-        style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
-      >
-        {t('routing.title')}
-      </h1>
-      <div
-        className="rounded-xl border p-6"
-        style={{
-          backgroundColor: 'var(--color-card)',
-          borderColor: 'var(--color-border)',
-          boxShadow: 'var(--shadow-card)',
-        }}
-      >
-        <p className="text-sm" style={{ color: 'var(--color-muted-foreground)' }}>
-          {t('common.no_data')}
-        </p>
-      </div>
-    </div>
-  )
-}
 
 const views: { [key: string]: React.FC } = {
   home: HomeView,
