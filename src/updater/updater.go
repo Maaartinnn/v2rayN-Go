@@ -70,6 +70,12 @@ func (u *Updater) GetSupportedCores() []CoreInfo {
 			Repo:        "SagerNet/sing-box",
 			BinaryName:  getBinaryName("sing-box"),
 		},
+		{
+			Name:        "mihomo",
+			DisplayName: "Mihomo",
+			Repo:        "MetaCubeX/mihomo",
+			BinaryName:  getBinaryName("mihomo"),
+		},
 	}
 }
 

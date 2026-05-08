@@ -7,6 +7,9 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -16,6 +19,7 @@ import (
 	"v2rayn-go/database"
 	"v2rayn-go/parser"
 	"v2rayn-go/subscription"
+	"v2rayn-go/updater"
 
 	"github.com/gorilla/websocket"
 )
@@ -26,6 +30,7 @@ type Server struct {
 	coreMgr   *core.CoreAdminManager
 	subSvc    *subscription.Service
 	pingSvc   *subscription.PingService
+	updater   *updater.Updater
 	upgrader  websocket.Upgrader
 	wsClients sync.Map
 }
@@ -37,6 +42,7 @@ func NewServer(cfg *config.AppConfig, coreMgr *core.CoreAdminManager) *Server {
 		coreMgr: coreMgr,
 		subSvc:  subscription.NewService(),
 		pingSvc: subscription.NewPingService(),
+		updater: updater.NewUpdater(cfg),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
 		},
@@ -62,6 +68,10 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/groups", s.handleGroups)
 	mux.HandleFunc("/api/profiles/dedup", s.handleProfileDedup)
 	mux.HandleFunc("/api/profiles/import-image", s.handleProfileImportImage)
+
+	mux.HandleFunc("/api/cores", s.handleCores)
+	mux.HandleFunc("/api/cores/download", s.handleCoreDownload)
+	mux.HandleFunc("/api/cores/upload", s.handleCoreUpload)
 
 	mux.HandleFunc("/api/settings", s.handleSettings)
 
@@ -466,6 +476,100 @@ func importParsedLinks(w http.ResponseWriter, links []string) {
 	}
 
 	jsonOK(w, map[string]int{"imported": len(profiles)})
+}
+
+// ========== Core Hub API ==========
+
+func (s *Server) handleCores(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	cores := s.updater.CheckAllUpdates()
+	jsonOK(w, cores)
+}
+
+func (s *Server) handleCoreDownload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		CoreName string `json:"core_name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if req.CoreName == "" {
+		jsonError(w, "Missing core_name", http.StatusBadRequest)
+		return
+	}
+
+	go func() {
+		if err := s.updater.DownloadCore(req.CoreName, nil); err != nil {
+			log.Printf("Failed to download core %s: %v", req.CoreName, err)
+		}
+	}()
+
+	jsonOK(w, map[string]string{"status": "downloading", "core": req.CoreName})
+}
+
+func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse multipart form (max 200MB)
+	if err := r.ParseMultipartForm(200 << 20); err != nil {
+		jsonError(w, "Failed to parse form: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	coreName := r.FormValue("core_name")
+	if coreName == "" {
+		jsonError(w, "Missing core_name", http.StatusBadRequest)
+		return
+	}
+
+	file, header, err := r.FormFile("binary")
+	if err != nil {
+		jsonError(w, "Missing binary file", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Determine binary name
+	binName := coreName
+	if runtime.GOOS == "windows" {
+		binName += ".exe"
+	}
+	destPath := filepath.Join(s.cfg.BinDir, binName)
+
+	// Save uploaded file
+	dst, err := os.Create(destPath)
+	if err != nil {
+		jsonError(w, "Failed to create file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, file); err != nil {
+		jsonError(w, "Failed to save file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Set executable permission on non-Windows
+	if runtime.GOOS != "windows" {
+		os.Chmod(destPath, 0755)
+	}
+
+	log.Printf("Uploaded core binary: %s (%s)", coreName, header.Filename)
+	jsonOK(w, map[string]string{"status": "uploaded", "core": coreName, "path": destPath})
 }
 
 // ========== Settings API ==========

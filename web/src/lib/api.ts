@@ -66,7 +66,18 @@ export const routingApi = {
   delete: (id: number) => api.delete(`/routing-rules/${id}`),
 }
 
-// ========== Updater API ==========
+// ========== Core Hub API ==========
+export const coresApi = {
+  list: () => api.get('/cores'),
+  download: (coreName: string) => api.post('/cores/download', { core_name: coreName }),
+  upload: (formData: FormData) =>
+    api.post('/cores/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000,
+    }),
+}
+
+// ========== Updater API (legacy) ==========
 export const updaterApi = {
   check: () => api.get('/updater/check'),
   download: (coreName: string) => api.post(`/updater/download/${coreName}`),
