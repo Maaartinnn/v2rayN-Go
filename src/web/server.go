@@ -58,22 +58,29 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/core/stop", s.handleCoreStop)
 	mux.HandleFunc("/api/core/status", s.handleCoreStatus)
 
-	mux.HandleFunc("/api/profiles", s.handleProfiles)
+	mux.HandleFunc("/api/profiles/import-image", s.handleProfileImportImage)
 	mux.HandleFunc("/api/profiles/import", s.handleProfileImport)
+	mux.HandleFunc("/api/profiles/dedup", s.handleProfileDedup)
 	mux.HandleFunc("/api/profiles/ping-all", s.handlePingAll)
+	mux.HandleFunc("/api/profiles/", s.handleProfileByID)
+	mux.HandleFunc("/api/profiles", s.handleProfiles)
 
-	mux.HandleFunc("/api/subscriptions", s.handleSubscriptions)
 	mux.HandleFunc("/api/subscriptions/refresh-all", s.handleRefreshAll)
+	mux.HandleFunc("/api/subscriptions/", s.handleSubscriptionByID)
+	mux.HandleFunc("/api/subscriptions", s.handleSubscriptions)
 
 	mux.HandleFunc("/api/groups", s.handleGroups)
-	mux.HandleFunc("/api/profiles/dedup", s.handleProfileDedup)
-	mux.HandleFunc("/api/profiles/import-image", s.handleProfileImportImage)
 
 	mux.HandleFunc("/api/cores", s.handleCores)
 	mux.HandleFunc("/api/cores/download", s.handleCoreDownload)
 	mux.HandleFunc("/api/cores/upload", s.handleCoreUpload)
 
 	mux.HandleFunc("/api/settings", s.handleSettings)
+
+	mux.HandleFunc("/api/routing-rules/", s.handleRoutingRuleByID)
+	mux.HandleFunc("/api/routing-rules", s.handleRoutingRules)
+
+	mux.HandleFunc("/api/proxy/system", s.handleSystemProxy)
 
 	mux.HandleFunc("/api/ws", s.handleWebSocket)
 
@@ -570,6 +577,232 @@ func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Uploaded core binary: %s (%s)", coreName, header.Filename)
 	jsonOK(w, map[string]string{"status": "uploaded", "core": coreName, "path": destPath})
+}
+
+// ========== Profile by ID API ==========
+
+func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
+	// Extract ID from path: /api/profiles/{id} or /api/profiles/{id}/select or /api/profiles/{id}/ping
+	path := strings.TrimPrefix(r.URL.Path, "/api/profiles/")
+	parts := strings.SplitN(path, "/", 2)
+	id := strings.TrimSpace(parts[0])
+
+	if id == "" {
+		jsonError(w, "Missing profile ID", http.StatusBadRequest)
+		return
+	}
+
+	var profile database.Profile
+	if err := database.DB.First(&profile, id).Error; err != nil {
+		jsonError(w, "Profile not found", http.StatusNotFound)
+		return
+	}
+
+	// Check for sub-action
+	if len(parts) > 1 {
+		switch parts[1] {
+		case "select":
+			if r.Method != http.MethodPost {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			// Deactivate all profiles first
+			database.DB.Model(&database.Profile{}).Where("is_active = ?", true).Update("is_active", false)
+			// Activate selected profile
+			database.DB.Model(&profile).Update("is_active", true)
+			jsonOK(w, map[string]string{"status": "selected"})
+			return
+
+		case "ping":
+			if r.Method != http.MethodPost {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			go s.pingSvc.PingSingleProfile(&profile)
+			jsonOK(w, map[string]string{"status": "pinging"})
+			return
+
+		default:
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		jsonOK(w, profile)
+
+	case http.MethodPut:
+		var updated database.Profile
+		if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
+			jsonError(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		updated.ID = profile.ID
+		if err := database.DB.Save(&updated).Error; err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		jsonOK(w, updated)
+
+	case http.MethodDelete:
+		database.DB.Delete(&profile)
+		jsonOK(w, map[string]string{"status": "deleted"})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// ========== Subscription by ID API ==========
+
+func (s *Server) handleSubscriptionByID(w http.ResponseWriter, r *http.Request) {
+	// Extract ID from path: /api/subscriptions/{id} or /api/subscriptions/{id}/refresh
+	path := strings.TrimPrefix(r.URL.Path, "/api/subscriptions/")
+	parts := strings.SplitN(path, "/", 2)
+	id := strings.TrimSpace(parts[0])
+
+	if id == "" {
+		jsonError(w, "Missing subscription ID", http.StatusBadRequest)
+		return
+	}
+
+	var sub database.Subscription
+	if err := database.DB.First(&sub, id).Error; err != nil {
+		jsonError(w, "Subscription not found", http.StatusNotFound)
+		return
+	}
+
+	// Check for sub-action
+	if len(parts) > 1 {
+		switch parts[1] {
+		case "refresh":
+			if r.Method != http.MethodPost {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			go s.subSvc.UpdateSingleSubscription(&sub)
+			jsonOK(w, map[string]string{"status": "refreshing"})
+			return
+
+		default:
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		jsonOK(w, sub)
+
+	case http.MethodPut:
+		var updated database.Subscription
+		if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
+			jsonError(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		updated.ID = sub.ID
+		if err := database.DB.Save(&updated).Error; err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		jsonOK(w, updated)
+
+	case http.MethodDelete:
+		database.DB.Delete(&sub)
+		jsonOK(w, map[string]string{"status": "deleted"})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// ========== Routing Rules API ==========
+
+func (s *Server) handleRoutingRules(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		var rules []database.RoutingRule
+		database.DB.Order("sort_order ASC").Find(&rules)
+		jsonOK(w, rules)
+
+	case http.MethodPost:
+		var rule database.RoutingRule
+		if err := json.NewDecoder(r.Body).Decode(&rule); err != nil {
+			jsonError(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		if err := database.DB.Create(&rule).Error; err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		jsonOK(w, rule)
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) handleRoutingRuleByID(w http.ResponseWriter, r *http.Request) {
+	// Extract ID from path: /api/routing-rules/{id}
+	path := strings.TrimPrefix(r.URL.Path, "/api/routing-rules/")
+	var rule database.RoutingRule
+	if err := database.DB.First(&rule, path).Error; err != nil {
+		jsonError(w, "Rule not found", http.StatusNotFound)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodPut:
+		var updated database.RoutingRule
+		if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
+			jsonError(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		updated.ID = rule.ID
+		if err := database.DB.Save(&updated).Error; err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		jsonOK(w, updated)
+
+	case http.MethodDelete:
+		database.DB.Delete(&rule)
+		jsonOK(w, map[string]string{"status": "deleted"})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// ========== System Proxy API ==========
+
+func (s *Server) handleSystemProxy(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		jsonOK(w, map[string]interface{}{
+			"enabled": false,
+			"port":    s.cfg.SocksPort,
+		})
+
+	case http.MethodPost:
+		var req struct {
+			Enabled bool `json:"enabled"`
+			Port    int  `json:"port"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonError(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		// System proxy management is platform-specific and handled at OS level
+		jsonOK(w, map[string]interface{}{
+			"enabled": req.Enabled,
+			"port":    req.Port,
+		})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 // ========== Settings API ==========

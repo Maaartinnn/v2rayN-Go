@@ -7,6 +7,7 @@ import { SettingsView } from './components/SettingsView'
 import { SubscriptionsView } from './components/SubscriptionsView'
 import { CoresView } from './components/CoresView'
 import { RoutingView } from './components/RoutingView'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { useWebSocket } from './lib/useWebSocket'
 import { useStore } from './store'
 import { useT, initTheme } from './lib/i18n'
@@ -115,7 +116,9 @@ export default function App() {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             >
-              <View />
+              <ErrorBoundary>
+                <View />
+              </ErrorBoundary>
             </motion.div>
           </AnimatePresence>
         </div>

@@ -109,6 +109,25 @@ func (ps *PingService) PingProfiles(profiles []database.Profile, concurrency int
 	return results
 }
 
+// PingSingleProfile 测试单个节点延迟并更新数据库
+func (ps *PingService) PingSingleProfile(profile *database.Profile) PingResult {
+	result := ps.PingProfile(profile)
+
+	if result.Error == "" {
+		database.DB.Model(&database.Profile{}).Where("id = ?", result.ProfileID).Updates(map[string]interface{}{
+			"test_result":    fmt.Sprintf("%dms", result.Latency),
+			"last_test_time": time.Now(),
+		})
+	} else {
+		database.DB.Model(&database.Profile{}).Where("id = ?", result.ProfileID).Updates(map[string]interface{}{
+			"test_result":    "timeout",
+			"last_test_time": time.Now(),
+		})
+	}
+
+	return result
+}
+
 // PingAllProfiles 测试数据库中所有节点的延迟
 func (ps *PingService) PingAllProfiles(ctx context.Context, concurrency int) []PingResult {
 	var profiles []database.Profile

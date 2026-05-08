@@ -83,6 +83,13 @@ func (s *Service) UpdateSubscription(sub *database.Subscription) error {
 	return nil
 }
 
+// UpdateSingleSubscription 更新单个订阅（包装方法，用于 API 调用）
+func (s *Service) UpdateSingleSubscription(sub *database.Subscription) {
+	if err := s.UpdateSubscription(sub); err != nil {
+		log.Printf("Failed to update subscription %s: %v", sub.Name, err)
+	}
+}
+
 // UpdateAllSubscriptions 更新所有启用的订阅
 func (s *Service) UpdateAllSubscriptions() {
 	var subs []database.Subscription
