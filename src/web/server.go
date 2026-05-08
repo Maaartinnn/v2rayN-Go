@@ -58,6 +58,8 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/subscriptions", s.handleSubscriptions)
 	mux.HandleFunc("/api/subscriptions/refresh-all", s.handleRefreshAll)
 
+	mux.HandleFunc("/api/settings", s.handleSettings)
+
 	mux.HandleFunc("/api/ws", s.handleWebSocket)
 
 	// 静态文件服务 (go:embed)
@@ -84,7 +86,7 @@ func (s *Server) Start() error {
 		http.FileServerFS(staticFS).ServeHTTP(w, r)
 	})
 
-	addr := fmt.Sprintf("127.0.0.1:%d", s.cfg.WebPort)
+	addr := s.cfg.GetListenAddr()
 	log.Printf("Web server starting on http://%s", addr)
 	return http.ListenAndServe(addr, mux)
 }
@@ -128,9 +130,9 @@ func (s *Server) handleCoreStart(w http.ResponseWriter, r *http.Request) {
 		var configErr error
 		switch req.CoreType {
 		case "xray":
-			configPath, configErr = configbuilder.SaveXrayConfig(&profile, rules, s.cfg.AppDir, 10808, 10809)
+			configPath, configErr = configbuilder.SaveXrayConfig(&profile, rules, s.cfg.AppDir, s.cfg.SocksPort, s.cfg.HTTPPort)
 		case "sing-box":
-			configPath, configErr = configbuilder.SaveSingboxConfig(&profile, rules, s.cfg.AppDir, 10808)
+			configPath, configErr = configbuilder.SaveSingboxConfig(&profile, rules, s.cfg.AppDir, s.cfg.SocksPort)
 		default:
 			jsonError(w, "Unsupported core type", http.StatusBadRequest)
 			return
@@ -283,6 +285,65 @@ func (s *Server) handleRefreshAll(w http.ResponseWriter, r *http.Request) {
 
 	go s.subSvc.UpdateAllSubscriptions()
 	jsonOK(w, map[string]string{"status": "refreshing"})
+}
+
+// ========== Settings API ==========
+
+func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		// 返回当前配置
+		settings := map[string]interface{}{
+			"listen_ip":     s.cfg.ListenIP,
+			"web_port":      s.cfg.WebPort,
+			"socks_port":    s.cfg.SocksPort,
+			"http_port":     s.cfg.HTTPPort,
+			"outbound_ip":   s.cfg.OutboundIP,
+			"github_mirror": s.cfg.GitHubMirror,
+		}
+		jsonOK(w, settings)
+
+	case http.MethodPost:
+		// 更新配置
+		var req struct {
+			ListenIP     *string `json:"listen_ip"`
+			SocksPort    *int    `json:"socks_port"`
+			HTTPPort     *int    `json:"http_port"`
+			OutboundIP   *string `json:"outbound_ip"`
+			GitHubMirror *string `json:"github_mirror"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonError(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+
+		if req.ListenIP != nil {
+			s.cfg.ListenIP = *req.ListenIP
+		}
+		if req.SocksPort != nil && *req.SocksPort > 0 {
+			s.cfg.SocksPort = *req.SocksPort
+		}
+		if req.HTTPPort != nil && *req.HTTPPort > 0 {
+			s.cfg.HTTPPort = *req.HTTPPort
+		}
+		if req.OutboundIP != nil {
+			s.cfg.OutboundIP = *req.OutboundIP
+		}
+		if req.GitHubMirror != nil {
+			s.cfg.GitHubMirror = *req.GitHubMirror
+		}
+
+		// 保存到 config.json
+		if err := s.cfg.SaveJSONConfig(); err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		jsonOK(w, map[string]string{"status": "saved"})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 // ========== WebSocket ==========

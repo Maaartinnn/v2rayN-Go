@@ -52,6 +52,18 @@ export const updaterApi = {
   download: (coreName: string) => api.post(`/updater/download/${coreName}`),
 }
 
+// ========== Settings API ==========
+export const settingsApi = {
+  get: () => api.get('/settings'),
+  save: (data: {
+    listen_ip?: string
+    socks_port?: number
+    http_port?: number
+    outbound_ip?: string
+    github_mirror?: string
+  }) => api.post('/settings', data),
+}
+
 // ========== System Proxy API ==========
 export const proxyApi = {
   setSystemProxy: (enabled: boolean, port: number) =>

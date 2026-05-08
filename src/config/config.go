@@ -1,6 +1,10 @@
 package config
 
 import (
+	"encoding/json"
+	"flag"
+	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 )
@@ -8,21 +12,48 @@ import (
 // AppConfig 应用全局配置
 type AppConfig struct {
 	// AppDir 应用工作目录（可执行文件所在目录）
-	AppDir string
+	AppDir string `json:"-"`
 	// DBPath 数据库文件路径
-	DBPath string
+	DBPath string `json:"-"`
 	// BinDir 外挂内核目录
-	BinDir string
+	BinDir string `json:"-"`
 	// LogDir 日志目录
-	LogDir string
+	LogDir string `json:"-"`
+
+	// === 可配置的网络参数 ===
+
 	// WebPort Web 界面端口
-	WebPort int
+	WebPort int `json:"web_port"`
+	// ListenIP 监听 IP 地址
+	ListenIP string `json:"listen_ip"`
+	// SocksPort SOCKS5 代理端口
+	SocksPort int `json:"socks_port"`
+	// HTTPPort HTTP 代理端口
+	HTTPPort int `json:"http_port"`
+	// OutboundIP 出站绑定 IP
+	OutboundIP string `json:"outbound_ip"`
+	// GitHubMirror GitHub 下载镜像地址
+	GitHubMirror string `json:"github_mirror"`
+}
+
+// configJSON 用于从 JSON 文件加载的中间结构
+type configJSON struct {
+	WebPort      int    `json:"web_port"`
+	ListenIP     string `json:"listen_ip"`
+	SocksPort    int    `json:"socks_port"`
+	HTTPPort     int    `json:"http_port"`
+	OutboundIP   string `json:"outbound_ip"`
+	GitHubMirror string `json:"github_mirror"`
 }
 
 // DefaultConfig 返回默认配置
 func DefaultConfig() *AppConfig {
 	return &AppConfig{
-		WebPort: 2017,
+		WebPort:    2017,
+		ListenIP:   "127.0.0.1",
+		SocksPort:  10808,
+		HTTPPort:   10809,
+		OutboundIP: "0.0.0.0",
 	}
 }
 
@@ -49,4 +80,123 @@ func (c *AppConfig) Init() error {
 	}
 
 	return nil
+}
+
+// LoadWithPriority 按优先级加载配置：CLI 参数 > JSON 配置文件 > 默认值
+// 优先级：
+//  1. 命令行启动参数（最高优先级）
+//  2. 同级目录 config.json
+//  3. 系统默认值
+func (c *AppConfig) LoadWithPriority() error {
+	// 第一步：加载 JSON 配置文件（覆盖默认值）
+	c.loadJSONConfig()
+
+	// 第二步：解析 CLI 参数（覆盖 JSON 配置）
+	c.parseCLIFlags()
+
+	return nil
+}
+
+// loadJSONConfig 从应用目录下的 config.json 加载配置
+func (c *AppConfig) loadJSONConfig() {
+	configPath := filepath.Join(c.AppDir, "config.json")
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		// config.json 不存在不是错误，使用默认值
+		if !os.IsNotExist(err) {
+			log.Printf("Warning: failed to read config.json: %v", err)
+		}
+		return
+	}
+
+	var fileCfg configJSON
+	if err := json.Unmarshal(data, &fileCfg); err != nil {
+		log.Printf("Warning: failed to parse config.json: %v", err)
+		return
+	}
+
+	// 仅覆盖非零值
+	if fileCfg.WebPort > 0 {
+		c.WebPort = fileCfg.WebPort
+	}
+	if fileCfg.ListenIP != "" {
+		c.ListenIP = fileCfg.ListenIP
+	}
+	if fileCfg.SocksPort > 0 {
+		c.SocksPort = fileCfg.SocksPort
+	}
+	if fileCfg.HTTPPort > 0 {
+		c.HTTPPort = fileCfg.HTTPPort
+	}
+	if fileCfg.OutboundIP != "" {
+		c.OutboundIP = fileCfg.OutboundIP
+	}
+	if fileCfg.GitHubMirror != "" {
+		c.GitHubMirror = fileCfg.GitHubMirror
+	}
+
+	log.Printf("Loaded config from %s", configPath)
+}
+
+// parseCLIFlags 解析命令行参数（最高优先级）
+func (c *AppConfig) parseCLIFlags() {
+	// 定义 CLI 标志
+	listenIP := flag.String("listen-ip", "", "Listen IP address (e.g. 127.0.0.1, 0.0.0.0)")
+	port := flag.Int("port", 0, "Web UI port")
+	socksPort := flag.Int("socks-port", 0, "SOCKS5 proxy port")
+	httpPort := flag.Int("http-port", 0, "HTTP proxy port")
+	outboundIP := flag.String("outbound-ip", "", "Outbound bind IP")
+	githubMirror := flag.String("github-mirror", "", "GitHub mirror URL for downloading cores")
+
+	flag.Parse()
+
+	// 仅覆盖非零值（CLI 参数优先）
+	if *listenIP != "" {
+		c.ListenIP = *listenIP
+	}
+	if *port > 0 {
+		c.WebPort = *port
+	}
+	if *socksPort > 0 {
+		c.SocksPort = *socksPort
+	}
+	if *httpPort > 0 {
+		c.HTTPPort = *httpPort
+	}
+	if *outboundIP != "" {
+		c.OutboundIP = *outboundIP
+	}
+	if *githubMirror != "" {
+		c.GitHubMirror = *githubMirror
+	}
+}
+
+// SaveJSONConfig 将当前配置保存到 config.json
+func (c *AppConfig) SaveJSONConfig() error {
+	fileCfg := configJSON{
+		WebPort:      c.WebPort,
+		ListenIP:     c.ListenIP,
+		SocksPort:    c.SocksPort,
+		HTTPPort:     c.HTTPPort,
+		OutboundIP:   c.OutboundIP,
+		GitHubMirror: c.GitHubMirror,
+	}
+
+	data, err := json.MarshalIndent(fileCfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	configPath := filepath.Join(c.AppDir, "config.json")
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write config.json: %w", err)
+	}
+
+	return nil
+}
+
+// GetListenAddr 返回完整的监听地址
+func (c *AppConfig) GetListenAddr() string {
+	return fmt.Sprintf("%s:%d", c.ListenIP, c.WebPort)
 }

@@ -72,7 +72,7 @@ func printUsage() {
 	fmt.Println(`v2rayN-Go - A lightweight proxy control center
 
 Usage:
-  v2rayN-Go [command]
+  v2rayN-Go [command] [flags]
 
 Commands:
   (no args)     Run in foreground mode (for development/debugging)
@@ -84,9 +84,22 @@ Commands:
   daemon        Run as system service (called by service manager)
   help          Show this help message
 
+Flags (highest priority, override config.json):
+  --listen-ip string     Listen IP address (e.g. 127.0.0.1, 0.0.0.0)
+  --port int             Web UI port (default 2017)
+  --socks-port int       SOCKS5 proxy port (default 10808)
+  --http-port int        HTTP proxy port (default 10809)
+  --outbound-ip string   Outbound bind IP (default 0.0.0.0)
+  --github-mirror string GitHub mirror URL for downloading cores
+
+Config priority (highest to lowest):
+  1. CLI flags (--listen-ip, --port, etc.)
+  2. config.json (in the same directory as the executable)
+  3. System defaults
+
 Examples:
-  v2rayN-Go                # Run directly in foreground
-  v2rayN-Go install        # Install as system service
-  v2rayN-Go start          # Start the service
-  v2rayN-Go stop           # Stop the service`)
+  v2rayN-Go                              # Run with defaults
+  v2rayN-Go --listen-ip 0.0.0.0 --port 8080
+  v2rayN-Go install                      # Install as system service
+  v2rayN-Go start                        # Start the service`)
 }

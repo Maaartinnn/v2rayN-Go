@@ -14,6 +14,11 @@ func main() {
 		log.Fatalf("Failed to init config: %v", err)
 	}
 
+	// 按优先级加载配置：CLI 参数 > JSON 配置文件 > 默认值
+	if err := cfg.LoadWithPriority(); err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
 	// 设置日志格式
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 

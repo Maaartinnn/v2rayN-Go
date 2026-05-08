@@ -1,16 +1,51 @@
 import { motion } from 'framer-motion'
 import { Globe, Monitor, Sun, Moon, Save } from 'lucide-react'
 import { useI18n, useT } from '../lib/i18n'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { settingsApi } from '../lib/api'
 
 export function SettingsView() {
   const t = useT()
   const { lang, setLang, theme, setTheme } = useI18n()
   const [saved, setSaved] = useState(false)
+  const [listenIP, setListenIP] = useState('127.0.0.1')
+  const [socksPort, setSocksPort] = useState('10808')
+  const [httpPort, setHttpPort] = useState('10809')
+  const [outboundIP, setOutboundIP] = useState('0.0.0.0')
+  const [githubMirror, setGithubMirror] = useState('')
 
-  const handleSave = () => {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  useEffect(() => {
+    loadSettings()
+  }, [])
+
+  const loadSettings = async () => {
+    try {
+      const res = await settingsApi.get()
+      const data = res.data
+      if (data.listen_ip) setListenIP(data.listen_ip)
+      if (data.socks_port) setSocksPort(String(data.socks_port))
+      if (data.http_port) setHttpPort(String(data.http_port))
+      if (data.outbound_ip) setOutboundIP(data.outbound_ip)
+      if (data.github_mirror) setGithubMirror(data.github_mirror)
+    } catch (err) {
+      console.error('Failed to load settings:', err)
+    }
+  }
+
+  const handleSave = async () => {
+    try {
+      await settingsApi.save({
+        listen_ip: listenIP,
+        socks_port: parseInt(socksPort) || 0,
+        http_port: parseInt(httpPort) || 0,
+        outbound_ip: outboundIP,
+        github_mirror: githubMirror,
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      console.error('Failed to save settings:', err)
+    }
   }
 
   const themeOptions = [
@@ -155,7 +190,8 @@ export function SettingsView() {
             </span>
             <input
               type="text"
-              defaultValue="127.0.0.1"
+              value={listenIP}
+              onChange={(e) => setListenIP(e.target.value)}
               className="w-40 px-3 py-1.5 text-sm rounded-lg border text-right"
               style={{
                 backgroundColor: 'var(--color-overlay)',
@@ -176,7 +212,8 @@ export function SettingsView() {
             </span>
             <input
               type="number"
-              defaultValue="10808"
+              value={socksPort}
+              onChange={(e) => setSocksPort(e.target.value)}
               className="w-40 px-3 py-1.5 text-sm rounded-lg border text-right"
               style={{
                 backgroundColor: 'var(--color-overlay)',
@@ -197,7 +234,8 @@ export function SettingsView() {
             </span>
             <input
               type="number"
-              defaultValue="10809"
+              value={httpPort}
+              onChange={(e) => setHttpPort(e.target.value)}
               className="w-40 px-3 py-1.5 text-sm rounded-lg border text-right"
               style={{
                 backgroundColor: 'var(--color-overlay)',
@@ -218,7 +256,8 @@ export function SettingsView() {
             </span>
             <input
               type="text"
-              defaultValue="0.0.0.0"
+              value={outboundIP}
+              onChange={(e) => setOutboundIP(e.target.value)}
               className="w-40 px-3 py-1.5 text-sm rounded-lg border text-right"
               style={{
                 backgroundColor: 'var(--color-overlay)',
@@ -257,6 +296,8 @@ export function SettingsView() {
         </p>
         <input
           type="text"
+          value={githubMirror}
+          onChange={(e) => setGithubMirror(e.target.value)}
           placeholder="https://mirror.example.com"
           className="w-full px-3 py-2 text-sm rounded-lg border"
           style={{
