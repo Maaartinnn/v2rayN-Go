@@ -5,7 +5,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white" alt="Go">
-  <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white" alt="React">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" alt="React">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License">
 </p>
 
@@ -16,24 +16,33 @@
 ## ✨ Features
 
 - 🚀 **Single Binary** — One executable with embedded frontend, zero dependencies, just run
-- 🌐 **Modern Web UI** — Claude-inspired minimalist control panel built with React + Tailwind CSS
-- 🔌 **Multi-Core Support** — Compatible with Xray-core, Sing-box, and other proxy engines
+- 🌐 **Modern Web UI** — Anthropic-style warm beige theme, React + Tailwind CSS minimalist control panel
+- 🔌 **Multi-Core Support** — Compatible with Xray-core, Sing-box, Mihomo, and other proxy engines
 - 📡 **Multi-Protocol Parsing** — VMess, VLESS, Trojan, Shadowsocks, ShadowsocksR, Hysteria2, TUIC
-- 📋 **Subscription Management** — Concurrent fetching, auto-update, one-click link import
+- 📋 **Subscription Management** — Concurrent fetching, auto-update, custom User-Agent, one-click link import
+- 📦 **Group Management** — Multi-level node groups, filter by group, assign subscriptions to groups
+- 🖼️ **QR Code Import** — Drag/paste/upload images or enter URL to parse QR codes for nodes
 - ⚡ **Latency Testing** — Batch TCP Ping with concurrent workers, visual latency indicators
+- 🔄 **Node Deduplication** — One-click removal of duplicate nodes
+- 🧩 **Routing Rules** — Visual management of direct/proxy/block routing rules
 - 🔧 **Type-Safe Config** — Generate kernel configs via Go Structs, no JSON syntax errors
 - 🖥️ **System Service** — Register as Windows Service or systemd daemon
-- 🌍 **Multi-Language** — Chinese / English with auto-detection
-- 🌙 **Dark Mode** — Follows system preference, log terminal adapts automatically
+- 🌍 **Multi-Language** — Chinese / English with standalone locale files
+- 🌙 **Dark Mode** — Follows system preference or manual override, full Anthropic style adaptation
+- ⚙️ **External Config** — CLI flags, config.json, and Web settings page with three-tier priority
 - 📦 **Dual Distribution** — Lite (~15MB) and Full (with kernels) editions
 
 ---
 
 ## 📸 Preview
 
-| Home Dashboard | Node List | Log Terminal |
+| Home Dashboard | Node List | Core Manager |
 |:---:|:---:|:---:|
-| Centered control card + traffic stats | Card-based nodes + protocol badges | macOS-style terminal + syntax highlighting |
+| Centered control card + traffic stats | Card-based nodes + protocol badges + group filter | Three-core status + one-click download/upload |
+
+| Subscription Manager | Routing Rules | Settings |
+|:---:|:---:|:---:|
+| Add/edit/refresh subscriptions | Direct/proxy/block rules | Language/theme/network config |
 
 ---
 
@@ -41,28 +50,35 @@
 
 ```
 v2rayN-Go/
-├── web/                           # Frontend (React + Vite + Tailwind CSS)
+├── web/                           # Frontend (React 19 + Vite + Tailwind CSS)
 │   └── src/
 │       ├── components/            # UI Components
-│       │   ├── Sidebar.tsx        # Navigation sidebar
+│       │   ├── Sidebar.tsx        # Collapsible navigation sidebar
 │       │   ├── HomeView.tsx       # Dashboard control panel
-│       │   ├── NodesView.tsx      # Node management
+│       │   ├── NodesView.tsx      # Node management (search/group/dedup/QR)
+│       │   ├── SubscriptionsView.tsx  # Subscription management
+│       │   ├── CoresView.tsx      # Core Hub management
+│       │   ├── RoutingView.tsx    # Routing rule management
+│       │   ├── SettingsView.tsx   # Settings (language/theme/network)
 │       │   └── LogConsole.tsx     # Log terminal
+│       ├── locales/               # Standalone locale files
+│       │   ├── zh-CN.ts           # Chinese
+│       │   └── en-US.ts           # English
 │       ├── lib/
 │       │   ├── api.ts             # API client
-│       │   ├── i18n.ts            # Internationalization
-│       │   ├── useWebSocket.ts    # WebSocket hook
-│       │   └── useDarkMode.ts     # Dark mode hook
+│       │   ├── i18n.ts            # i18n + theme management
+│       │   └── useWebSocket.ts    # WebSocket hook
 │       └── store.ts               # Zustand global state
 └── src/                           # Backend (Go)
-    ├── cmd/cli.go                 # CLI commands
-    ├── config/                    # App configuration
+    ├── cmd/cli.go                 # CLI commands + flag parsing
+    ├── config/                    # App config (three-tier priority)
     ├── database/                  # SQLite database (pure Go)
-    ├── parser/                    # Multi-protocol parsers
+    │   └── models.go              # Profile, Subscription, NodeGroup, RoutingRule
+    ├── parser/                    # Multi-protocol parsers + QR code decoder
     ├── subscription/              # Subscription service + latency testing
     ├── configbuilder/             # Type-safe config generator
     ├── core/                      # Kernel process manager
-    ├── updater/                   # Kernel online updater
+    ├── updater/                   # Kernel online updater (Xray/Sing-box/Mihomo)
     ├── service/                   # System service integration
     └── web/                       # Web server + go:embed
 ```
@@ -87,6 +103,9 @@ Download the appropriate package from the [Releases](https://github.com/Maaartin
 # Run directly (foreground mode, recommended for development)
 ./v2rayN-Go
 
+# Override config with CLI flags
+./v2rayN-Go --listen-ip 0.0.0.0 --port 8080 --socks-port 10808
+
 # Install as system service (auto-start on boot)
 ./v2rayN-Go install
 ./v2rayN-Go start
@@ -102,7 +121,47 @@ After starting, open your browser and navigate to **http://127.0.0.1:2017**
 
 ### Download Kernels
 
-On first run with the Lite edition, go to the **Cores** page and click the download button to automatically fetch Xray-core or Sing-box from GitHub Releases into the local `bin/` directory.
+On first run with the Lite edition, go to the **Core Manager** page and click the download button to automatically fetch Xray-core, Sing-box, or Mihomo from GitHub Releases into the local `bin/` directory. You can also upload local binary files.
+
+---
+
+## ⚙️ Configuration
+
+v2rayN-Go supports three-tier configuration priority (highest to lowest):
+
+### 1. CLI Flags (Highest Priority)
+
+```bash
+./v2rayN-Go --listen-ip 0.0.0.0 --port 8080 --socks-port 10808 --http-port 10809
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--listen-ip` | Listen IP address | `127.0.0.1` |
+| `--port` | Web UI port | `2017` |
+| `--socks-port` | SOCKS5 proxy port | `10808` |
+| `--http-port` | HTTP proxy port | `10809` |
+| `--outbound-ip` | Outbound bind IP | `0.0.0.0` |
+| `--github-mirror` | GitHub mirror URL | empty (direct) |
+
+### 2. config.json File
+
+Create a `config.json` in the same directory as the executable:
+
+```json
+{
+  "listen_ip": "0.0.0.0",
+  "web_port": 2017,
+  "socks_port": 10808,
+  "http_port": 10809,
+  "outbound_ip": "0.0.0.0",
+  "github_mirror": "https://mirror.example.com"
+}
+```
+
+### 3. Web Settings Page
+
+After startup, use the **Settings** page to visually modify network parameters, GitHub mirror, etc. Changes are automatically saved to `config.json`.
 
 ---
 
@@ -156,6 +215,16 @@ GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o v2rayN-Go-da
 
 ---
 
+## 🧩 Supported Kernels
+
+| Kernel | GitHub Repository | One-Click Download | Local Upload |
+|--------|-------------------|:------------------:|:------------:|
+| Xray-core | [XTLS/Xray-core](https://github.com/XTLS/Xray-core) | ✅ | ✅ |
+| Sing-box | [SagerNet/sing-box](https://github.com/SagerNet/sing-box) | ✅ | ✅ |
+| Mihomo | [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) | ✅ | ✅ |
+
+---
+
 ## ⚙️ Tech Stack
 
 ### Backend
@@ -165,11 +234,12 @@ GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o v2rayN-Go-da
 - **ORM**: GORM
 - **WebSocket**: gorilla/websocket
 - **System Service**: kardianos/service
+- **QR Code Decoder**: gozxing
 
 ### Frontend
-- **Framework**: React 18 + TypeScript
+- **Framework**: React 19 + TypeScript
 - **Build Tool**: Vite 8
-- **Styling**: Tailwind CSS (Zinc neutral color scheme)
+- **Styling**: Tailwind CSS v4 + Anthropic-style design system
 - **State Management**: Zustand
 - **Animations**: Framer Motion
 - **Icons**: Lucide Icons
