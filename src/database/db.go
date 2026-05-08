@@ -26,6 +26,7 @@ func Init(cfg *config.AppConfig) error {
 		&Subscription{},
 		&NodeGroup{},
 		&RoutingRule{},
+		&StrategyGroup{},
 		&AppSetting{},
 	); err != nil {
 		return err

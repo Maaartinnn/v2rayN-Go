@@ -37,6 +37,9 @@ type Profile struct {
 	ShortID   string `gorm:"size:128" json:"short_id"`   // Reality shortId
 	SiderSNI  string `gorm:"size:256" json:"sider_sni"`  // Reality serverName
 
+	// 链式代理
+	DialerProxy string `gorm:"size:256" json:"dialer_proxy"` // 前置代理 tag（链式代理）
+
 	// 原始链接
 	RawLink string `gorm:"type:text" json:"raw_link"` // 原始分享链接
 
@@ -97,6 +100,28 @@ type RoutingRule struct {
 	Port      string `gorm:"size:128" json:"port"`    // 端口规则
 	Enabled   bool   `gorm:"default:true" json:"enabled"`
 	SortOrder int    `json:"sort_order"` // 排序顺序（越小优先级越高）
+}
+
+// StrategyGroup 策略组
+type StrategyGroup struct {
+	gorm.Model
+
+	Name        string `gorm:"size:256;uniqueIndex" json:"name"` // 策略组名称
+	Type        string `gorm:"size:64" json:"type"`              // 策略组类型: selector, urltest, fallback, loadbalance
+	Description string `gorm:"size:512" json:"description"`      // 描述
+
+	// 成员节点（通过关联表）
+	ProfileIDs string `gorm:"type:text" json:"profile_ids"` // 成员节点 ID 列表（JSON 数组）
+
+	// 测试设置
+	TestURL      string `gorm:"size:512" json:"test_url"`         // 测试 URL
+	TestInterval int    `gorm:"default:300" json:"test_interval"` // 测试间隔（秒）
+
+	// 负载均衡设置
+	Strategy string `gorm:"size:64" json:"strategy"` // 负载均衡策略: round-robin, least-load, random
+
+	SortOrder int  `json:"sort_order"` // 排序顺序
+	Enabled   bool `gorm:"default:true" json:"enabled"`
 }
 
 // AppSetting 应用设置（KV 存储）

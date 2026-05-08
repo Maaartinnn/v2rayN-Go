@@ -7,6 +7,7 @@ import { SettingsView } from './components/SettingsView'
 import { SubscriptionsView } from './components/SubscriptionsView'
 import { CoresView } from './components/CoresView'
 import { RoutingView } from './components/RoutingView'
+import { StrategyGroupView } from './components/StrategyGroupView'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useWebSocket } from './lib/useWebSocket'
 import { useStore } from './store'
@@ -21,6 +22,7 @@ const views: { [key: string]: React.FC } = {
   settings: SettingsView,
   updater: CoresView,
   routing: RoutingView,
+  strategy: StrategyGroupView,
 }
 
 export default function App() {
@@ -45,6 +47,7 @@ export default function App() {
     settings: t('nav.settings'),
     updater: t('nav.cores'),
     routing: t('nav.routing'),
+    strategy: t('strategy.title'),
   }
 
   return (

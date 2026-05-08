@@ -70,6 +70,8 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/subscriptions", s.handleSubscriptions)
 
 	mux.HandleFunc("/api/groups", s.handleGroups)
+	mux.HandleFunc("/api/strategy-groups/", s.handleStrategyGroupByID)
+	mux.HandleFunc("/api/strategy-groups", s.handleStrategyGroups)
 
 	mux.HandleFunc("/api/cores", s.handleCores)
 	mux.HandleFunc("/api/cores/download-url", s.handleCoreDownloadURL)
@@ -907,6 +909,73 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		}
 
 		jsonOK(w, map[string]string{"status": "saved"})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// ========== Strategy Groups API ==========
+
+func (s *Server) handleStrategyGroups(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		var groups []database.StrategyGroup
+		database.DB.Order("sort_order ASC").Find(&groups)
+		jsonOK(w, groups)
+
+	case http.MethodPost:
+		var group database.StrategyGroup
+		if err := json.NewDecoder(r.Body).Decode(&group); err != nil {
+			jsonError(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		if err := database.DB.Create(&group).Error; err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		jsonOK(w, group)
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) handleStrategyGroupByID(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/strategy-groups/")
+	id := strings.TrimSpace(path)
+
+	if id == "" {
+		jsonError(w, "Missing strategy group ID", http.StatusBadRequest)
+		return
+	}
+
+	var group database.StrategyGroup
+	if err := database.DB.First(&group, id).Error; err != nil {
+		jsonError(w, "Strategy group not found", http.StatusNotFound)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		jsonOK(w, group)
+
+	case http.MethodPut:
+		var updated database.StrategyGroup
+		if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
+			jsonError(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		updated.ID = group.ID
+		if err := database.DB.Save(&updated).Error; err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		jsonOK(w, updated)
+
+	case http.MethodDelete:
+		database.DB.Delete(&group)
+		jsonOK(w, map[string]string{"status": "deleted"})
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

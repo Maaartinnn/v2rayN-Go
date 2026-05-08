@@ -199,6 +199,57 @@ type XrayPolicyLevel struct {
 	DownlinkOnly int `json:"downlinkOnly,omitempty"`
 }
 
+// BuildXrayConfigWithStrategy 根据选中的节点、路由规则和策略组生成 Xray 配置
+func BuildXrayConfigWithStrategy(profile *database.Profile, rules []database.RoutingRule, strategyGroups []database.StrategyGroup, socksPort, httpPort int) (*XrayConfig, error) {
+	if profile == nil {
+		return nil, fmt.Errorf("profile is nil")
+	}
+
+	cfg := &XrayConfig{
+		Log: XrayLog{
+			Error:    "warning",
+			Loglevel: "warning",
+		},
+		Inbounds: []XrayInbound{
+			{
+				Listen:   "127.0.0.1",
+				Port:     socksPort,
+				Protocol: "socks",
+				Settings: &XrayInboundSettings{},
+				Tag:      "socks-in",
+				Sniffing: &XraySniffing{
+					Enabled:      true,
+					DestOverride: []string{"http", "tls", "quic"},
+				},
+			},
+			{
+				Listen:   "127.0.0.1",
+				Port:     httpPort,
+				Protocol: "http",
+				Settings: &XrayInboundSettings{},
+				Tag:      "http-in",
+			},
+		},
+	}
+
+	// 构建主 outbound
+	outbound, err := buildXrayOutbound(profile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build outbound: %w", err)
+	}
+	cfg.Outbounds = []XrayOutbound{*outbound}
+
+	// 构建策略组 outbounds 和 balancers
+	if len(strategyGroups) > 0 {
+		balancers := buildXrayBalancers(strategyGroups)
+		cfg.Routing = buildXrayRoutingWithBalancers(rules, balancers)
+	} else {
+		cfg.Routing = buildXrayRouting(rules)
+	}
+
+	return cfg, nil
+}
+
 // BuildXrayConfig 根据选中的节点和路由规则生成 Xray 配置
 func BuildXrayConfig(profile *database.Profile, rules []database.RoutingRule, socksPort, httpPort int) (*XrayConfig, error) {
 	if profile == nil {
@@ -471,6 +522,88 @@ func buildXrayRouting(rules []database.RoutingRule) *XrayRouting {
 			xrayRule.Port = rule.Port
 		}
 
+		routing.Rules = append(routing.Rules, xrayRule)
+	}
+
+	return routing
+}
+
+// buildXrayBalancers 根据策略组构建 Xray balancers
+func buildXrayBalancers(groups []database.StrategyGroup) []interface{} {
+	var balancers []interface{}
+	for _, g := range groups {
+		if !g.Enabled {
+			continue
+		}
+		balancer := map[string]interface{}{
+			"tag":      g.Name,
+			"selector": []string{g.Name},
+		}
+		switch g.Type {
+		case "urltest":
+			balancer["strategy"] = map[string]interface{}{
+				"type": "urlTest",
+			}
+		case "fallback":
+			balancer["strategy"] = map[string]interface{}{
+				"type": "fallback",
+			}
+		case "loadbalance":
+			strategyType := "random"
+			if g.Strategy == "round-robin" {
+				strategyType = "roundRobin"
+			} else if g.Strategy == "least-load" {
+				strategyType = "leastLoad"
+			}
+			balancer["strategy"] = map[string]interface{}{
+				"type": strategyType,
+			}
+		default: // selector
+			balancer["strategy"] = map[string]interface{}{
+				"type": "random",
+			}
+		}
+		balancers = append(balancers, balancer)
+	}
+	return balancers
+}
+
+// buildXrayRoutingWithBalancers 构建带 balancer 的路由规则
+func buildXrayRoutingWithBalancers(rules []database.RoutingRule, balancers []interface{}) *XrayRouting {
+	routing := &XrayRouting{
+		DomainStrategy: "IPIfNonMatch",
+		Balancers:      balancers,
+		Rules: []XrayRule{
+			{
+				Type:        "field",
+				IP:          []string{"geoip:private", "geoip:cn"},
+				OutboundTag: "direct",
+			},
+			{
+				Type:        "field",
+				Domain:      []string{"geosite:cn"},
+				OutboundTag: "direct",
+			},
+		},
+	}
+
+	for _, rule := range rules {
+		if !rule.Enabled {
+			continue
+		}
+		xrayRule := XrayRule{
+			Type:        "field",
+			OutboundTag: rule.Type,
+		}
+		if rule.Domain != "" {
+			xrayRule.Domain = splitAndTrim(rule.Domain)
+		}
+		if rule.IP != "" {
+			xrayRule.IP = splitAndTrim(rule.IP)
+		}
+		if rule.Port != "" {
+			xrayRule.Port = rule.Port
+		}
 		routing.Rules = append(routing.Rules, xrayRule)
 	}
 
