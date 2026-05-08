@@ -27,28 +27,33 @@ export function HomeView() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-full">
+    <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
-        className="w-[400px] bg-card rounded-2xl border border-border p-8"
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="w-[420px] rounded-2xl border p-8"
+        style={{
+          backgroundColor: 'var(--color-card)',
+          borderColor: 'var(--color-border)',
+          boxShadow: 'var(--shadow-elevated)',
+        }}
       >
         {/* Status indicator */}
         <div className="flex items-center justify-center mb-8">
           <div className="relative">
             <div
-              className={`w-3 h-3 rounded-full ${
-                isConnected ? 'bg-emerald animate-ping' : 'bg-stone'
-              }`}
-            />
-            <div
-              className={`w-3 h-3 rounded-full absolute inset-0 ${
-                isConnected ? 'bg-emerald' : 'bg-stone'
-              }`}
+              className="w-3 h-3 rounded-full"
+              style={{
+                backgroundColor: isConnected ? 'var(--color-success)' : 'var(--color-stone)',
+                animation: isConnected ? 'pulse-glow 2s infinite' : 'none',
+              }}
             />
           </div>
-          <span className="ml-3 text-sm text-muted-foreground">
+          <span
+            className="ml-3 text-sm"
+            style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
+          >
             {isConnected ? t('home.connected') : t('home.disconnected')}
           </span>
         </div>
@@ -57,13 +62,13 @@ export function HomeView() {
         <div className="flex justify-center mb-8">
           <motion.button
             onClick={handleToggle}
-            className={`w-24 h-24 rounded-full flex items-center justify-center transition-colors ${
-              isConnected
-                ? 'bg-emerald/10 text-emerald hover:bg-emerald/20'
-                : 'bg-muted text-muted-foreground hover:bg-accent'
-            }`}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            className="w-24 h-24 rounded-full flex items-center justify-center transition-colors cursor-pointer"
+            style={{
+              backgroundColor: isConnected ? 'var(--color-success-dim)' : 'var(--color-muted)',
+              color: isConnected ? 'var(--color-success)' : 'var(--color-muted-foreground)',
+            }}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
           >
             <Power size={36} strokeWidth={1.5} />
           </motion.button>
@@ -71,11 +76,17 @@ export function HomeView() {
 
         {/* Current node info */}
         <div className="text-center mb-6">
-          <p className="text-lg font-medium">
+          <p
+            className="text-lg font-medium"
+            style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+          >
             {activeProfile ? activeProfile.name : t('home.no_node')}
           </p>
           {activeProfile && (
-            <p className="text-sm text-muted-foreground mt-1">
+            <p
+              className="text-sm mt-1"
+              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
+            >
               {activeProfile.protocol.toUpperCase()} · {activeProfile.address}:{activeProfile.port}
             </p>
           )}
@@ -86,20 +97,41 @@ export function HomeView() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="grid grid-cols-2 gap-4 pt-4 border-t border-border"
+            className="grid grid-cols-2 gap-4 pt-5 border-t"
+            style={{ borderColor: 'var(--color-border)' }}
           >
             <div className="flex items-center gap-2">
-              <ArrowUp size={14} className="text-emerald" />
+              <ArrowUp size={14} style={{ color: 'var(--color-success)' }} />
               <div>
-                <p className="text-xs text-muted-foreground">{t('home.upload')}</p>
-                <p className="text-sm font-medium">{formatBytes(metrics.upload_speed)}</p>
+                <p
+                  className="text-xs"
+                  style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
+                >
+                  {t('home.upload')}
+                </p>
+                <p
+                  className="text-sm font-medium"
+                  style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-mono)' }}
+                >
+                  {formatBytes(metrics.upload_speed)}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <ArrowDown size={14} className="text-amber" />
+              <ArrowDown size={14} style={{ color: 'var(--color-warning)' }} />
               <div>
-                <p className="text-xs text-muted-foreground">{t('home.download')}</p>
-                <p className="text-sm font-medium">{formatBytes(metrics.download_speed)}</p>
+                <p
+                  className="text-xs"
+                  style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
+                >
+                  {t('home.download')}
+                </p>
+                <p
+                  className="text-sm font-medium"
+                  style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-mono)' }}
+                >
+                  {formatBytes(metrics.download_speed)}
+                </p>
               </div>
             </div>
           </motion.div>
@@ -107,9 +139,15 @@ export function HomeView() {
 
         {/* Ping */}
         {activeProfile?.test_result && (
-          <div className="flex items-center justify-center gap-2 mt-4 pt-4 border-t border-border">
-            <Zap size={14} className="text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">
+          <div
+            className="flex items-center justify-center gap-2 mt-4 pt-4 border-t"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
+            <Zap size={14} style={{ color: 'var(--color-muted-foreground)' }} />
+            <span
+              className="text-sm"
+              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
+            >
               {t('home.latency')}: {activeProfile.test_result}
             </span>
           </div>

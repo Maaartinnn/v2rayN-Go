@@ -2,14 +2,20 @@ import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Trash2 } from 'lucide-react'
 import { useStore } from '../store'
-import { useT } from '../lib/i18n'
-import { useDarkMode } from '../lib/useDarkMode'
+import { useT, useI18n } from '../lib/i18n'
 
 export function LogConsole() {
   const { logs, clearLogs } = useStore()
   const scrollRef = useRef<HTMLDivElement>(null)
   const t = useT()
-  const isDark = useDarkMode()
+  const { theme } = useI18n()
+
+  // Determine if dark mode is active
+  const isDark = (() => {
+    if (theme === 'dark') return true
+    if (theme === 'light') return false
+    return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
+  })()
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -17,78 +23,103 @@ export function LogConsole() {
     }
   }, [logs])
 
-  const highlightLog = (content: string, isDark: boolean) => {
+  const highlightLog = (content: string) => {
     if (isDark) {
       return content
-        .replace(/\[INFO\]/g, '<span style="color: oklch(0.6 0.1 250)">[INFO]</span>')
-        .replace(/\[WARN\]/g, '<span style="color: oklch(0.769 0.188 70)">[WARN]</span>')
-        .replace(/\[ERROR\]/g, '<span style="color: oklch(0.577 0.245 27)">[ERROR]</span>')
-        .replace(/\[xray\]/g, '<span style="color: oklch(0.6 0.15 280)">[xray]</span>')
-        .replace(/\[sing-box\]/g, '<span style="color: oklch(0.6 0.15 160)">[sing-box]</span>')
+        .replace(/\[INFO\]/g, '<span style="color: #6A9BCC">[INFO]</span>')
+        .replace(/\[WARN\]/g, '<span style="color: #C9943A">[WARN]</span>')
+        .replace(/\[ERROR\]/g, '<span style="color: #C0453A">[ERROR]</span>')
+        .replace(/\[xray\]/g, '<span style="color: #D97757">[xray]</span>')
+        .replace(/\[sing-box\]/g, '<span style="color: #788C5D">[sing-box]</span>')
     }
-    // Light mode colors
     return content
-      .replace(/\[INFO\]/g, '<span style="color: #2563eb">[INFO]</span>')
-      .replace(/\[WARN\]/g, '<span style="color: #d97706">[WARN]</span>')
-      .replace(/\[ERROR\]/g, '<span style="color: #dc2626">[ERROR]</span>')
-      .replace(/\[xray\]/g, '<span style="color: #7c3aed">[xray]</span>')
-      .replace(/\[sing-box\]/g, '<span style="color: #059669">[sing-box]</span>')
+      .replace(/\[INFO\]/g, '<span style="color: #5A89B8">[INFO]</span>')
+      .replace(/\[WARN\]/g, '<span style="color: #C9943A">[WARN]</span>')
+      .replace(/\[ERROR\]/g, '<span style="color: #C0453A">[ERROR]</span>')
+      .replace(/\[xray\]/g, '<span style="color: #C96442">[xray]</span>')
+      .replace(/\[sing-box\]/g, '<span style="color: #6B8F47">[sing-box]</span>')
   }
 
   return (
-    <div className="max-w-3xl mx-auto py-6">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-medium">{t('logs.title')}</h1>
+    <div className="max-w-3xl mx-auto">
+      <div className="flex items-center justify-between mb-5">
+        <h1
+          className="text-xl font-semibold"
+          style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+        >
+          {t('logs.title')}
+        </h1>
         <motion.button
           onClick={clearLogs}
-          className="px-3 py-1.5 text-sm rounded-lg bg-muted hover:bg-accent text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
+          style={{
+            backgroundColor: 'var(--color-muted)',
+            borderColor: 'var(--color-border)',
+            color: 'var(--color-muted-foreground)',
+            fontFamily: 'var(--font-heading)',
+          }}
           whileTap={{ scale: 0.95 }}
         >
-          <Trash2 size={14} />
+          <Trash2 size={13} />
           {t('logs.clear')}
         </motion.button>
       </div>
 
-      <div className={`rounded-2xl border overflow-hidden transition-colors ${
-        isDark
-          ? 'bg-zinc-950 border-zinc-800'
-          : 'bg-zinc-50 border-zinc-200'
-      }`}>
-        {/* macOS-style title bar */}
-        <div className={`flex items-center gap-2 px-4 py-2.5 border-b ${
-          isDark ? 'border-zinc-800' : 'border-zinc-200'
-        }`}>
-          <div className="w-3 h-3 rounded-full bg-red-500/80" />
-          <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-          <div className="w-3 h-3 rounded-full bg-green-500/80" />
-          <span className={`ml-2 text-xs font-mono ${
-            isDark ? 'text-zinc-500' : 'text-zinc-400'
-          }`}>core.log</span>
+      <div
+        className="rounded-xl border overflow-hidden"
+        style={{
+          backgroundColor: isDark ? '#1A1916' : '#F5F3EC',
+          borderColor: 'var(--color-border)',
+          boxShadow: 'var(--shadow-card)',
+        }}
+      >
+        {/* Terminal-style title bar */}
+        <div
+          className="flex items-center gap-2 px-4 py-2.5 border-b"
+          style={{ borderColor: isDark ? '#2E2D27' : '#E8E6DC' }}
+        >
+          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#C0453A', opacity: 0.8 }} />
+          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#C9943A', opacity: 0.8 }} />
+          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#6B8F47', opacity: 0.8 }} />
+          <span
+            className="ml-2 text-xs"
+            style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}
+          >
+            core.log
+          </span>
         </div>
 
         {/* Log content */}
         <div
           ref={scrollRef}
-          className={`h-[500px] overflow-y-auto p-4 font-mono text-xs leading-relaxed ${
-            isDark ? 'text-zinc-300' : 'text-zinc-700'
-          }`}
+          className="h-[500px] overflow-y-auto p-4 text-xs leading-relaxed"
+          style={{
+            color: isDark ? '#EAE7DC' : '#141413',
+            fontFamily: 'var(--font-mono)',
+          }}
         >
           {logs.length === 0 ? (
-            <div className={`text-center py-16 ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>
-              <p>{t('logs.no_logs')}</p>
-              <p className={`mt-1 ${isDark ? 'text-zinc-700' : 'text-zinc-300'}`}>{t('logs.start_hint')}</p>
+            <div className="text-center py-20">
+              <p style={{ color: isDark ? '#5C5A54' : '#B0AEA5' }}>{t('logs.no_logs')}</p>
+              <p
+                className="mt-1"
+                style={{ color: isDark ? '#3A3830' : '#D8D5CC', fontFamily: 'var(--font-heading)' }}
+              >
+                {t('logs.start_hint')}
+              </p>
             </div>
           ) : (
             logs.map((log, i) => (
               <div key={i} className="flex gap-3 py-0.5">
-                <span className={`flex-shrink-0 select-none ${
-                  isDark ? 'text-zinc-600' : 'text-zinc-400'
-                }`}>
+                <span
+                  className="flex-shrink-0 select-none"
+                  style={{ color: isDark ? '#5C5A54' : '#B0AEA5' }}
+                >
                   {new Date(log.time).toLocaleTimeString('en-US', { hour12: false })}
                 </span>
                 <span
                   className="break-all"
-                  dangerouslySetInnerHTML={{ __html: highlightLog(log.content, isDark) }}
+                  dangerouslySetInnerHTML={{ __html: highlightLog(log.content) }}
                 />
               </div>
             ))

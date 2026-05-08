@@ -1,65 +1,171 @@
-import React from 'react'
+import { useState, useEffect } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { HomeView } from './components/HomeView'
 import { NodesView } from './components/NodesView'
 import { LogConsole } from './components/LogConsole'
+import { SettingsView } from './components/SettingsView'
 import { useWebSocket } from './lib/useWebSocket'
 import { useStore } from './store'
-import { useT } from './lib/i18n'
+import { useT, initTheme } from './lib/i18n'
 import { motion, AnimatePresence } from 'framer-motion'
-
-function SettingsView() {
-  const t = useT()
-  return (
-    <div className="max-w-2xl mx-auto py-6">
-      <h1 className="text-xl font-medium mb-6">{t('settings.title')}</h1>
-      <div className="bg-card rounded-2xl border border-border p-6">
-        <p className="text-sm text-muted-foreground">{t('settings.coming_soon')}</p>
-      </div>
-    </div>
-  )
-}
 
 function UpdaterView() {
   const t = useT()
   return (
-    <div className="max-w-2xl mx-auto py-6">
-      <h1 className="text-xl font-medium mb-6">{t('cores.title')}</h1>
-      <div className="bg-card rounded-2xl border border-border p-6">
-        <p className="text-sm text-muted-foreground">{t('cores.coming_soon')}</p>
+    <div className="max-w-3xl mx-auto">
+      <h1
+        className="text-xl font-semibold mb-6"
+        style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+      >
+        {t('cores.title')}
+      </h1>
+      <div
+        className="rounded-xl border p-6"
+        style={{
+          backgroundColor: 'var(--color-card)',
+          borderColor: 'var(--color-border)',
+          boxShadow: 'var(--shadow-card)',
+        }}
+      >
+        <p className="text-sm" style={{ color: 'var(--color-muted-foreground)' }}>
+          {t('cores.coming_soon')}
+        </p>
       </div>
     </div>
   )
 }
 
-const views: Record<string, React.FC> = {
+function RoutingView() {
+  const t = useT()
+  return (
+    <div className="max-w-3xl mx-auto">
+      <h1
+        className="text-xl font-semibold mb-6"
+        style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+      >
+        {t('routing.title')}
+      </h1>
+      <div
+        className="rounded-xl border p-6"
+        style={{
+          backgroundColor: 'var(--color-card)',
+          borderColor: 'var(--color-border)',
+          boxShadow: 'var(--shadow-card)',
+        }}
+      >
+        <p className="text-sm" style={{ color: 'var(--color-muted-foreground)' }}>
+          {t('common.no_data')}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+const views: { [key: string]: React.FC } = {
   home: HomeView,
   nodes: NodesView,
   logs: LogConsole,
   settings: SettingsView,
   updater: UpdaterView,
+  routing: RoutingView,
 }
 
 export default function App() {
   useWebSocket()
-  const { currentView } = useStore()
+  const { currentView, isConnected, activeProfile } = useStore()
+  const t = useT()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
+  // Initialize theme on mount
+  useEffect(() => {
+    initTheme()
+  }, [])
+
   const View = views[currentView] || HomeView
 
+  // Map view IDs to page titles
+  const viewTitles: Record<string, string> = {
+    home: t('nav.home'),
+    nodes: t('nav.nodes'),
+    logs: t('nav.logs'),
+    settings: t('nav.settings'),
+    updater: t('nav.cores'),
+    routing: t('nav.routing'),
+  }
+
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar />
-      <main className="ml-16 p-6">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentView}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
-          >
-            <View />
-          </motion.div>
-        </AnimatePresence>
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--color-background)' }}>
+      <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
+
+      {/* Top Header Bar */}
+      <header
+        className="fixed top-0 right-0 h-14 flex items-center justify-between px-6 z-40 border-b"
+        style={{
+          left: sidebarCollapsed ? 64 : 200,
+          backgroundColor: 'var(--color-background)',
+          borderColor: 'var(--color-border)',
+          transition: 'left 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+      >
+        {/* Page Title */}
+        <h2
+          className="text-sm font-medium"
+          style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+        >
+          {viewTitles[currentView] || ''}
+        </h2>
+
+        {/* Right side: minimal status indicator */}
+        <div className="flex items-center gap-3">
+          {activeProfile && (
+            <span
+              className="text-xs"
+              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
+            >
+              {activeProfile.name}
+            </span>
+          )}
+          <div className="flex items-center gap-1.5">
+            <div
+              className="w-1.5 h-1.5 rounded-full"
+              style={{
+                backgroundColor: isConnected ? 'var(--color-success)' : 'var(--color-stone)',
+              }}
+            />
+            <span
+              className="text-[11px] font-medium"
+              style={{
+                color: isConnected ? 'var(--color-success)' : 'var(--color-text-muted)',
+                fontFamily: 'var(--font-heading)',
+              }}
+            >
+              {isConnected ? 'ON' : 'OFF'}
+            </span>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <main
+        className="pt-14 min-h-screen"
+        style={{
+          marginLeft: sidebarCollapsed ? 64 : 200,
+          transition: 'margin-left 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+      >
+        <div className="p-6">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentView}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <View />
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </main>
     </div>
   )

@@ -1,49 +1,88 @@
-import { motion } from 'framer-motion'
-import { Home, Server, FileText, Settings, Download, Globe } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Home, Server, FileText, Settings, Download, Route, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useStore } from '../store'
-import { useI18n, useT } from '../lib/i18n'
+import { useT } from '../lib/i18n'
 
-export function Sidebar() {
+interface SidebarProps {
+  collapsed: boolean
+  onToggle: () => void
+}
+
+export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { currentView, setCurrentView, isConnected } = useStore()
-  const { lang, setLang } = useI18n()
   const t = useT()
 
   const navItems = [
     { id: 'home', icon: Home, label: t('nav.home') },
     { id: 'nodes', icon: Server, label: t('nav.nodes') },
+    { id: 'routing', icon: Route, label: t('nav.routing') },
+    { id: 'updater', icon: Download, label: t('nav.cores') },
     { id: 'logs', icon: FileText, label: t('nav.logs') },
     { id: 'settings', icon: Settings, label: t('nav.settings') },
-    { id: 'updater', icon: Download, label: t('nav.cores') },
   ]
 
   return (
-    <nav className="fixed left-0 top-0 bottom-0 w-16 bg-card border-r border-border flex flex-col items-center py-4 z-50">
-      {/* Logo */}
-      <div className="mb-8">
-        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-          <span className="text-primary-foreground text-xs font-bold">V</span>
+    <motion.nav
+      className="fixed left-0 top-0 bottom-0 flex flex-col z-50 border-r"
+      style={{
+        backgroundColor: 'var(--color-sidebar)',
+        borderColor: 'var(--color-border)',
+      }}
+      initial={false}
+      animate={{ width: collapsed ? 64 : 200 }}
+      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+    >
+      {/* Logo & Brand */}
+      <div className="flex items-center h-14 px-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: 'var(--color-primary)' }}
+        >
+          <span className="text-sm font-bold" style={{ color: 'var(--color-primary-foreground)', fontFamily: 'var(--font-heading)' }}>V</span>
         </div>
+        <AnimatePresence>
+          {!collapsed && (
+            <motion.span
+              initial={{ opacity: 0, width: 0 }}
+              animate={{ opacity: 1, width: 'auto' }}
+              exit={{ opacity: 0, width: 0 }}
+              className="ml-3 text-sm font-semibold whitespace-nowrap overflow-hidden"
+              style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+            >
+              v2rayN-Go
+            </motion.span>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Status indicator */}
-      <div className="mb-6">
-        <div
-          className={`w-2.5 h-2.5 rounded-full ${
-            isConnected
-              ? 'bg-emerald animate-ping'
-              : 'bg-stone'
-          }`}
-        />
-        <div
-          className={`w-2.5 h-2.5 rounded-full absolute ${
-            isConnected ? 'bg-emerald' : 'bg-stone'
-          }`}
-          style={{ marginTop: -10 }}
-        />
+      {/* Status Indicator */}
+      <div className="flex items-center h-10 px-4 mx-3 mt-3 rounded-lg" style={{ backgroundColor: 'var(--color-card)' }}>
+        <div className="relative flex-shrink-0">
+          <div
+            className="w-2 h-2 rounded-full"
+            style={{
+              backgroundColor: isConnected ? 'var(--color-success)' : 'var(--color-stone)',
+              animation: isConnected ? 'pulse-glow 2s infinite' : 'none',
+            }}
+          />
+        </div>
+        <AnimatePresence>
+          {!collapsed && (
+            <motion.span
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="ml-2.5 text-xs font-medium whitespace-nowrap"
+              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
+            >
+              {isConnected ? t('home.connected') : t('home.disconnected')}
+            </motion.span>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Nav items */}
-      <div className="flex-1 flex flex-col items-center gap-1">
+      {/* Nav Items */}
+      <div className="flex-1 flex flex-col gap-0.5 px-3 mt-4 overflow-y-auto">
         {navItems.map((item) => {
           const Icon = item.icon
           const isActive = currentView === item.id
@@ -51,39 +90,68 @@ export function Sidebar() {
             <motion.button
               key={item.id}
               onClick={() => setCurrentView(item.id)}
-              className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-                isActive
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-              }`}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              title={item.label}
+              className="relative flex items-center h-9 rounded-lg transition-colors cursor-pointer"
+              style={{
+                backgroundColor: isActive ? 'var(--color-accent-dim)' : 'transparent',
+                color: isActive ? 'var(--color-accent-warm)' : 'var(--color-muted-foreground)',
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                paddingLeft: collapsed ? 0 : '12px',
+                paddingRight: collapsed ? 0 : '12px',
+              }}
+              whileHover={{
+                backgroundColor: isActive ? undefined : 'var(--color-muted)',
+              }}
+              whileTap={{ scale: 0.97 }}
+              title={collapsed ? item.label : undefined}
             >
-              <Icon size={18} strokeWidth={1.5} />
               {isActive && (
                 <motion.div
-                  layoutId="sidebar-indicator"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-primary rounded-full"
-                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                  layoutId="sidebar-active"
+                  className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                 />
               )}
+              <Icon size={17} strokeWidth={1.6} className="flex-shrink-0" />
+              <AnimatePresence>
+                {!collapsed && (
+                  <motion.span
+                    initial={{ opacity: 0, width: 0 }}
+                    animate={{ opacity: 1, width: 'auto' }}
+                    exit={{ opacity: 0, width: 0 }}
+                    className="ml-2.5 text-[13px] font-medium whitespace-nowrap overflow-hidden"
+                    style={{ fontFamily: 'var(--font-heading)' }}
+                  >
+                    {item.label}
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </motion.button>
           )
         })}
       </div>
 
-      {/* Language toggle */}
-      <motion.button
-        onClick={() => setLang(lang === 'en' ? 'zh' : 'en')}
-        className="w-10 h-10 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        title={lang === 'en' ? '切换中文' : 'Switch to English'}
-      >
-        <Globe size={18} strokeWidth={1.5} />
-        <span className="absolute text-[8px] font-bold mt-5">{lang.toUpperCase()}</span>
-      </motion.button>
-    </nav>
+      {/* Collapse Toggle */}
+      <div className="px-3 pb-4">
+        <button
+          onClick={onToggle}
+          className="w-full flex items-center justify-center h-8 rounded-lg transition-colors cursor-pointer"
+          style={{
+            color: 'var(--color-text-muted)',
+            backgroundColor: 'transparent',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--color-muted)'
+            e.currentTarget.style.color = 'var(--color-muted-foreground)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent'
+            e.currentTarget.style.color = 'var(--color-text-muted)'
+          }}
+        >
+          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
+      </div>
+    </motion.nav>
   )
 }
