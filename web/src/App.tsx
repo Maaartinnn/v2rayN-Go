@@ -12,6 +12,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { useWebSocket } from './lib/useWebSocket'
 import { useStore } from './store'
 import { useT, initTheme } from './lib/i18n'
+import { coreApi } from './lib/api'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const views: { [key: string]: React.FC } = {
@@ -27,7 +28,7 @@ const views: { [key: string]: React.FC } = {
 
 export default function App() {
   useWebSocket()
-  const { currentView, isConnected, activeProfile } = useStore()
+  const { currentView, isConnected, activeProfile, setCoreStatuses } = useStore()
   const t = useT()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
@@ -35,6 +36,15 @@ export default function App() {
   useEffect(() => {
     initTheme()
   }, [])
+
+  // Fetch initial core status on mount
+  useEffect(() => {
+    coreApi.status().then((res) => {
+      setCoreStatuses(res.data)
+    }).catch(() => {
+      // server may not be ready yet, WebSocket will handle updates
+    })
+  }, [setCoreStatuses])
 
   const View = views[currentView] || HomeView
 

@@ -46,3 +46,4 @@ go.work.sum
 # Frontend
 web/node_modules/
 src/web/dist/
+src/xray_config.json

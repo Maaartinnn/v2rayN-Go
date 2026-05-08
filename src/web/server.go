@@ -24,6 +24,26 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// wsConn 封装 WebSocket 连接，加写锁防止并发写入 panic
+type wsConn struct {
+	conn *websocket.Conn
+	mu   sync.Mutex
+}
+
+func (w *wsConn) WriteJSON(v interface{}) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.conn.WriteJSON(v)
+}
+
+func (w *wsConn) ReadMessage() (messageType int, p []byte, err error) {
+	return w.conn.ReadMessage()
+}
+
+func (w *wsConn) Close() error {
+	return w.conn.Close()
+}
+
 // Server Web 服务器
 type Server struct {
 	cfg       *config.AppConfig
@@ -111,9 +131,20 @@ func (s *Server) Start() error {
 		http.FileServerFS(staticFS).ServeHTTP(w, r)
 	})
 
+	// 启动日志广播器（将内核日志广播给所有 WebSocket 客户端）
+	go s.logBroadcaster()
+
+	// API 请求日志中间件
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			log.Printf("[API] %s %s", r.Method, r.URL.Path)
+		}
+		mux.ServeHTTP(w, r)
+	})
+
 	addr := s.cfg.GetListenAddr()
 	log.Printf("Web server starting on http://%s", addr)
-	return http.ListenAndServe(addr, mux)
+	return http.ListenAndServe(addr, handler)
 }
 
 // ========== Core API ==========
@@ -175,6 +206,7 @@ func (s *Server) handleCoreStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonOK(w, map[string]string{"status": "started"})
+	go s.broadcastStatus()
 }
 
 func (s *Server) handleCoreStop(w http.ResponseWriter, r *http.Request) {
@@ -201,6 +233,7 @@ func (s *Server) handleCoreStop(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonOK(w, map[string]string{"status": "stopped"})
+	go s.broadcastStatus()
 }
 
 func (s *Server) handleCoreStatus(w http.ResponseWriter, r *http.Request) {
@@ -994,30 +1027,66 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		log.Printf("WebSocket upgrade failed: %v", err)
 		return
 	}
-	defer conn.Close()
+
+	wc := &wsConn{conn: conn}
+	defer wc.Close()
 
 	clientID := fmt.Sprintf("%p", conn)
-	s.wsClients.Store(clientID, conn)
+	s.wsClients.Store(clientID, wc)
 	defer s.wsClients.Delete(clientID)
 
-	// 启动日志转发
-	logChan := s.coreMgr.LogChannel()
-	go func() {
-		for entry := range logChan {
-			msg := map[string]interface{}{
-				"type":    "log",
-				"payload": entry,
-			}
-			conn.WriteJSON(msg)
-		}
-	}()
+	// 连接时立即发送当前内核状态
+	s.sendStatusToClient(wc)
 
 	// 保持连接
 	for {
-		_, _, err := conn.ReadMessage()
+		_, _, err := wc.ReadMessage()
 		if err != nil {
 			break
 		}
+	}
+}
+
+// ========== WebSocket Broadcasting ==========
+
+// broadcastToAll 向所有 WebSocket 客户端广播消息
+func (s *Server) broadcastToAll(msg interface{}) {
+	s.wsClients.Range(func(key, value interface{}) bool {
+		if wc, ok := value.(*wsConn); ok {
+			if err := wc.WriteJSON(msg); err != nil {
+				s.wsClients.Delete(key)
+			}
+		}
+		return true
+	})
+}
+
+// broadcastStatus 广播当前所有内核状态给 WebSocket 客户端
+func (s *Server) broadcastStatus() {
+	statuses := s.coreMgr.GetAllStatus()
+	s.broadcastToAll(map[string]interface{}{
+		"type":    "status",
+		"payload": statuses,
+	})
+}
+
+// sendStatusToClient 向单个 WebSocket 客户端发送当前状态
+func (s *Server) sendStatusToClient(wc *wsConn) {
+	statuses := s.coreMgr.GetAllStatus()
+	wc.WriteJSON(map[string]interface{}{
+		"type":    "status",
+		"payload": statuses,
+	})
+}
+
+// logBroadcaster 从内核日志通道读取日志并广播给所有 WebSocket 客户端
+func (s *Server) logBroadcaster() {
+	logChan := s.coreMgr.LogChannel()
+	for entry := range logChan {
+		s.broadcastToAll(map[string]interface{}{
+			"type":    "log",
+			"payload": entry,
+		})
 	}
 }
 

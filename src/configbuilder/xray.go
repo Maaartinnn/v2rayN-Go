@@ -200,7 +200,7 @@ type XrayPolicyLevel struct {
 }
 
 // BuildXrayConfigWithStrategy 根据选中的节点、路由规则和策略组生成 Xray 配置
-func BuildXrayConfigWithStrategy(profile *database.Profile, rules []database.RoutingRule, strategyGroups []database.StrategyGroup, socksPort, httpPort int) (*XrayConfig, error) {
+func BuildXrayConfigWithStrategy(profile *database.Profile, rules []database.RoutingRule, strategyGroups []database.StrategyGroup, configDir string, socksPort, httpPort int) (*XrayConfig, error) {
 	if profile == nil {
 		return nil, fmt.Errorf("profile is nil")
 	}
@@ -242,16 +242,16 @@ func BuildXrayConfigWithStrategy(profile *database.Profile, rules []database.Rou
 	// 构建策略组 outbounds 和 balancers
 	if len(strategyGroups) > 0 {
 		balancers := buildXrayBalancers(strategyGroups)
-		cfg.Routing = buildXrayRoutingWithBalancers(rules, balancers)
+		cfg.Routing = buildXrayRoutingWithBalancers(rules, balancers, configDir)
 	} else {
-		cfg.Routing = buildXrayRouting(rules)
+		cfg.Routing = buildXrayRouting(rules, configDir)
 	}
 
 	return cfg, nil
 }
 
 // BuildXrayConfig 根据选中的节点和路由规则生成 Xray 配置
-func BuildXrayConfig(profile *database.Profile, rules []database.RoutingRule, socksPort, httpPort int) (*XrayConfig, error) {
+func BuildXrayConfig(profile *database.Profile, rules []database.RoutingRule, configDir string, socksPort, httpPort int) (*XrayConfig, error) {
 	if profile == nil {
 		return nil, fmt.Errorf("profile is nil")
 	}
@@ -291,7 +291,7 @@ func BuildXrayConfig(profile *database.Profile, rules []database.RoutingRule, so
 	cfg.Outbounds = []XrayOutbound{*outbound}
 
 	// 构建路由规则
-	cfg.Routing = buildXrayRouting(rules)
+	cfg.Routing = buildXrayRouting(rules, configDir)
 
 	return cfg, nil
 }
@@ -481,24 +481,42 @@ func buildXrayStreamSettings(p *database.Profile) *XrayStreamSettings {
 	return ss
 }
 
+// hasGeoDatFiles 检查 xray 目录下是否存在 geoip.dat 和 geosite.dat
+func hasGeoDatFiles(configDir string) (bool, bool) {
+	binDir := filepath.Join(configDir, "bin", "xray")
+	_, geoipErr := os.Stat(filepath.Join(binDir, "geoip.dat"))
+	_, geositeErr := os.Stat(filepath.Join(binDir, "geosite.dat"))
+	return geoipErr == nil, geositeErr == nil
+}
+
+// buildDefaultRoutingRules 构建默认路由规则（根据 dat 文件是否存在决定是否包含 geo 规则）
+func buildDefaultRoutingRules(configDir string) []XrayRule {
+	var rules []XrayRule
+	hasGeoIP, hasGeoSite := hasGeoDatFiles(configDir)
+
+	if hasGeoIP {
+		rules = append(rules, XrayRule{
+			Type:        "field",
+			IP:          []string{"geoip:private", "geoip:cn"},
+			OutboundTag: "direct",
+		})
+	}
+	if hasGeoSite {
+		rules = append(rules, XrayRule{
+			Type:        "field",
+			Domain:      []string{"geosite:cn"},
+			OutboundTag: "direct",
+		})
+	}
+
+	return rules
+}
+
 // buildXrayRouting 构建路由规则
-func buildXrayRouting(rules []database.RoutingRule) *XrayRouting {
+func buildXrayRouting(rules []database.RoutingRule, configDir string) *XrayRouting {
 	routing := &XrayRouting{
 		DomainStrategy: "IPIfNonMatch",
-		Rules: []XrayRule{
-			// 默认直连规则：局域网和中国大陆 IP
-			{
-				Type:        "field",
-				IP:          []string{"geoip:private", "geoip:cn"},
-				OutboundTag: "direct",
-			},
-			// 默认直连规则：中国大陆域名
-			{
-				Type:        "field",
-				Domain:      []string{"geosite:cn"},
-				OutboundTag: "direct",
-			},
-		},
+		Rules:          buildDefaultRoutingRules(configDir),
 	}
 
 	// 添加用户自定义规则
@@ -569,22 +587,11 @@ func buildXrayBalancers(groups []database.StrategyGroup) []interface{} {
 }
 
 // buildXrayRoutingWithBalancers 构建带 balancer 的路由规则
-func buildXrayRoutingWithBalancers(rules []database.RoutingRule, balancers []interface{}) *XrayRouting {
+func buildXrayRoutingWithBalancers(rules []database.RoutingRule, balancers []interface{}, configDir string) *XrayRouting {
 	routing := &XrayRouting{
 		DomainStrategy: "IPIfNonMatch",
 		Balancers:      balancers,
-		Rules: []XrayRule{
-			{
-				Type:        "field",
-				IP:          []string{"geoip:private", "geoip:cn"},
-				OutboundTag: "direct",
-			},
-			{
-				Type:        "field",
-				Domain:      []string{"geosite:cn"},
-				OutboundTag: "direct",
-			},
-		},
+		Rules:          buildDefaultRoutingRules(configDir),
 	}
 
 	for _, rule := range rules {
@@ -612,7 +619,7 @@ func buildXrayRoutingWithBalancers(rules []database.RoutingRule, balancers []int
 
 // SaveXrayConfig 生成并保存 Xray 配置文件
 func SaveXrayConfig(profile *database.Profile, rules []database.RoutingRule, configDir string, socksPort, httpPort int) (string, error) {
-	cfg, err := BuildXrayConfig(profile, rules, socksPort, httpPort)
+	cfg, err := BuildXrayConfig(profile, rules, configDir, socksPort, httpPort)
 	if err != nil {
 		return "", err
 	}

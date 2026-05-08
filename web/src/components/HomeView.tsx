@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Power, Zap, ArrowUp, ArrowDown } from 'lucide-react'
+import { Power, Zap, ArrowUp, ArrowDown, AlertCircle } from 'lucide-react'
 import { useStore } from '../store'
 import { coreApi } from '../lib/api'
 import { useT } from '../lib/i18n'
@@ -7,16 +8,20 @@ import { useT } from '../lib/i18n'
 export function HomeView() {
   const { isConnected, activeProfile, metrics } = useStore()
   const t = useT()
+  const [error, setError] = useState<string | null>(null)
 
   const handleToggle = async () => {
+    setError(null)
     try {
       if (isConnected) {
         await coreApi.stop('xray')
       } else {
         await coreApi.start('xray', '')
       }
-    } catch (err) {
-      console.error('Toggle failed:', err)
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err?.message || 'Unknown error'
+      console.error('Toggle failed:', msg)
+      setError(msg)
     }
   }
 
@@ -134,6 +139,27 @@ export function HomeView() {
                 </p>
               </div>
             </div>
+          </motion.div>
+        )}
+
+        {/* Error message */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-2 mt-4 p-3 rounded-lg"
+            style={{
+              backgroundColor: 'var(--color-error-dim, rgba(239,68,68,0.1))',
+              border: '1px solid var(--color-error, #ef4444)',
+            }}
+          >
+            <AlertCircle size={14} style={{ color: 'var(--color-error, #ef4444)', flexShrink: 0 }} />
+            <span
+              className="text-xs"
+              style={{ color: 'var(--color-error, #ef4444)', fontFamily: 'var(--font-heading)' }}
+            >
+              {error}
+            </span>
           </motion.div>
         )}
 

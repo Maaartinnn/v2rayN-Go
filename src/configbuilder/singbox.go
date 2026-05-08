@@ -123,7 +123,7 @@ type SingboxClashAPI struct {
 }
 
 // BuildSingboxConfig 根据选中的节点和路由规则生成 Sing-box 配置
-func BuildSingboxConfig(profile *database.Profile, rules []database.RoutingRule, mixedPort int) (*SingboxConfig, error) {
+func BuildSingboxConfig(profile *database.Profile, rules []database.RoutingRule, configDir string, mixedPort int) (*SingboxConfig, error) {
 	if profile == nil {
 		return nil, fmt.Errorf("profile is nil")
 	}
@@ -160,7 +160,7 @@ func BuildSingboxConfig(profile *database.Profile, rules []database.RoutingRule,
 	cfg.Outbounds = []SingboxOutbound{*outbound, directOutbound}
 
 	// 构建路由
-	cfg.Route = buildSingboxRoute(rules)
+	cfg.Route = buildSingboxRoute(rules, configDir)
 
 	return cfg, nil
 }
@@ -361,25 +361,32 @@ func buildSingboxTransport(p *database.Profile) *SingboxTransport {
 }
 
 // buildSingboxRoute 构建 Sing-box 路由规则
-func buildSingboxRoute(rules []database.RoutingRule) *SingboxRoute {
+func buildSingboxRoute(rules []database.RoutingRule, configDir string) *SingboxRoute {
 	route := &SingboxRoute{
 		AutoDetectInterface: true,
 		Final:               "proxy",
 		Rules: []SingboxRule{
-			// 默认直连规则
+			// 默认直连规则：局域网 IP
 			{
 				IPCIDR:   []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"},
 				Outbound: "direct",
 			},
-			{
-				Domain:   []string{"geosite:cn"},
-				Outbound: "direct",
-			},
-			{
-				IPCIDR:   []string{"geoip:cn"},
-				Outbound: "direct",
-			},
 		},
+	}
+
+	// 仅在 dat 文件存在时添加 geo 规则
+	hasGeoIP, hasGeoSite := hasGeoDatFiles(configDir)
+	if hasGeoSite {
+		route.Rules = append(route.Rules, SingboxRule{
+			Domain:   []string{"geosite:cn"},
+			Outbound: "direct",
+		})
+	}
+	if hasGeoIP {
+		route.Rules = append(route.Rules, SingboxRule{
+			IPCIDR:   []string{"geoip:cn"},
+			Outbound: "direct",
+		})
 	}
 
 	// 添加用户自定义规则
@@ -407,7 +414,7 @@ func buildSingboxRoute(rules []database.RoutingRule) *SingboxRoute {
 
 // SaveSingboxConfig 生成并保存 Sing-box 配置文件
 func SaveSingboxConfig(profile *database.Profile, rules []database.RoutingRule, configDir string, mixedPort int) (string, error) {
-	cfg, err := BuildSingboxConfig(profile, rules, mixedPort)
+	cfg, err := BuildSingboxConfig(profile, rules, configDir, mixedPort)
 	if err != nil {
 		return "", err
 	}
