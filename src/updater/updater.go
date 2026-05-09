@@ -802,34 +802,67 @@ func extractFromZip(zipPath, destPath, binaryName string) error {
 	}
 	defer r.Close()
 
-	// 查找匹配的可执行文件
+	// 第一步：精确匹配目标二进制名
 	for _, f := range r.File {
 		baseName := filepath.Base(f.Name)
-		// 匹配二进制文件名（忽略大小写和 .exe 后缀）
 		if matchBinaryName(baseName, binaryName) {
-			rc, err := f.Open()
-			if err != nil {
-				return err
-			}
-			defer rc.Close()
-
-			// 确保目标目录存在
-			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-				return err
-			}
-
-			outFile, err := os.Create(destPath)
-			if err != nil {
-				return err
-			}
-			defer outFile.Close()
-
-			_, err = io.Copy(outFile, rc)
-			return err
+			return extractZipFile(f, destPath)
 		}
 	}
 
+	// 第二步：模糊匹配 — 文件名包含目标名（不含扩展名）的可执行文件
+	// 例如 mihomo-windows-amd64-v3.exe 包含 "mihomo"
+	targetClean := strings.TrimSuffix(strings.ToLower(binaryName), ".exe")
+	for _, f := range r.File {
+		baseName := strings.ToLower(filepath.Base(f.Name))
+		if isExecutable(baseName) && strings.Contains(baseName, targetClean) {
+			log.Printf("Fuzzy match: extracting %s as %s", f.Name, binaryName)
+			return extractZipFile(f, destPath)
+		}
+	}
+
+	// 第三步：如果压缩包中只有一个可执行文件，直接提取并重命名
+	var executables []*zip.File
+	for _, f := range r.File {
+		baseName := filepath.Base(f.Name)
+		if isExecutable(baseName) {
+			executables = append(executables, f)
+		}
+	}
+	if len(executables) == 1 {
+		log.Printf("Single executable found: extracting %s as %s", executables[0].Name, binaryName)
+		return extractZipFile(executables[0], destPath)
+	}
+
 	return fmt.Errorf("binary %s not found in zip archive", binaryName)
+}
+
+// extractZipFile 从 zip 中提取单个文件到目标路径
+func extractZipFile(f *zip.File, destPath string) error {
+	rc, err := f.Open()
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+
+	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+		return err
+	}
+
+	outFile, err := os.Create(destPath)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	_, err = io.Copy(outFile, rc)
+	return err
+}
+
+// isExecutable 检查文件名是否是可执行文件
+func isExecutable(name string) bool {
+	lower := strings.ToLower(name)
+	return strings.HasSuffix(lower, ".exe") || (!strings.Contains(filepath.Base(lower), ".") && !strings.HasSuffix(lower, "/"))
 }
 
 // extractFromTarGz 从 tar.gz 文件中提取可执行文件
@@ -846,7 +879,16 @@ func extractFromTarGz(tarPath, destPath, binaryName string) error {
 	}
 	defer gz.Close()
 
+	// 收集所有可执行文件信息（用于回退匹配）
+	type tarEntry struct {
+		header *tar.Header
+		name   string
+	}
+
 	tr := tar.NewReader(gz)
+	targetClean := strings.TrimSuffix(strings.ToLower(binaryName), ".exe")
+	var executables []tarEntry
+
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -861,24 +903,71 @@ func extractFromTarGz(tarPath, destPath, binaryName string) error {
 		}
 
 		baseName := filepath.Base(header.Name)
-		if matchBinaryName(baseName, binaryName) {
-			// 确保目标目录存在
-			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-				return err
-			}
 
-			outFile, err := os.Create(destPath)
+		// 精确匹配
+		if matchBinaryName(baseName, binaryName) {
+			return extractTarEntry(tr, destPath)
+		}
+
+		// 收集可执行文件用于回退
+		if isExecutable(baseName) {
+			executables = append(executables, tarEntry{header: header, name: baseName})
+			// 模糊匹配
+			if strings.Contains(strings.ToLower(baseName), targetClean) {
+				log.Printf("Fuzzy match: extracting %s as %s", header.Name, binaryName)
+				return extractTarEntry(tr, destPath)
+			}
+		}
+	}
+
+	// 如果只有一个可执行文件，提取并重命名
+	if len(executables) == 1 {
+		// 需要重新打开文件并定位到该条目
+		f2, err := os.Open(tarPath)
+		if err != nil {
+			return err
+		}
+		defer f2.Close()
+
+		gz2, err := gzip.NewReader(f2)
+		if err != nil {
+			return err
+		}
+		defer gz2.Close()
+
+		tr2 := tar.NewReader(gz2)
+		for {
+			header, err := tr2.Next()
+			if err == io.EOF {
+				break
+			}
 			if err != nil {
 				return err
 			}
-			defer outFile.Close()
-
-			_, err = io.Copy(outFile, tr)
-			return err
+			if header.Typeflag == tar.TypeReg && filepath.Base(header.Name) == executables[0].name {
+				log.Printf("Single executable found: extracting %s as %s", header.Name, binaryName)
+				return extractTarEntry(tr2, destPath)
+			}
 		}
 	}
 
 	return fmt.Errorf("binary %s not found in tar.gz archive", binaryName)
+}
+
+// extractTarEntry 从 tar 流中提取当前条目到目标路径
+func extractTarEntry(tr *tar.Reader, destPath string) error {
+	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+		return err
+	}
+
+	outFile, err := os.Create(destPath)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	_, err = io.Copy(outFile, tr)
+	return err
 }
 
 // matchBinaryName 检查文件名是否匹配目标二进制名
