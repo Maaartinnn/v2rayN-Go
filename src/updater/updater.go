@@ -239,7 +239,7 @@ func parseVersionFromOutput(output string) string {
 	return ""
 }
 
-// DownloadCore 下载指定内核的最新版本（支持镜像降级）
+// DownloadCore 下载指定内核的最新版本（支持镜像降级 + mihomo 版本降级）
 func (u *Updater) DownloadCore(coreName string, progressFn func(downloaded, total int64)) error {
 	cores := u.GetSupportedCores()
 	var coreInfo *CoreInfo
@@ -263,6 +263,11 @@ func (u *Updater) DownloadCore(coreName string, progressFn func(downloaded, tota
 	release, err := u.getLatestRelease(coreInfo.Repo)
 	if err != nil {
 		return fmt.Errorf("failed to get latest release: %w", err)
+	}
+
+	// mihomo amd64 特殊处理：按优先级逐个尝试候选版本
+	if coreName == "mihomo" && runtime.GOARCH == "amd64" {
+		return u.downloadMihomoWithFallback(coreInfo, release, coreDir, progressFn)
 	}
 
 	// 查找匹配当前平台的 asset
@@ -316,6 +321,77 @@ func (u *Updater) DownloadCore(coreName string, progressFn func(downloaded, tota
 
 	log.Printf("Successfully downloaded %s %s to %s", coreName, release.TagName, binPath)
 	return nil
+}
+
+// downloadMihomoWithFallback mihomo amd64 专用下载逻辑：按 CPU 级别优先级逐个尝试候选版本
+func (u *Updater) downloadMihomoWithFallback(coreInfo *CoreInfo, release *GitHubRelease, coreDir string, progressFn func(downloaded, total int64)) error {
+	candidates, err := u.findMihomoAssets(release.Assets, runtime.GOOS)
+	if err != nil {
+		return err
+	}
+
+	binPath := filepath.Join(coreDir, coreInfo.BinaryName)
+	var lastErr error
+
+	for i, cand := range candidates {
+		mirrorURL := u.getDownloadBaseURL(cand.url)
+
+		// 找到原始 URL 用于镜像降级
+		originalURL := cand.url
+
+		log.Printf("Trying mihomo candidate %d/%d: %s", i+1, len(candidates), cand.name)
+
+		// 创建临时文件
+		tmpFile, err := os.CreateTemp("", "v2rayn-core-*.tmp")
+		if err != nil {
+			lastErr = fmt.Errorf("failed to create temp file: %w", err)
+			continue
+		}
+		tmpPath := tmpFile.Name()
+		tmpFile.Close()
+
+		// 尝试下载（先镜像，后原始）
+		downloadErr := u.downloadFile(mirrorURL, tmpPath, progressFn)
+		if downloadErr != nil && mirrorURL != originalURL {
+			log.Printf("Mirror download failed for %s: %v, trying original URL...", cand.name, downloadErr)
+			os.Remove(tmpPath)
+			tmpFile2, err := os.CreateTemp("", "v2rayn-core-*.tmp")
+			if err != nil {
+				lastErr = fmt.Errorf("failed to create temp file: %w", err)
+				continue
+			}
+			tmpPath = tmpFile2.Name()
+			tmpFile2.Close()
+			downloadErr = u.downloadFile(originalURL, tmpPath, progressFn)
+		}
+		if downloadErr != nil {
+			os.Remove(tmpPath)
+			lastErr = fmt.Errorf("failed to download %s: %w", cand.name, downloadErr)
+			log.Printf("Download failed for %s: %v, trying next candidate...", cand.name, downloadErr)
+			continue
+		}
+
+		// 尝试解压
+		extractErr := u.ExtractBinary(tmpPath, mirrorURL, binPath, coreInfo.BinaryName)
+		os.Remove(tmpPath)
+		if extractErr != nil {
+			lastErr = fmt.Errorf("failed to extract from %s: %w", cand.name, extractErr)
+			log.Printf("Extract failed for %s: %v, trying next candidate...", cand.name, extractErr)
+			continue
+		}
+
+		// Linux/macOS 添加执行权限
+		if runtime.GOOS != "windows" {
+			if err := os.Chmod(binPath, 0755); err != nil {
+				return fmt.Errorf("failed to set executable permission: %w", err)
+			}
+		}
+
+		log.Printf("Successfully downloaded mihomo from %s to %s", cand.name, binPath)
+		return nil
+	}
+
+	return fmt.Errorf("all mihomo candidates failed: %w", lastErr)
 }
 
 // DownloadCoreFromURL 从自定义 URL 下载内核
@@ -529,9 +605,13 @@ func (u *Updater) findAssetURL(assets []GitHubAsset, coreName string) (string, e
 
 	case "mihomo":
 		// Mihomo 命名复杂，有多个 amd64 变体（v1/v2/v3/compatible）
-		// 需要特殊处理
+		// 需要特殊处理，返回第一个候选（DownloadCore 会处理降级重试）
 		if archName == "amd64" {
-			return u.findMihomoAsset(assets, osName)
+			candidates, err := u.findMihomoAssets(assets, osName)
+			if err != nil {
+				return "", err
+			}
+			return u.getDownloadBaseURL(candidates[0].url), nil
 		}
 		keywords.osNames = []string{osName}
 		keywords.archNames = []string{archName}
@@ -579,21 +659,20 @@ func (u *Updater) findAssetURL(assets []GitHubAsset, coreName string) (string, e
 	return "", fmt.Errorf("no matching asset found for %s/%s (core: %s)", osName, archName, coreName)
 }
 
-// findMihomoAsset 专门为 mihomo amd64 查找最佳匹配的 asset
+// mihomoCandidate mihomo 下载候选
+type mihomoCandidate struct {
+	name     string
+	url      string
+	priority int
+}
+
+// findMihomoAssets 专门为 mihomo amd64 查找所有匹配的 asset，按优先级排序返回
 // mihomo 有大量 amd64 变体：compatible, v1, v2, v3, 默认，以及带 go 版本后缀的
-func (u *Updater) findMihomoAsset(assets []GitHubAsset, osName string) (string, error) {
+func (u *Updater) findMihomoAssets(assets []GitHubAsset, osName string) ([]mihomoCandidate, error) {
 	level := detectX86Level()
 	log.Printf("Detected x86-64 level: v%d", level)
 
-	// 收集所有符合条件的候选文件
-	type candidate struct {
-		name string
-		url  string
-		// 匹配优先级，越小越优先
-		priority int
-	}
-
-	var candidates []candidate
+	var candidates []mihomoCandidate
 
 	for _, asset := range assets {
 		name := strings.ToLower(asset.Name)
@@ -618,9 +697,6 @@ func (u *Updater) findMihomoAsset(assets []GitHubAsset, osName string) (string, 
 			continue
 		}
 
-		// 计算优先级
-		priority := 100 // 默认优先级
-
 		// 检查是否包含 v1/v2/v3 级别标记
 		// 文件名格式: mihomo-windows-amd64-v3-v1.19.24.zip
 		// 注意不要和版本号 v1.19.24 混淆
@@ -629,30 +705,56 @@ func (u *Updater) findMihomoAsset(assets []GitHubAsset, osName string) (string, 
 		hasV1 := strings.Contains(name, "-amd64-v1-") || strings.HasSuffix(name, "-amd64-v1.zip") || strings.HasSuffix(name, "-amd64-v1.tar.gz")
 		hasCompatible := strings.Contains(name, "-amd64-compatible-") || strings.HasSuffix(name, "-amd64-compatible.zip") || strings.HasSuffix(name, "-amd64-compatible.tar.gz")
 
-		switch {
-		case hasV3:
-			priority = 30
-		case hasV2:
-			priority = 20
-		case hasV1:
-			priority = 10
-		case hasCompatible:
-			priority = 50
+		// 根据 CPU 级别和文件变体计算优先级
+		// 优先级越小越优先，优先匹配当前 CPU 级别对应的版本
+		priority := 100
+
+		switch level {
+		case 4, 3:
+			// v4/v3 CPU: 优先 v3，然后 v2，然后 v1，然后 default，最后 compatible
+			switch {
+			case hasV3:
+				priority = 1
+			case hasV2:
+				priority = 2
+			case hasV1:
+				priority = 3
+			default:
+				if hasCompatible {
+					priority = 5
+				} else {
+					priority = 4
+				}
+			}
+		case 2:
+			// v2 CPU: 优先 v2，然后 v1，然后 default，最后 compatible
+			switch {
+			case hasV2:
+				priority = 1
+			case hasV1:
+				priority = 2
+			default:
+				if hasCompatible {
+					priority = 4
+				} else {
+					priority = 3
+				}
+			}
 		default:
-			// 无级别后缀的默认版本（如 mihomo-windows-amd64-v1.19.24.zip）
-			priority = 40
+			// v1 CPU: 优先 v1，然后 compatible，然后 default
+			switch {
+			case hasV1:
+				priority = 1
+			default:
+				if hasCompatible {
+					priority = 2
+				} else {
+					priority = 3
+				}
+			}
 		}
 
-		// 根据 CPU 级别调整优先级：匹配当前级别的优先
-		if level >= 3 && hasV3 {
-			priority = 1
-		} else if level >= 2 && hasV2 {
-			priority = 1
-		} else if level >= 1 && hasV1 {
-			priority = 1
-		}
-
-		candidates = append(candidates, candidate{
+		candidates = append(candidates, mihomoCandidate{
 			name:     asset.Name,
 			url:      asset.BrowserDownloadURL,
 			priority: priority,
@@ -660,19 +762,23 @@ func (u *Updater) findMihomoAsset(assets []GitHubAsset, osName string) (string, 
 	}
 
 	if len(candidates) == 0 {
-		return "", fmt.Errorf("no matching mihomo asset found for %s/amd64", osName)
+		return nil, fmt.Errorf("no matching mihomo asset found for %s/amd64", osName)
 	}
 
-	// 按优先级排序，选最优
-	best := candidates[0]
-	for _, c := range candidates[1:] {
-		if c.priority < best.priority {
-			best = c
+	// 按优先级排序（升序）
+	for i := 0; i < len(candidates)-1; i++ {
+		for j := i + 1; j < len(candidates); j++ {
+			if candidates[j].priority < candidates[i].priority {
+				candidates[i], candidates[j] = candidates[j], candidates[i]
+			}
 		}
 	}
 
-	log.Printf("Selected mihomo asset: %s (priority %d, CPU level v%d)", best.name, best.priority, level)
-	return u.getDownloadBaseURL(best.url), nil
+	for i, c := range candidates {
+		log.Printf("Mihomo candidate %d: %s (priority %d)", i, c.name, c.priority)
+	}
+
+	return candidates, nil
 }
 
 // ExtractBinary 从压缩包中提取可执行文件到目标路径（公开方法，供外部调用）
