@@ -189,54 +189,66 @@ export function CoresView() {
                         >
                           {core.display_name}
                         </span>
-                        {(coreVersions[core.name] || core.version) && (coreVersions[core.name] || core.version) !== 'installed' ? (
-                          <>
-                            {hasUpdate(core) && (
-                              <span
-                                className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
-                                style={{
-                                  backgroundColor: 'var(--color-warning-dim, #FEF3C7)',
-                                  color: 'var(--color-warning, #D97706)',
-                                  fontFamily: 'var(--font-heading)',
-                                }}
-                              >
-                                {t('cores.has_update')}
-                              </span>
-                            )}
-                            <span
-                              className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
-                              style={{
-                                backgroundColor: hasUpdate(core) ? 'var(--color-warning-dim, #FEF3C7)' : 'var(--color-success-dim)',
-                                color: hasUpdate(core) ? 'var(--color-warning, #D97706)' : 'var(--color-success)',
-                                fontFamily: 'var(--font-mono)',
-                              }}
-                            >
-                              {coreVersions[core.name] || core.version}
-                            </span>
-                          </>
-                        ) : core.version || coreVersions[core.name] ? (
-                          <span
-                            className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
-                            style={{
-                              backgroundColor: 'var(--color-warning-dim, #FEF3C7)',
-                              color: 'var(--color-warning, #D97706)',
-                              fontFamily: 'var(--font-heading)',
-                            }}
-                          >
-                            {t('cores.unknown_version')}
-                          </span>
-                        ) : (
-                          <span
-                            className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
-                            style={{
-                              backgroundColor: 'var(--color-muted)',
-                              color: 'var(--color-text-muted)',
-                              fontFamily: 'var(--font-heading)',
-                            }}
-                          >
-                            {t('cores.not_installed')}
-                          </span>
-                        )}
+                        {(() => {
+                          const ver = coreVersions[core.name] || core.version
+                          const isInstalled = !!ver
+                          const hasKnownVersion = ver && ver !== 'installed'
+                          const update = hasUpdate(core)
+
+                          return (
+                            <>
+                              {/* 徽标1：状态 */}
+                              {!isInstalled ? (
+                                <span
+                                  className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                                  style={{
+                                    backgroundColor: 'var(--color-muted)',
+                                    color: 'var(--color-text-muted)',
+                                    fontFamily: 'var(--font-heading)',
+                                  }}
+                                >
+                                  {t('cores.not_installed')}
+                                </span>
+                              ) : update ? (
+                                <span
+                                  className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                                  style={{
+                                    backgroundColor: 'var(--color-warning-dim, #FEF3C7)',
+                                    color: 'var(--color-warning, #D97706)',
+                                    fontFamily: 'var(--font-heading)',
+                                  }}
+                                >
+                                  {t('cores.has_update')}
+                                </span>
+                              ) : (
+                                <span
+                                  className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                                  style={{
+                                    backgroundColor: 'var(--color-success-dim)',
+                                    color: 'var(--color-success)',
+                                    fontFamily: 'var(--font-heading)',
+                                  }}
+                                >
+                                  {t('cores.installed')}
+                                </span>
+                              )}
+
+                              {/* 徽标2：版本号（未安装时隐藏） */}
+                              {isInstalled && (
+                                <span
+                                  className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                                  style={{
+                                    backgroundColor: hasKnownVersion ? 'var(--color-success-dim)' : 'var(--color-warning-dim, #FEF3C7)',
+                                    color: hasKnownVersion ? 'var(--color-success)' : 'var(--color-warning, #D97706)',
+                                    fontFamily: 'var(--font-mono)',
+                                  }}
+                                >
+                                  {hasKnownVersion ? ver : t('cores.unknown_version')}
+                                </span>
+                              )}
+                            </>
+                          )
+                        })()}
                       </div>
                       <p
                         className="text-xs mt-0.5"
