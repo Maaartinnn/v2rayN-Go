@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -166,6 +168,20 @@ func (u *Updater) GetLocalCores() []CoreInfo {
 	return cores
 }
 
+// getCoreVersionArgs 获取每个内核正确的版本查询参数
+func getCoreVersionArgs(coreName string) [][]string {
+	switch coreName {
+	case "xray":
+		return [][]string{{"version"}}
+	case "sing-box":
+		return [][]string{{"version"}}
+	case "mihomo":
+		return [][]string{{"-v"}}
+	default:
+		return [][]string{{"version"}, {"--version"}, {"-v"}}
+	}
+}
+
 // GetInstalledVersion 获取已安装内核的版本号
 func (u *Updater) GetInstalledVersion(coreName string) string {
 	cores := u.GetSupportedCores()
@@ -185,17 +201,14 @@ func (u *Updater) GetInstalledVersion(coreName string) string {
 		return ""
 	}
 
-	// 尝试通过执行 --version / version / -v 获取版本号
-	versionArgs := [][]string{
-		{"version"},
-		{"--version"},
-		{"-v"},
-		{"-version"},
-	}
+	// 使用每个内核正确的版本参数，并设置超时
+	versionArgs := getCoreVersionArgs(coreName)
 
 	for _, args := range versionArgs {
-		cmd := exec.Command(binPath, args...)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		cmd := exec.CommandContext(ctx, binPath, args...)
 		output, err := cmd.CombinedOutput()
+		cancel()
 		if err != nil {
 			continue
 		}
@@ -209,6 +222,9 @@ func (u *Updater) GetInstalledVersion(coreName string) string {
 	return "installed"
 }
 
+// versionRegex 匹配版本号：至少 X.Y 格式，可选 v 前缀
+var versionRegex = regexp.MustCompile(`v?(\d+\.\d+[\.\d]*)`)
+
 // parseVersionFromOutput 从命令输出中解析版本号
 func parseVersionFromOutput(output string) string {
 	lines := strings.Split(output, "\n")
@@ -217,23 +233,10 @@ func parseVersionFromOutput(output string) string {
 		if line == "" {
 			continue
 		}
-		// 查找 v 开头的版本号，如 v1.8.0, v26.3.27
-		idx := strings.Index(line, "v")
-		if idx >= 0 {
-			// 从 v 开始提取版本号（数字和点）
-			versionStart := idx
-			versionEnd := versionStart + 1
-			for versionEnd < len(line) {
-				c := line[versionEnd]
-				if (c >= '0' && c <= '9') || c == '.' {
-					versionEnd++
-				} else {
-					break
-				}
-			}
-			if versionEnd > versionStart+1 {
-				return line[versionStart:versionEnd]
-			}
+		// 使用正则匹配版本号，支持有/无 v 前缀
+		matches := versionRegex.FindStringSubmatch(line)
+		if len(matches) >= 2 {
+			return matches[1]
 		}
 	}
 	return ""
