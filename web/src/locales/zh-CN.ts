@@ -106,6 +106,7 @@ const zhCN = {
   'cores.download_upload': '上传二进制',
   'cores.latest': '最新版',
   'cores.has_update': '有更新',
+  'cores.unknown_version': '未知版本',
   'cores.upload_binary': '上传二进制',
   'cores.upload_archive': '上传压缩包',
 

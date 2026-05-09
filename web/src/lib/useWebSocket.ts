@@ -4,7 +4,7 @@ import { useStore } from '../store'
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const { addLog, setMetrics, setCoreStatuses, setDownloadProgress, clearDownloadProgress, addToast } = useStore()
+  const { addLog, setMetrics, setCoreStatuses, setDownloadProgress, clearDownloadProgress, addToast, setCoreVersions } = useStore()
 
   const connect = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -41,6 +41,9 @@ export function useWebSocket() {
             }
             clearDownloadProgress(data.payload.core_name)
             break
+          case 'core_versions':
+            setCoreVersions(data.payload)
+            break
         }
       } catch {
         // ignore parse errors
@@ -55,7 +58,7 @@ export function useWebSocket() {
     ws.onerror = () => {
       ws.close()
     }
-  }, [addLog, setMetrics, setCoreStatuses, setDownloadProgress, clearDownloadProgress, addToast])
+  }, [addLog, setMetrics, setCoreStatuses, setDownloadProgress, clearDownloadProgress, addToast, setCoreVersions])
 
   useEffect(() => {
     connect()

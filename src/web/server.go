@@ -106,6 +106,7 @@ func (s *Server) Start() error {
 
 	mux.HandleFunc("/api/cores", s.handleCores)
 	mux.HandleFunc("/api/cores/check-updates", s.handleCoresCheckUpdates)
+	mux.HandleFunc("/api/cores/detect-versions", s.handleCoresDetectVersions)
 	mux.HandleFunc("/api/cores/download-url", s.handleCoreDownloadURL)
 	mux.HandleFunc("/api/cores/download", s.handleCoreDownload)
 	mux.HandleFunc("/api/cores/upload", s.handleCoreUpload)
@@ -557,12 +558,42 @@ func (s *Server) handleCoresCheckUpdates(w http.ResponseWriter, r *http.Request)
 	latestVersions := make(map[string]string)
 	for _, c := range cores {
 		if c.LatestVer != "" {
-			latestVersions[c.Name] = c.LatestVer
+			// 统一去掉 v 前缀，确保前端比较一致
+			ver := strings.TrimPrefix(c.LatestVer, "v")
+			latestVersions[c.Name] = ver
 		}
 	}
 	jsonOK(w, map[string]interface{}{
 		"latest_versions": latestVersions,
 	})
+}
+
+func (s *Server) handleCoresDetectVersions(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 触发异步版本检测，结果通过 WebSocket 推送
+	s.detectCoreVersions()
+	jsonOK(w, map[string]string{"status": "detecting"})
+}
+
+// detectCoreVersions 异步检测所有已安装内核的版本号并通过 WebSocket 推送
+func (s *Server) detectCoreVersions() {
+	go func() {
+		cores := s.updater.GetLocalCoresWithVersions()
+		versions := make(map[string]string)
+		for _, c := range cores {
+			if c.Version != "" {
+				versions[c.Name] = c.Version
+			}
+		}
+		s.broadcastToAll(map[string]interface{}{
+			"type":    "core_versions",
+			"payload": versions,
+		})
+	}()
 }
 
 func (s *Server) handleCoreDownload(w http.ResponseWriter, r *http.Request) {

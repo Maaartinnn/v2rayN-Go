@@ -60,6 +60,10 @@ interface AppState {
   metrics: Metrics
   setMetrics: (m: Partial<Metrics>) => void
 
+  // Core versions (async via WebSocket)
+  coreVersions: Record<string, string>
+  setCoreVersions: (versions: Record<string, string>) => void
+
   // Download progress
   downloadProgress: Record<string, DownloadProgress>
   setDownloadProgress: (coreName: string, progress: DownloadProgress) => void
@@ -99,6 +103,10 @@ export const useStore = create<AppState>((set) => ({
   // Metrics
   metrics: { upload_speed: 0, download_speed: 0, upload_total: 0, download_total: 0 },
   setMetrics: (m) => set((state) => ({ metrics: { ...state.metrics, ...m } })),
+
+  // Core versions (async via WebSocket)
+  coreVersions: {},
+  setCoreVersions: (versions) => set({ coreVersions: versions }),
 
   // Download progress
   downloadProgress: {},

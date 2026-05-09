@@ -24,10 +24,12 @@ export function CoresView() {
   const [menuOpen, setMenuOpen] = useState<string>('')
   const menuRef = useRef<HTMLDivElement>(null)
   const t = useT()
-  const { downloadProgress, addToast } = useStore()
+  const { downloadProgress, addToast, coreVersions } = useStore()
 
   useEffect(() => {
     loadCores()
+    // Trigger async version detection via API
+    coresApi.detectVersions().catch(() => {})
   }, [])
 
   // Close menu on outside click
@@ -129,8 +131,13 @@ export function CoresView() {
 
   const getGithubUrl = (repo: string) => `https://github.com/${repo}`
 
+  // Normalize version: strip 'v' prefix for comparison
+  const normalizeVersion = (v: string) => v ? v.replace(/^v/i, '') : ''
+
   const hasUpdate = (core: CoreInfo) => {
-    return core.version && core.version !== '' && core.latest_version && core.latest_version !== '' && core.version !== core.latest_version
+    const ver = normalizeVersion(coreVersions[core.name] || core.version)
+    const latest = normalizeVersion(core.latest_version)
+    return ver && ver !== 'installed' && latest && ver !== latest
   }
 
   return (
@@ -182,30 +189,42 @@ export function CoresView() {
                         >
                           {core.display_name}
                         </span>
-                        {core.version ? (
-                          hasUpdate(core) ? (
+                        {(coreVersions[core.name] || core.version) && (coreVersions[core.name] || core.version) !== 'installed' ? (
+                          <>
+                            {hasUpdate(core) && (
+                              <span
+                                className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                                style={{
+                                  backgroundColor: 'var(--color-warning-dim, #FEF3C7)',
+                                  color: 'var(--color-warning, #D97706)',
+                                  fontFamily: 'var(--font-heading)',
+                                }}
+                              >
+                                {t('cores.has_update')}
+                              </span>
+                            )}
                             <span
                               className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
                               style={{
-                                backgroundColor: 'var(--color-warning-dim, #FEF3C7)',
-                                color: 'var(--color-warning, #D97706)',
-                                fontFamily: 'var(--font-heading)',
+                                backgroundColor: hasUpdate(core) ? 'var(--color-warning-dim, #FEF3C7)' : 'var(--color-success-dim)',
+                                color: hasUpdate(core) ? 'var(--color-warning, #D97706)' : 'var(--color-success)',
+                                fontFamily: 'var(--font-mono)',
                               }}
                             >
-                              {t('cores.has_update')}: {core.version}
+                              {coreVersions[core.name] || core.version}
                             </span>
-                          ) : (
-                            <span
-                              className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
-                              style={{
-                                backgroundColor: 'var(--color-success-dim)',
-                                color: 'var(--color-success)',
-                                fontFamily: 'var(--font-heading)',
-                              }}
-                            >
-                              {t('cores.installed')}: {core.version}
-                            </span>
-                          )
+                          </>
+                        ) : core.version || coreVersions[core.name] ? (
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                            style={{
+                              backgroundColor: 'var(--color-warning-dim, #FEF3C7)',
+                              color: 'var(--color-warning, #D97706)',
+                              fontFamily: 'var(--font-heading)',
+                            }}
+                          >
+                            {t('cores.unknown_version')}
+                          </span>
                         ) : (
                           <span
                             className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"

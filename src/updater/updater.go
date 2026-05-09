@@ -156,8 +156,20 @@ func (u *Updater) CheckAllUpdates() []CoreInfo {
 	return cores
 }
 
-// GetLocalCores 获取所有内核的本地信息（不访问网络）
+// GetLocalCores 获取所有内核的本地信息（不访问网络，不执行二进制命令，毫秒级响应）
 func (u *Updater) GetLocalCores() []CoreInfo {
+	cores := u.GetSupportedCores()
+	for i := range cores {
+		binPath := filepath.Join(u.cfg.BinDir, cores[i].SubDir, cores[i].BinaryName)
+		if _, err := os.Stat(binPath); err == nil {
+			cores[i].Version = "installed" // 先标记为已安装，版本号异步获取
+		}
+	}
+	return cores
+}
+
+// GetLocalCoresWithVersions 获取所有内核的本地信息（包括版本号，需要执行二进制命令）
+func (u *Updater) GetLocalCoresWithVersions() []CoreInfo {
 	cores := u.GetSupportedCores()
 	for i := range cores {
 		binPath := filepath.Join(u.cfg.BinDir, cores[i].SubDir, cores[i].BinaryName)
@@ -225,7 +237,7 @@ func (u *Updater) GetInstalledVersion(coreName string) string {
 // versionRegex 匹配版本号：至少 X.Y 格式，可选 v 前缀
 var versionRegex = regexp.MustCompile(`v?(\d+\.\d+[\.\d]*)`)
 
-// parseVersionFromOutput 从命令输出中解析版本号
+// parseVersionFromOutput 从命令输出中解析版本号（统一去掉 v 前缀）
 func parseVersionFromOutput(output string) string {
 	lines := strings.Split(output, "\n")
 	for _, line := range lines {
@@ -236,7 +248,7 @@ func parseVersionFromOutput(output string) string {
 		// 使用正则匹配版本号，支持有/无 v 前缀
 		matches := versionRegex.FindStringSubmatch(line)
 		if len(matches) >= 2 {
-			return matches[1]
+			return matches[1] // 已经不含 v 前缀
 		}
 	}
 	return ""

@@ -106,6 +106,7 @@ const enUS = {
   'cores.download_upload': 'Upload Binary',
   'cores.latest': 'Latest',
   'cores.has_update': 'Update Available',
+  'cores.unknown_version': 'Unknown Version',
   'cores.upload_binary': 'Upload Binary',
   'cores.upload_archive': 'Upload Archive',
 
