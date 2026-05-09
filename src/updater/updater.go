@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"v2rayn-go/config"
+
+	"golang.org/x/sys/cpu"
 )
 
 // CoreInfo 内核信息
@@ -452,6 +454,45 @@ func (u *Updater) fetchRelease(url string) (*GitHubRelease, error) {
 	return &release, nil
 }
 
+// detectX86Level 检测当前 CPU 支持的 x86-64 微架构级别
+// 返回 1, 2, 3, 4 分别对应 x86-64-v1, v2, v3, v4
+func detectX86Level() int {
+	// v4: AVX512F
+	if cpu.X86.HasAVX512F {
+		return 4
+	}
+	// v3: AVX2 + FMA + BMI2 + ...
+	if cpu.X86.HasAVX2 && cpu.X86.HasFMA && cpu.X86.HasBMI2 {
+		return 3
+	}
+	// v2: SSE4.2 + POPCNT + CMPXCHG16B
+	if cpu.X86.HasSSE42 && cpu.X86.HasPOPCNT && cpu.X86.HasCX16 {
+		return 2
+	}
+	// v1: baseline (所有 x86-64 CPU)
+	return 1
+}
+
+// hasGoVersionSuffix 检查文件名是否包含 Go 版本后缀（如 go120, go123, go124）
+func hasGoVersionSuffix(name string) bool {
+	// 匹配 -go120, -go121, -go122, -go123, -go124, -go125 等模式
+	for i := 0; i < len(name)-4; i++ {
+		if name[i] == '-' && name[i+1] == 'g' && name[i+2] == 'o' {
+			// 检查后面是否是数字
+			j := i + 3
+			digitCount := 0
+			for j < len(name) && name[j] >= '0' && name[j] <= '9' {
+				digitCount++
+				j++
+			}
+			if digitCount >= 2 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // findAssetURL 根据当前平台查找匹配的下载链接
 // 每个内核使用不同的命名约定，需要分别处理
 func (u *Updater) findAssetURL(assets []GitHubAsset, coreName string) (string, error) {
@@ -487,7 +528,11 @@ func (u *Updater) findAssetURL(assets []GitHubAsset, coreName string) (string, e
 		keywords.archNames = []string{archName}
 
 	case "mihomo":
-		// Mihomo 命名: mihomo-windows-amd64-v1.x.x.zip (Go 风格)
+		// Mihomo 命名复杂，有多个 amd64 变体（v1/v2/v3/compatible）
+		// 需要特殊处理
+		if archName == "amd64" {
+			return u.findMihomoAsset(assets, osName)
+		}
 		keywords.osNames = []string{osName}
 		keywords.archNames = []string{archName}
 
@@ -532,6 +577,102 @@ func (u *Updater) findAssetURL(assets []GitHubAsset, coreName string) (string, e
 	}
 
 	return "", fmt.Errorf("no matching asset found for %s/%s (core: %s)", osName, archName, coreName)
+}
+
+// findMihomoAsset 专门为 mihomo amd64 查找最佳匹配的 asset
+// mihomo 有大量 amd64 变体：compatible, v1, v2, v3, 默认，以及带 go 版本后缀的
+func (u *Updater) findMihomoAsset(assets []GitHubAsset, osName string) (string, error) {
+	level := detectX86Level()
+	log.Printf("Detected x86-64 level: v%d", level)
+
+	// 收集所有符合条件的候选文件
+	type candidate struct {
+		name string
+		url  string
+		// 匹配优先级，越小越优先
+		priority int
+	}
+
+	var candidates []candidate
+
+	for _, asset := range assets {
+		name := strings.ToLower(asset.Name)
+
+		// 只处理压缩包
+		if !strings.HasSuffix(name, ".zip") && !strings.HasSuffix(name, ".tar.gz") && !strings.HasSuffix(name, ".tgz") {
+			continue
+		}
+
+		// 必须包含 OS 名称
+		if !strings.Contains(name, osName) {
+			continue
+		}
+
+		// 必须包含 amd64
+		if !strings.Contains(name, "amd64") {
+			continue
+		}
+
+		// 跳过带 go 版本后缀的文件
+		if hasGoVersionSuffix(name) {
+			continue
+		}
+
+		// 计算优先级
+		priority := 100 // 默认优先级
+
+		// 检查是否包含 v1/v2/v3 级别标记
+		// 文件名格式: mihomo-windows-amd64-v3-v1.19.24.zip
+		// 注意不要和版本号 v1.19.24 混淆
+		hasV3 := strings.Contains(name, "-amd64-v3-") || strings.HasSuffix(name, "-amd64-v3.zip") || strings.HasSuffix(name, "-amd64-v3.tar.gz")
+		hasV2 := strings.Contains(name, "-amd64-v2-") || strings.HasSuffix(name, "-amd64-v2.zip") || strings.HasSuffix(name, "-amd64-v2.tar.gz")
+		hasV1 := strings.Contains(name, "-amd64-v1-") || strings.HasSuffix(name, "-amd64-v1.zip") || strings.HasSuffix(name, "-amd64-v1.tar.gz")
+		hasCompatible := strings.Contains(name, "-amd64-compatible-") || strings.HasSuffix(name, "-amd64-compatible.zip") || strings.HasSuffix(name, "-amd64-compatible.tar.gz")
+
+		switch {
+		case hasV3:
+			priority = 30
+		case hasV2:
+			priority = 20
+		case hasV1:
+			priority = 10
+		case hasCompatible:
+			priority = 50
+		default:
+			// 无级别后缀的默认版本（如 mihomo-windows-amd64-v1.19.24.zip）
+			priority = 40
+		}
+
+		// 根据 CPU 级别调整优先级：匹配当前级别的优先
+		if level >= 3 && hasV3 {
+			priority = 1
+		} else if level >= 2 && hasV2 {
+			priority = 1
+		} else if level >= 1 && hasV1 {
+			priority = 1
+		}
+
+		candidates = append(candidates, candidate{
+			name:     asset.Name,
+			url:      asset.BrowserDownloadURL,
+			priority: priority,
+		})
+	}
+
+	if len(candidates) == 0 {
+		return "", fmt.Errorf("no matching mihomo asset found for %s/amd64", osName)
+	}
+
+	// 按优先级排序，选最优
+	best := candidates[0]
+	for _, c := range candidates[1:] {
+		if c.priority < best.priority {
+			best = c
+		}
+	}
+
+	log.Printf("Selected mihomo asset: %s (priority %d, CPU level v%d)", best.name, best.priority, level)
+	return u.getDownloadBaseURL(best.url), nil
 }
 
 // ExtractBinary 从压缩包中提取可执行文件到目标路径（公开方法，供外部调用）
