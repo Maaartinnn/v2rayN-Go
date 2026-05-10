@@ -11,9 +11,10 @@ import {
 interface NodeEditFormProps {
   onClose: () => void
   onSaved: () => void
+  groupId?: number
 }
 
-export function NodeEditForm({ onClose, onSaved }: NodeEditFormProps) {
+export function NodeEditForm({ onClose, onSaved, groupId }: NodeEditFormProps) {
   const t = useT()
 
   // Basic fields
@@ -65,6 +66,7 @@ export function NodeEditForm({ onClose, onSaved }: NodeEditFormProps) {
 
     try {
       await profileApi.create({
+        group_id: groupId || 0,
         name: name.trim(),
         address: address.trim(),
         port: parseInt(port) || 443,

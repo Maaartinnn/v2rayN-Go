@@ -81,31 +81,12 @@ export function ImportView() {
       if (count > 0) {
         addToast(t('import.import_success', { count }), 'success')
         await loadGroups()
-      } else {
-        addToast(t('import.import_failed'), 'error')
       }
     } catch (err) {
       console.error('Image import failed:', err)
       addToast(t('import.import_failed'), 'error')
     }
     e.target.value = ''
-  }
-
-  // After manual add, assign the newly created node to the selected group
-  const handleManualSaved = async () => {
-    // Reload profiles to get the latest one
-    const res = await profileApi.list()
-    const profiles = res.data || []
-    if (profiles.length > 0 && selectedGroupId > 0) {
-      // Find the last created profile (highest ID)
-      const newest = profiles.reduce((a: any, b: any) => a.ID > b.ID ? a : b)
-      // Assign it to the target group
-      await profileApi.update(newest.ID, {
-        ...newest,
-        group_id: selectedGroupId,
-      })
-    }
-    await loadGroups()
   }
 
   const displayName = (g: NodeGroup) => g.alias || t('groups.default_name')
@@ -216,7 +197,8 @@ export function ImportView() {
           {showManualAdd && (
             <NodeEditForm
               onClose={() => setShowManualAdd(false)}
-              onSaved={handleManualSaved}
+              onSaved={loadGroups}
+              groupId={selectedGroupId || undefined}
             />
           )}
         </AnimatePresence>

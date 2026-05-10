@@ -533,6 +533,8 @@ func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
 		if updated.UUID == "" {
 			updated.UUID = group.UUID
 		}
+		// 保留原始 sort_order，编辑操作不改变排序
+		updated.SortOrder = group.SortOrder
 		if err := database.DB.Save(&updated).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -565,6 +567,7 @@ func (s *Server) handleProfileDedup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 接收可选的 group_id 参数
 	var req struct {
 		GroupID uint `json:"group_id"`
 	}
@@ -581,10 +584,18 @@ func (s *Server) handleProfileDedup(w http.ResponseWriter, r *http.Request) {
 	var duplicates []uint
 
 	for _, p := range profiles {
-		// 完整配置 key：address:port:protocol:network:tls:security:uuid
-		key := fmt.Sprintf("%s:%d:%s:%s:%s:%s:%s",
-			p.Address, p.Port, p.Protocol,
-			p.Network, p.TLS, p.Security, p.UUID)
+		// 基于 raw_link 去重（去掉 #名称 部分，只比较配置）
+		key := p.RawLink
+		if idx := strings.LastIndex(key, "#"); idx != -1 {
+			key = key[:idx]
+		}
+		if key == "" {
+			// fallback: address + port + protocol + uuid
+			key = fmt.Sprintf("%s:%d:%s", p.Address, p.Port, p.Protocol)
+			if p.UUID != "" {
+				key += ":" + p.UUID
+			}
+		}
 		if seen[key] {
 			duplicates = append(duplicates, p.ID)
 		} else {

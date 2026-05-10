@@ -32,6 +32,7 @@ import {
 import { groupsApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 import { useStore } from '../store'
+import { DeleteConfirmBanner } from './DeleteConfirmBanner'
 
 interface NodeGroup {
   ID: number
@@ -136,6 +137,7 @@ function SortableGroupCard({
   return (
     <div ref={setNodeRef} style={style}>
       <motion.div
+        layout
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         className="rounded-xl border"
@@ -541,6 +543,7 @@ function SortableGroupCard({
 export function GroupsView() {
   const [groups, setGroups] = useState<NodeGroup[]>([])
   const [editId, setEditId] = useState<number | null>(null)
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
   const t = useT()
   const { addToast } = useStore()
 
@@ -579,10 +582,9 @@ export function GroupsView() {
 
   const handleSave = async (id: number, data: Partial<NodeGroup>) => {
     try {
-      const res = await groupsApi.update(id, data)
+      await groupsApi.update(id, data)
       setEditId(null)
-      // Update locally without reloading the full list to avoid visual reorder
-      setGroups(prev => prev.map(g => g.ID === id ? { ...g, ...res.data } : g))
+      await loadGroups()
     } catch (err) {
       console.error('Update group failed:', err)
       addToast(t('groups.save_failed'), 'error')
@@ -594,9 +596,9 @@ export function GroupsView() {
       addToast(t('groups.cannot_delete'), 'error')
       return
     }
-    if (!window.confirm(t('groups.delete_confirm'))) return
     try {
       await groupsApi.delete(id)
+      setDeleteTargetId(null)
       if (editId === id) setEditId(null)
       await loadGroups()
     } catch (err) {
@@ -705,12 +707,18 @@ export function GroupsView() {
               strategy={verticalListSortingStrategy}
             >
               {groups.map((group) => (
+                <div key={group.uuid}>
                 <SortableGroupCard
-                  key={group.uuid}
                   group={group}
                   isEditing={editId === group.ID}
                   onEdit={() => setEditId(editId === group.ID ? null : group.ID)}
-                  onDelete={() => handleDelete(group.ID)}
+                  onDelete={() => {
+                    if (groups.length <= 1) {
+                      addToast(t('groups.cannot_delete'), 'error')
+                      return
+                    }
+                    setDeleteTargetId(deleteTargetId === group.ID ? null : group.ID)
+                  }}
                   onSave={(data) => handleSave(group.ID, data)}
                   onCancel={() => setEditId(null)}
                   onRefresh={() => handleRefresh(group.ID)}
@@ -718,6 +726,13 @@ export function GroupsView() {
                   canDelete={groups.length > 1}
                   t={t}
                 />
+                <DeleteConfirmBanner
+                  visible={deleteTargetId === group.ID}
+                  message={`确定删除分组「${group.alias || t('groups.default_name')}」？`}
+                  onConfirm={() => handleDelete(group.ID)}
+                  onCancel={() => setDeleteTargetId(null)}
+                />
+                </div>
               ))}
             </SortableContext>
           </DndContext>
