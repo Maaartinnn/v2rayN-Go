@@ -8,6 +8,7 @@ export interface Profile {
   protocol: string
   test_result: string
   is_active: boolean
+  group_id: number
   group_name: string
   sort_order: number
 }

@@ -1,17 +1,25 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Wifi, WifiOff, RefreshCw, Trash2, Search, Layers } from 'lucide-react'
+import { Wifi, WifiOff, RefreshCw, Trash2, Search, Layers, FolderOpen, Link } from 'lucide-react'
 import { useStore } from '../store'
 import type { Profile } from '../store'
 import { profileApi, profileEnhancedApi, groupsApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 
+interface NodeGroupItem {
+  ID: number
+  uuid: string
+  alias: string
+  is_subscription: boolean
+  node_count: number
+}
+
 export function NodesView() {
   const { profiles, setProfiles, activeProfile, setActiveProfile } = useStore()
   const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedGroup, setSelectedGroup] = useState<string>('')
-  const [groups, setGroups] = useState<{ ID: number; alias: string; node_count: number }[]>([])
+  const [selectedGroupId, setSelectedGroupId] = useState<number>(0)
+  const [groups, setGroups] = useState<NodeGroupItem[]>([])
   const [dedupResult, setDedupResult] = useState<string>('')
   const t = useT()
 
@@ -108,25 +116,69 @@ export function NodesView() {
         p.group_name.toLowerCase().includes(q)
       )
     })()
-    const matchesGroup = !selectedGroup || p.group_name === selectedGroup
+    const matchesGroup = selectedGroupId === 0 || p.group_id === selectedGroupId
     return matchesSearch && matchesGroup
   })
 
+  const displayName = (g: NodeGroupItem) => g.alias || t('groups.default_name')
+
   return (
-    <div className="max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <h1
-          className="text-xl font-semibold"
-          style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
-        >
-          {t('nodes.title')}
-        </h1>
-        <div className="flex gap-2">
+    <div className="flex gap-6 max-w-5xl mx-auto">
+      {/* Left: Node List */}
+      <div className="flex-1 min-w-0">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5">
+          <h1
+            className="text-xl font-semibold"
+            style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+          >
+            {t('nodes.title')}
+          </h1>
+          <div className="flex gap-2">
+            <motion.button
+              onClick={handlePingAll}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
+              style={{
+                backgroundColor: 'var(--color-muted)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-muted-foreground)',
+                fontFamily: 'var(--font-heading)',
+              }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+              {t('nodes.test_all')}
+            </motion.button>
+          </div>
+        </div>
+
+        {/* Toolbar: search + dedup */}
+        <div className="flex items-center gap-2 mb-4">
+          <div className="relative flex-1">
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2"
+              style={{ color: 'var(--color-text-muted)' }}
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t('common.search') + '...'}
+              className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border"
+              style={{
+                backgroundColor: 'var(--color-overlay)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-foreground)',
+                fontFamily: 'var(--font-heading)',
+              }}
+            />
+          </div>
+          {/* Dedup button */}
           <motion.button
-            onClick={handlePingAll}
-            disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
+            onClick={handleDedup}
+            className="flex items-center gap-1 px-2.5 py-2 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
             style={{
               backgroundColor: 'var(--color-muted)',
               borderColor: 'var(--color-border)',
@@ -134,207 +186,251 @@ export function NodesView() {
               fontFamily: 'var(--font-heading)',
             }}
             whileTap={{ scale: 0.95 }}
+            title={t('nodes.dedup')}
           >
-            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            {t('nodes.test_all')}
+            <Layers size={13} />
           </motion.button>
         </div>
-      </div>
 
-      {/* Toolbar: search + group filter + dedup */}
-      <div className="flex items-center gap-2 mb-4">
-        <div className="relative flex-1">
-          <Search
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2"
-            style={{ color: 'var(--color-text-muted)' }}
-          />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={t('common.search') + '...'}
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border"
-            style={{
-              backgroundColor: 'var(--color-overlay)',
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-foreground)',
-              fontFamily: 'var(--font-heading)',
-            }}
-          />
-        </div>
-        {/* Group filter */}
-        {groups.length > 0 && (
-          <select
-            value={selectedGroup}
-            onChange={(e) => setSelectedGroup(e.target.value)}
-            className="px-3 py-2 text-xs rounded-lg border cursor-pointer"
-            style={{
-              backgroundColor: 'var(--color-overlay)',
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-foreground)',
-              fontFamily: 'var(--font-heading)',
-            }}
-          >
-            <option value="">{t('nodes.all_groups')}</option>
-            {groups.map((g) => (
-              <option key={g.ID} value={g.alias}>{g.alias || t('groups.default_name')}</option>
-            ))}
-          </select>
-        )}
-        {/* Dedup button */}
-        <motion.button
-          onClick={handleDedup}
-          className="flex items-center gap-1 px-2.5 py-2 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
-          style={{
-            backgroundColor: 'var(--color-muted)',
-            borderColor: 'var(--color-border)',
-            color: 'var(--color-muted-foreground)',
-            fontFamily: 'var(--font-heading)',
-          }}
-          whileTap={{ scale: 0.95 }}
-          title={t('nodes.dedup')}
-        >
-          <Layers size={13} />
-        </motion.button>
-      </div>
-
-      {/* Dedup result toast */}
-      <AnimatePresence>
-        {dedupResult && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="mb-3 px-4 py-2 rounded-lg text-xs font-medium"
-            style={{
-              backgroundColor: 'var(--color-success-dim)',
-              color: 'var(--color-success)',
-              fontFamily: 'var(--font-heading)',
-            }}
-          >
-            {dedupResult}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Node list */}
-      <div className="space-y-1.5">
-        <AnimatePresence mode="popLayout">
-          {filteredProfiles.length === 0 ? (
+        {/* Dedup result toast */}
+        <AnimatePresence>
+          {dedupResult && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-center py-20"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="mb-3 px-4 py-2 rounded-lg text-xs font-medium"
+              style={{
+                backgroundColor: 'var(--color-success-dim)',
+                color: 'var(--color-success)',
+                fontFamily: 'var(--font-heading)',
+              }}
             >
-              <Layers
-                size={32}
-                className="mx-auto mb-3"
-                style={{ color: 'var(--color-text-muted)' }}
-              />
-              <p
-                className="text-sm"
-                style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
-              >
-                {searchQuery ? t('common.no_data') : t('nodes.no_nodes')}
-              </p>
+              {dedupResult}
             </motion.div>
-          ) : (
-            filteredProfiles.map((profile, index) => {
-              const protoColor = getProtocolColor(profile.protocol)
-              return (
-                <motion.div
-                  key={profile.ID}
-                  layout
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, x: -16 }}
-                  transition={{ duration: 0.2, delay: index * 0.02 }}
-                  onClick={() => handleSelect(profile)}
-                  className="rounded-xl border px-4 py-3 cursor-pointer transition-colors"
-                  style={{
-                    backgroundColor: activeProfile?.ID === profile.ID
-                      ? 'var(--color-accent-dim)'
-                      : 'var(--color-card)',
-                    borderColor: activeProfile?.ID === profile.ID
-                      ? 'var(--color-primary)'
-                      : 'var(--color-border)',
-                    boxShadow: 'var(--shadow-card)',
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className="w-2 h-2 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: getLatencyDot(profile.test_result) }}
-                      />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="text-sm font-medium truncate"
-                            style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
-                          >
-                            {profile.name}
-                          </span>
-                          <span
-                            className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
-                            style={{
-                              backgroundColor: protoColor.bg,
-                              color: protoColor.text,
-                              fontFamily: 'var(--font-heading)',
-                            }}
-                          >
-                            {profile.protocol}
-                          </span>
-                        </div>
-                        <p
-                          className="text-xs mt-0.5 truncate"
-                          style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
-                        >
-                          {profile.address}:{profile.port}
-                          {profile.group_name && (
-                            <span style={{ fontFamily: 'var(--font-heading)' }}> · {profile.group_name}</span>
-                          )}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {profile.test_result && (
-                        <span
-                          className="text-xs"
-                          style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
-                        >
-                          {profile.test_result}
-                        </span>
-                      )}
-                      {activeProfile?.ID === profile.ID ? (
-                        <Wifi size={14} style={{ color: 'var(--color-success)' }} />
-                      ) : (
-                        <WifiOff size={14} style={{ color: 'var(--color-text-muted)' }} />
-                      )}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDelete(profile.ID) }}
-                        className="p-1 rounded-md transition-colors cursor-pointer"
-                        style={{ color: 'var(--color-text-muted)' }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = 'var(--color-error)'
-                          e.currentTarget.style.backgroundColor = 'var(--color-error-dim)'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = 'var(--color-text-muted)'
-                          e.currentTarget.style.backgroundColor = 'transparent'
-                        }}
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              )
-            })
           )}
         </AnimatePresence>
+
+        {/* Node list */}
+        <div className="space-y-1.5" key={selectedGroupId}>
+          <AnimatePresence>
+            {filteredProfiles.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-center py-20"
+              >
+                <Layers
+                  size={32}
+                  className="mx-auto mb-3"
+                  style={{ color: 'var(--color-text-muted)' }}
+                />
+                <p
+                  className="text-sm"
+                  style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
+                >
+                  {searchQuery ? t('common.no_data') : t('nodes.no_nodes')}
+                </p>
+              </motion.div>
+            ) : (
+              filteredProfiles.map((profile, index) => {
+                const protoColor = getProtocolColor(profile.protocol)
+                return (
+                  <motion.div
+                    key={profile.ID}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: -16 }}
+                    transition={{ duration: 0.2, delay: index * 0.02 }}
+                    onClick={() => handleSelect(profile)}
+                    className="rounded-xl border px-4 py-3 cursor-pointer transition-colors"
+                    style={{
+                      backgroundColor: activeProfile?.ID === profile.ID
+                        ? 'var(--color-accent-dim)'
+                        : 'var(--color-card)',
+                      borderColor: activeProfile?.ID === profile.ID
+                        ? 'var(--color-primary)'
+                        : 'var(--color-border)',
+                      boxShadow: 'var(--shadow-card)',
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: getLatencyDot(profile.test_result) }}
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="text-sm font-medium truncate"
+                              style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+                            >
+                              {profile.name}
+                            </span>
+                            <span
+                              className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                              style={{
+                                backgroundColor: protoColor.bg,
+                                color: protoColor.text,
+                                fontFamily: 'var(--font-heading)',
+                              }}
+                            >
+                              {profile.protocol}
+                            </span>
+                          </div>
+                          <p
+                            className="text-xs mt-0.5 truncate"
+                            style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
+                          >
+                            {profile.address}:{profile.port}
+                            {profile.group_name && (
+                              <span style={{ fontFamily: 'var(--font-heading)' }}> · {profile.group_name}</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {profile.test_result && (
+                          <span
+                            className="text-xs"
+                            style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
+                          >
+                            {profile.test_result}
+                          </span>
+                        )}
+                        {activeProfile?.ID === profile.ID ? (
+                          <Wifi size={14} style={{ color: 'var(--color-success)' }} />
+                        ) : (
+                          <WifiOff size={14} style={{ color: 'var(--color-text-muted)' }} />
+                        )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(profile.ID) }}
+                          className="p-1 rounded-md transition-colors cursor-pointer"
+                          style={{ color: 'var(--color-text-muted)' }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.color = 'var(--color-error)'
+                            e.currentTarget.style.backgroundColor = 'var(--color-error-dim)'
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.color = 'var(--color-text-muted)'
+                            e.currentTarget.style.backgroundColor = 'transparent'
+                          }}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )
+              })
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Right: Group Selection Panel */}
+      <div className="w-64 flex-shrink-0">
+        <div className="sticky top-20">
+          <div
+            className="rounded-xl border overflow-hidden"
+            style={{
+              backgroundColor: 'var(--color-card)',
+              borderColor: 'var(--color-border)',
+              boxShadow: 'var(--shadow-card)',
+            }}
+          >
+            <div className="p-2 space-y-1">
+              {/* "All Groups" option */}
+              <motion.button
+                onClick={() => setSelectedGroupId(0)}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-left cursor-pointer"
+                style={{
+                  backgroundColor: selectedGroupId === 0 ? 'var(--color-accent-dim)' : 'transparent',
+                  borderColor: selectedGroupId === 0 ? 'var(--color-primary)' : 'transparent',
+                  borderWidth: selectedGroupId === 0 ? 1 : 0,
+                  borderStyle: 'solid',
+                }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <div
+                  className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: 'var(--color-muted)' }}
+                >
+                  <Layers size={10} style={{ color: 'var(--color-muted-foreground)' }} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span
+                    className="text-xs font-medium truncate block"
+                    style={{
+                      color: selectedGroupId === 0 ? 'var(--color-accent-warm)' : 'var(--color-foreground)',
+                      fontFamily: 'var(--font-heading)',
+                    }}
+                  >
+                    {t('nodes.all_groups')}
+                  </span>
+                </div>
+                <span
+                  className="text-[9px] flex-shrink-0"
+                  style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}
+                >
+                  {profiles.length}
+                </span>
+              </motion.button>
+
+              {groups.map((group) => {
+                const isSelected = selectedGroupId === group.ID
+                return (
+                  <motion.button
+                    key={group.ID}
+                    onClick={() => setSelectedGroupId(group.ID)}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-left cursor-pointer"
+                    style={{
+                      backgroundColor: isSelected ? 'var(--color-accent-dim)' : 'transparent',
+                      borderColor: isSelected ? 'var(--color-primary)' : 'transparent',
+                      borderWidth: isSelected ? 1 : 0,
+                      borderStyle: 'solid',
+                    }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <div
+                      className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                      style={{
+                        backgroundColor: group.is_subscription
+                          ? 'rgba(217, 119, 87, 0.12)'
+                          : 'var(--color-muted)',
+                      }}
+                    >
+                      {group.is_subscription ? (
+                        <Link size={10} style={{ color: '#D97757' }} />
+                      ) : (
+                        <FolderOpen size={10} style={{ color: 'var(--color-muted-foreground)' }} />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span
+                        className="text-xs font-medium truncate block"
+                        style={{
+                          color: isSelected ? 'var(--color-accent-warm)' : 'var(--color-foreground)',
+                          fontFamily: 'var(--font-heading)',
+                        }}
+                      >
+                        {displayName(group)}
+                      </span>
+                    </div>
+                    <span
+                      className="text-[9px] flex-shrink-0"
+                      style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}
+                    >
+                      {group.node_count}
+                    </span>
+                  </motion.button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

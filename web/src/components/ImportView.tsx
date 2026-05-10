@@ -5,8 +5,6 @@ import {
   PenLine,
   FolderOpen,
   Link,
-  RefreshCw,
-  Globe,
   Check,
 } from 'lucide-react'
 import { groupsApi, profileApi, profileEnhancedApi } from '../lib/api'
@@ -29,7 +27,6 @@ export function ImportView() {
   const [importText, setImportText] = useState('')
   const [showManualAdd, setShowManualAdd] = useState(false)
   const [importing, setImporting] = useState(false)
-  const [refreshing, setRefreshing] = useState<'direct' | 'proxy' | null>(null)
   const t = useT()
   const { addToast } = useStore()
 
@@ -50,9 +47,6 @@ export function ImportView() {
   useEffect(() => {
     loadGroups()
   }, [loadGroups])
-
-  const selectedGroup = groups.find((g) => g.ID === selectedGroupId)
-  const isSubscriptionGroup = selectedGroup?.is_subscription ?? false
 
   const handleImport = async () => {
     if (!importText.trim()) {
@@ -93,23 +87,6 @@ export function ImportView() {
       addToast(t('import.import_failed'), 'error')
     }
     e.target.value = ''
-  }
-
-  const handleRefresh = async (useProxy: boolean) => {
-    if (!selectedGroupId || !isSubscriptionGroup) return
-    setRefreshing(useProxy ? 'proxy' : 'direct')
-    try {
-      if (useProxy) {
-        await groupsApi.refreshProxy(selectedGroupId)
-      } else {
-        await groupsApi.refresh(selectedGroupId)
-      }
-      addToast(t('groups.update_success'), 'success')
-    } catch (err) {
-      console.error('Refresh failed:', err)
-      addToast(t('groups.update_failed'), 'error')
-    }
-    setRefreshing(null)
   }
 
   const displayName = (g: NodeGroup) => g.alias || t('groups.default_name')
@@ -229,43 +206,6 @@ export function ImportView() {
       {/* Right: Group Selection Panel (1/4) */}
       <div className="w-64 flex-shrink-0">
         <div className="sticky top-20">
-          {/* Update Buttons */}
-          <div className="flex gap-2 mb-3">
-            <motion.button
-              onClick={() => handleRefresh(false)}
-              disabled={!isSubscriptionGroup || refreshing !== null}
-              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] font-medium rounded-lg border transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-              style={{
-                backgroundColor: 'var(--color-muted)',
-                borderColor: 'var(--color-border)',
-                color: 'var(--color-muted-foreground)',
-                fontFamily: 'var(--font-heading)',
-              }}
-              whileTap={{ scale: 0.95 }}
-              title={t('groups.update_no_proxy')}
-            >
-              <RefreshCw size={11} className={refreshing === 'direct' ? 'animate-spin' : ''} />
-              {t('groups.update_no_proxy')}
-            </motion.button>
-            <motion.button
-              onClick={() => handleRefresh(true)}
-              disabled={!isSubscriptionGroup || refreshing !== null}
-              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] font-medium rounded-lg border transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-              style={{
-                backgroundColor: 'var(--color-muted)',
-                borderColor: 'var(--color-border)',
-                color: 'var(--color-muted-foreground)',
-                fontFamily: 'var(--font-heading)',
-              }}
-              whileTap={{ scale: 0.95 }}
-              title={t('groups.update_with_proxy')}
-            >
-              <Globe size={11} className={refreshing === 'proxy' ? 'animate-spin' : ''} />
-              {t('groups.update_with_proxy')}
-            </motion.button>
-          </div>
-
-          {/* Group List */}
           <div
             className="rounded-xl border overflow-hidden"
             style={{
