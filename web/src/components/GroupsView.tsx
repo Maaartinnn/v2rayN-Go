@@ -136,7 +136,6 @@ function SortableGroupCard({
   return (
     <div ref={setNodeRef} style={style}>
       <motion.div
-        layout
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         className="rounded-xl border"
@@ -580,9 +579,10 @@ export function GroupsView() {
 
   const handleSave = async (id: number, data: Partial<NodeGroup>) => {
     try {
-      await groupsApi.update(id, data)
+      const res = await groupsApi.update(id, data)
       setEditId(null)
-      await loadGroups()
+      // Update locally without reloading the full list to avoid visual reorder
+      setGroups(prev => prev.map(g => g.ID === id ? { ...g, ...res.data } : g))
     } catch (err) {
       console.error('Update group failed:', err)
       addToast(t('groups.save_failed'), 'error')

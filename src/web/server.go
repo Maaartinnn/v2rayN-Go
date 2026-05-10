@@ -565,18 +565,26 @@ func (s *Server) handleProfileDedup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var req struct {
+		GroupID uint `json:"group_id"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
 	var profiles []database.Profile
-	database.DB.Order("sort_order ASC").Find(&profiles)
+	query := database.DB.Order("sort_order ASC")
+	if req.GroupID > 0 {
+		query = query.Where("group_id = ?", req.GroupID)
+	}
+	query.Find(&profiles)
 
 	seen := make(map[string]bool)
 	var duplicates []uint
 
 	for _, p := range profiles {
-		// Create a unique key based on address + port + protocol
-		key := fmt.Sprintf("%s:%d:%s", p.Address, p.Port, p.Protocol)
-		if p.UUID != "" {
-			key += ":" + p.UUID
-		}
+		// 完整配置 key：address:port:protocol:network:tls:security:uuid
+		key := fmt.Sprintf("%s:%d:%s:%s:%s:%s:%s",
+			p.Address, p.Port, p.Protocol,
+			p.Network, p.TLS, p.Security, p.UUID)
 		if seen[key] {
 			duplicates = append(duplicates, p.ID)
 		} else {

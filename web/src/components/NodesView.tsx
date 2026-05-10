@@ -96,7 +96,7 @@ export function NodesView() {
 
   const handleDedup = async () => {
     try {
-      const res = await profileEnhancedApi.dedup()
+      const res = await profileEnhancedApi.dedup(selectedGroupId)
       const data = res.data
       setDedupResult(t('nodes.dedup_result', { removed: data.removed, total: data.total }))
       setTimeout(() => setDedupResult(''), 5000)

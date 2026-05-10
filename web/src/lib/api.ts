@@ -45,7 +45,7 @@ export const groupsApi = {
 
 // ========== Profile Enhancements ==========
 export const profileEnhancedApi = {
-  dedup: () => api.post('/profiles/dedup'),
+  dedup: (groupId: number = 0) => api.post('/profiles/dedup', { group_id: groupId }),
   importImage: (formData: FormData) =>
     api.post('/profiles/import-image', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
