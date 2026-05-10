@@ -29,6 +29,7 @@ const enUS = {
   'nodes.delete': 'Delete',
   'nodes.edit': 'Edit',
   'nodes.save': 'Save',
+  'nodes.manual_add': 'Manual Add',
   'nodes.import_placeholder': 'Paste share links here (vmess://, vless://, trojan://, ss://, ...)\nOne link per line',
   'nodes.import_base64': 'Supports Base64 subscription content',
   'nodes.import_qr': 'Import from QR code image',
@@ -40,6 +41,7 @@ const enUS = {
   'nodes.ungrouped': 'Ungrouped',
   'nodes.sort': 'Sort',
   'nodes.dedup': 'Deduplicate',
+  'nodes.dedup_result': 'Removed {removed} duplicates from {total} nodes',
 
   // Subscriptions
   'subs.title': 'Subscriptions',
@@ -49,12 +51,14 @@ const enUS = {
   'subs.auto_update': 'Auto Update',
   'subs.interval': 'Update Interval (hours)',
   'subs.user_agent': 'User-Agent',
+  'subs.user_agent_placeholder': 'e.g. ClashForAndroid/2.5.12',
   'subs.last_update': 'Last Updated',
   'subs.node_count': 'Nodes',
   'subs.refresh': 'Refresh',
   'subs.refresh_all': 'Refresh All',
   'subs.no_subscriptions': 'No subscriptions yet',
   'subs.add_hint': 'Add a subscription URL to auto-import nodes',
+  'subs.hours_suffix': 'h',
 
   // Logs
   'logs.title': 'Logs',
@@ -109,6 +113,9 @@ const enUS = {
   'cores.unknown_version': 'Unknown Version',
   'cores.upload_binary': 'Upload Binary',
   'cores.upload_archive': 'Upload Archive',
+  'cores.download_failed': '{name} download failed: {error}',
+  'cores.upload_success': '{name} uploaded successfully',
+  'cores.upload_failed': '{name} upload failed: {error}',
 
   // Routing
   'routing.title': 'Routing Rules',
@@ -121,6 +128,7 @@ const enUS = {
   'routing.direct': 'Direct',
   'routing.block': 'Block',
   'routing.proxy': 'Proxy',
+  'routing.rule_name': 'Rule name',
 
   // Strategy Groups
   'strategy.title': 'Strategy Groups',
@@ -132,8 +140,14 @@ const enUS = {
   'strategy.fallback': 'Fallback',
   'strategy.loadbalance': 'Load Balance',
   'strategy.members': 'Members',
+  'strategy.members_selected': '{count} selected',
   'strategy.test_url': 'Test URL',
   'strategy.test_interval': 'Test Interval (s)',
+  'strategy.strategy_label': 'Strategy',
+  'strategy.round_robin': 'Round Robin',
+  'strategy.least_load': 'Least Load',
+  'strategy.random': 'Random',
+  'strategy.group_name_placeholder': 'My Strategy Group',
 
   // Common
   'common.error': 'Error',

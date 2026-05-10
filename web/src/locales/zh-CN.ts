@@ -29,6 +29,7 @@ const zhCN = {
   'nodes.delete': '删除',
   'nodes.edit': '编辑',
   'nodes.save': '保存',
+  'nodes.manual_add': '手动添加',
   'nodes.import_placeholder': '在此粘贴分享链接 (vmess://, vless://, trojan://, ss://, ...)\n每行一个链接',
   'nodes.import_base64': '支持 Base64 订阅内容',
   'nodes.import_qr': '从二维码图片导入',
@@ -40,6 +41,7 @@ const zhCN = {
   'nodes.ungrouped': '未分组',
   'nodes.sort': '排序',
   'nodes.dedup': '去重',
+  'nodes.dedup_result': '从 {total} 个节点中移除了 {removed} 个重复项',
 
   // 订阅
   'subs.title': '订阅管理',
@@ -49,12 +51,14 @@ const zhCN = {
   'subs.auto_update': '自动更新',
   'subs.interval': '更新间隔（小时）',
   'subs.user_agent': 'User-Agent',
+  'subs.user_agent_placeholder': '例如 ClashForAndroid/2.5.12',
   'subs.last_update': '上次更新',
   'subs.node_count': '节点数',
   'subs.refresh': '刷新',
   'subs.refresh_all': '全部刷新',
   'subs.no_subscriptions': '暂无订阅',
   'subs.add_hint': '添加订阅 URL 以自动导入节点',
+  'subs.hours_suffix': '小时',
 
   // 日志
   'logs.title': '日志',
@@ -109,6 +113,9 @@ const zhCN = {
   'cores.unknown_version': '未知版本',
   'cores.upload_binary': '上传二进制',
   'cores.upload_archive': '上传压缩包',
+  'cores.download_failed': '{name} 下载失败: {error}',
+  'cores.upload_success': '{name} 上传成功',
+  'cores.upload_failed': '{name} 上传失败: {error}',
 
   // 路由
   'routing.title': '路由规则',
@@ -121,6 +128,7 @@ const zhCN = {
   'routing.direct': '直连',
   'routing.block': '拦截',
   'routing.proxy': '代理',
+  'routing.rule_name': '规则名称',
 
   // 策略组
   'strategy.title': '策略组',
@@ -132,8 +140,14 @@ const zhCN = {
   'strategy.fallback': '故障转移',
   'strategy.loadbalance': '负载均衡',
   'strategy.members': '成员',
+  'strategy.members_selected': '已选择 {count} 个',
   'strategy.test_url': '测试 URL',
   'strategy.test_interval': '测试间隔（秒）',
+  'strategy.strategy_label': '策略',
+  'strategy.round_robin': '轮询',
+  'strategy.least_load': '最少连接',
+  'strategy.random': '随机',
+  'strategy.group_name_placeholder': '我的策略组',
 
   // 通用
   'common.error': '错误',

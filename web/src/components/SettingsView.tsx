@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { Globe, Monitor, Sun, Moon, Save } from 'lucide-react'
-import { useI18n, useT } from '../lib/i18n'
+import { AVAILABLE_LANGUAGES, useI18n, useT } from '../lib/i18n'
 import { useState, useEffect } from 'react'
 import { settingsApi } from '../lib/api'
 
@@ -93,33 +93,23 @@ export function SettingsView() {
               {t('settings.language')}
             </span>
           </div>
-          <div
-            className="flex rounded-lg overflow-hidden border"
-            style={{ borderColor: 'var(--color-border)' }}
+          <select
+            value={lang}
+            onChange={(e) => setLang(e.target.value as any)}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg border cursor-pointer"
+            style={{
+              backgroundColor: 'var(--color-muted)',
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-foreground)',
+              fontFamily: 'var(--font-heading)',
+            }}
           >
-            <button
-              onClick={() => setLang('zh')}
-              className="px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer"
-              style={{
-                backgroundColor: lang === 'zh' ? 'var(--color-primary)' : 'var(--color-muted)',
-                color: lang === 'zh' ? 'var(--color-primary-foreground)' : 'var(--color-muted-foreground)',
-                fontFamily: 'var(--font-heading)',
-              }}
-            >
-              中文
-            </button>
-            <button
-              onClick={() => setLang('en')}
-              className="px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer"
-              style={{
-                backgroundColor: lang === 'en' ? 'var(--color-primary)' : 'var(--color-muted)',
-                color: lang === 'en' ? 'var(--color-primary-foreground)' : 'var(--color-muted-foreground)',
-                fontFamily: 'var(--font-heading)',
-              }}
-            >
-              English
-            </button>
-          </div>
+            {AVAILABLE_LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Theme */}

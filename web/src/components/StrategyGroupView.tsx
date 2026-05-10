@@ -19,10 +19,10 @@ interface StrategyGroup {
 }
 
 const GROUP_TYPES = [
-  { value: 'selector', label: 'Manual Select', icon: Shuffle },
-  { value: 'urltest', label: 'Auto Test', icon: Zap },
-  { value: 'fallback', label: 'Fallback', icon: ArrowDownUp },
-  { value: 'loadbalance', label: 'Load Balance', icon: BarChart3 },
+  { value: 'selector', labelKey: 'strategy.selector' as const, icon: Shuffle },
+  { value: 'urltest', labelKey: 'strategy.urltest' as const, icon: Zap },
+  { value: 'fallback', labelKey: 'strategy.fallback' as const, icon: ArrowDownUp },
+  { value: 'loadbalance', labelKey: 'strategy.loadbalance' as const, icon: BarChart3 },
 ]
 
 export function StrategyGroupView() {
@@ -145,7 +145,7 @@ export function StrategyGroupView() {
   }
 
   const getTypeInfo = (type: string) => {
-    const info = GROUP_TYPES.find(t => t.value === type)
+    const info = GROUP_TYPES.find(gt => gt.value === type)
     return info || GROUP_TYPES[0]
   }
 
@@ -192,7 +192,7 @@ export function StrategyGroupView() {
                 type="text"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                placeholder="My Strategy Group"
+                placeholder={t('strategy.group_name_placeholder')}
                 className="w-full px-3 py-2 text-sm rounded-lg border"
                 style={{ backgroundColor: 'var(--color-overlay)', borderColor: 'var(--color-border)', color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
               />
@@ -218,7 +218,7 @@ export function StrategyGroupView() {
           {formType === 'loadbalance' && (
             <div>
               <label className="text-xs font-medium block mb-1" style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}>
-                Strategy
+                {t('strategy.strategy_label')}
               </label>
               <select
                 value={formStrategy}
@@ -226,9 +226,9 @@ export function StrategyGroupView() {
                 className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
                 style={{ backgroundColor: 'var(--color-overlay)', borderColor: 'var(--color-border)', color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
               >
-                <option value="round-robin">Round Robin</option>
-                <option value="least-load">Least Load</option>
-                <option value="random">Random</option>
+                <option value="round-robin">{t('strategy.round_robin')}</option>
+                <option value="least-load">{t('strategy.least_load')}</option>
+                <option value="random">{t('strategy.random')}</option>
               </select>
             </div>
           )}
@@ -267,7 +267,7 @@ export function StrategyGroupView() {
           {/* Member nodes selection */}
           <div>
             <label className="text-xs font-medium block mb-1" style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}>
-              {t('strategy.members')} ({formProfileIDs.length} selected)
+              {t('strategy.members')} ({t('strategy.members_selected', { count: formProfileIDs.length })})
             </label>
             <div
               className="max-h-40 overflow-y-auto rounded-lg border p-2 space-y-1"
@@ -396,7 +396,7 @@ export function StrategyGroupView() {
                         </span>
                       </div>
                       <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}>
-                        {memberNames.length > 0 ? memberNames.join(', ') : 'No members'}
+                        {memberNames.length > 0 ? memberNames.join(', ') : t('strategy.members') + ': 0'}
                       </p>
                     </div>
                   </div>

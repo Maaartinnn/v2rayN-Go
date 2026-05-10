@@ -196,7 +196,7 @@ export function SubscriptionsView() {
                 type="text"
                 value={formUA}
                 onChange={(e) => setFormUA(e.target.value)}
-                placeholder="ClashForAndroid/2.5.12"
+                placeholder={t('subs.user_agent_placeholder')}
                 className="w-full px-3 py-2 text-sm rounded-lg border"
                 style={{
                   backgroundColor: 'var(--color-overlay)',
@@ -384,7 +384,7 @@ export function SubscriptionsView() {
                         className="text-[10px]"
                         style={{ color: 'var(--color-success)', fontFamily: 'var(--font-heading)' }}
                       >
-                        {t('subs.auto_update')} · {Math.floor((sub.update_interval || 86400) / 3600)}h
+                        {t('subs.auto_update')} · {Math.floor((sub.update_interval || 86400) / 3600)}{t('subs.hours_suffix')}
                       </span>
                     )}
                   </div>

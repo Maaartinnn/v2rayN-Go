@@ -75,7 +75,7 @@ export function CoresView() {
     } catch (err: any) {
       console.error('Download failed:', err)
       const msg = err?.response?.data?.error || err?.message || 'Unknown error'
-      addToast(`${coreName} 下载失败: ${msg}`, 'error')
+      addToast(t('cores.download_failed', { name: coreName, error: msg }), 'error')
       setDownloading(prev => ({ ...prev, [coreName]: false }))
     }
   }
@@ -91,7 +91,7 @@ export function CoresView() {
     } catch (err: any) {
       console.error('Custom URL download failed:', err)
       const msg = err?.response?.data?.error || err?.message || 'Unknown error'
-      addToast(`${customUrlCore} 下载失败: ${msg}`, 'error')
+      addToast(t('cores.download_failed', { name: customUrlCore, error: msg }), 'error')
       setDownloading(prev => ({ ...prev, [customUrlCore]: false }))
     }
   }
@@ -109,12 +109,12 @@ export function CoresView() {
       formData.append('binary', file)
       try {
         await coresApi.upload(formData)
-        addToast(`${coreName} 上传成功`, 'success')
+        addToast(t('cores.upload_success', { name: coreName }), 'success')
         await loadCores()
       } catch (err: any) {
         console.error('Upload failed:', err)
         const msg = err?.response?.data?.error || err?.message || 'Unknown error'
-        addToast(`${coreName} 上传失败: ${msg}`, 'error')
+        addToast(t('cores.upload_failed', { name: coreName, error: msg }), 'error')
       }
     }
     input.click()

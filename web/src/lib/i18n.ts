@@ -2,7 +2,12 @@ import { create } from 'zustand'
 import enUS from '../locales/en-US'
 import zhCN from '../locales/zh-CN'
 
-type Lang = 'en' | 'zh'
+export const AVAILABLE_LANGUAGES = [
+  { code: 'zh' as const, label: '中文' },
+  { code: 'en' as const, label: 'English' },
+] as const
+
+export type Lang = (typeof AVAILABLE_LANGUAGES)[number]['code']
 
 interface I18nState {
   lang: Lang
@@ -13,10 +18,14 @@ interface I18nState {
 
 function detectLang(): Lang {
   const stored = localStorage.getItem('lang')
-  if (stored === 'en' || stored === 'zh') return stored
+  if (isLang(stored)) return stored
   const nav = navigator.language.toLowerCase()
   if (nav.startsWith('zh')) return 'zh'
   return 'en'
+}
+
+function isLang(val: string | null): val is Lang {
+  return AVAILABLE_LANGUAGES.some((l) => l.code === val)
 }
 
 function detectTheme(): 'light' | 'dark' | 'system' {
@@ -65,15 +74,27 @@ const translations = { en: enUS, zh: zhCN } as const
 
 type TranslationKey = keyof typeof enUS
 
-export function t(key: TranslationKey): string {
+export function t(key: TranslationKey, params?: Record<string, string | number>): string {
   const lang = useI18n.getState().lang
-  return translations[lang][key] ?? key
+  let text: string = translations[lang][key] ?? key
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      text = text.replaceAll(`{${k}}`, String(v))
+    }
+  }
+  return text
 }
 
 // React hook for reactive translations
 export function useT() {
   const lang = useI18n((s) => s.lang)
-  return (key: TranslationKey): string => {
-    return translations[lang][key] ?? key
+  return (key: TranslationKey, params?: Record<string, string | number>): string => {
+    let text: string = translations[lang][key] ?? key
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        text = text.replaceAll(`{${k}}`, String(v))
+      }
+    }
+    return text
   }
 }

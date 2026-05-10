@@ -166,7 +166,7 @@ export function RoutingView() {
                 type="text"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                placeholder="Rule name"
+                placeholder={t('routing.rule_name')}
                 className="w-full px-3 py-2 text-sm rounded-lg border"
                 style={{
                   backgroundColor: 'var(--color-overlay)',

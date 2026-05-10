@@ -106,7 +106,7 @@ export function NodesView() {
     try {
       const res = await profileEnhancedApi.dedup()
       const data = res.data
-      setDedupResult(`Removed ${data.removed} duplicates from ${data.total} nodes`)
+      setDedupResult(t('nodes.dedup_result', { removed: data.removed, total: data.total }))
       setTimeout(() => setDedupResult(''), 5000)
       await loadProfiles()
     } catch (err) {
@@ -168,7 +168,7 @@ export function NodesView() {
             whileTap={{ scale: 0.95 }}
           >
             <PenLine size={13} />
-            手动添加
+            {t('nodes.manual_add')}
           </motion.button>
           <motion.button
             onClick={handlePingAll}
