@@ -90,17 +90,17 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/core/status", s.handleCoreStatus)
 
 	mux.HandleFunc("/api/profiles/import-image", s.handleProfileImportImage)
+	mux.HandleFunc("/api/profiles/import-to-group", s.handleProfileImportToGroup)
 	mux.HandleFunc("/api/profiles/import", s.handleProfileImport)
 	mux.HandleFunc("/api/profiles/dedup", s.handleProfileDedup)
 	mux.HandleFunc("/api/profiles/ping-all", s.handlePingAll)
 	mux.HandleFunc("/api/profiles/", s.handleProfileByID)
 	mux.HandleFunc("/api/profiles", s.handleProfiles)
 
-	mux.HandleFunc("/api/subscriptions/refresh-all", s.handleRefreshAll)
-	mux.HandleFunc("/api/subscriptions/", s.handleSubscriptionByID)
-	mux.HandleFunc("/api/subscriptions", s.handleSubscriptions)
-
+	mux.HandleFunc("/api/groups/reorder", s.handleGroupsReorder)
+	mux.HandleFunc("/api/groups/", s.handleGroupByID)
 	mux.HandleFunc("/api/groups", s.handleGroups)
+
 	mux.HandleFunc("/api/strategy-groups/", s.handleStrategyGroupByID)
 	mux.HandleFunc("/api/strategy-groups", s.handleStrategyGroups)
 
@@ -287,7 +287,8 @@ func (s *Server) handleProfileImport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Links string `json:"links"`
+		Links   string `json:"links"`
+		GroupID uint   `json:"group_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
@@ -300,12 +301,68 @@ func (s *Server) handleProfileImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 获取分组信息
+	var groupName string
+	if req.GroupID > 0 {
+		var group database.NodeGroup
+		if err := database.DB.First(&group, req.GroupID).Error; err == nil {
+			groupName = group.Alias
+		}
+	}
+
 	// 获取当前最大排序号
 	var maxOrder int
-	database.DB.Model(&database.Profile{}).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
+	database.DB.Model(&database.Profile{}).Where("group_id = ?", req.GroupID).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
 
 	for i, profile := range profiles {
 		profile.SortOrder = maxOrder + i + 1
+		profile.GroupID = req.GroupID
+		profile.GroupName = groupName
+		database.DB.Create(profile)
+	}
+
+	jsonOK(w, map[string]int{"imported": len(profiles)})
+}
+
+// handleProfileImportToGroup 导入节点到指定分组
+func (s *Server) handleProfileImportToGroup(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Links   string `json:"links"`
+		GroupID uint   `json:"group_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	profiles, err := parser.ParseLinks(strings.Split(req.Links, "\n"))
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// 获取分组信息
+	var groupName string
+	if req.GroupID > 0 {
+		var group database.NodeGroup
+		if err := database.DB.First(&group, req.GroupID).Error; err == nil {
+			groupName = group.Alias
+		}
+	}
+
+	// 获取当前最大排序号
+	var maxOrder int
+	database.DB.Model(&database.Profile{}).Where("group_id = ?", req.GroupID).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
+
+	for i, profile := range profiles {
+		profile.SortOrder = maxOrder + i + 1
+		profile.GroupID = req.GroupID
+		profile.GroupName = groupName
 		database.DB.Create(profile)
 	}
 
@@ -322,42 +379,6 @@ func (s *Server) handlePingAll(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]string{"status": "pinging"})
 }
 
-// ========== Subscription API ==========
-
-func (s *Server) handleSubscriptions(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		var subs []database.Subscription
-		database.DB.Find(&subs)
-		jsonOK(w, subs)
-
-	case http.MethodPost:
-		var sub database.Subscription
-		if err := json.NewDecoder(r.Body).Decode(&sub); err != nil {
-			jsonError(w, "Invalid request", http.StatusBadRequest)
-			return
-		}
-		if err := database.DB.Create(&sub).Error; err != nil {
-			jsonError(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		jsonOK(w, sub)
-
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-func (s *Server) handleRefreshAll(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	go s.subSvc.UpdateAllSubscriptions()
-	jsonOK(w, map[string]string{"status": "refreshing"})
-}
-
 // ========== Groups API ==========
 
 func (s *Server) handleGroups(w http.ResponseWriter, r *http.Request) {
@@ -365,6 +386,14 @@ func (s *Server) handleGroups(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		var groups []database.NodeGroup
 		database.DB.Order("sort_order ASC").Find(&groups)
+
+		// 计算每个分组的节点数
+		for i := range groups {
+			var count int64
+			database.DB.Model(&database.Profile{}).Where("group_id = ?", groups[i].ID).Count(&count)
+			groups[i].NodeCount = int(count)
+		}
+
 		jsonOK(w, groups)
 
 	case http.MethodPost:
@@ -373,39 +402,154 @@ func (s *Server) handleGroups(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
+
+		// 自动生成 UUID
+		if group.UUID == "" {
+			group.UUID = database.GenerateUUID()
+		}
+
+		// 设置排序
+		var maxOrder int
+		database.DB.Model(&database.NodeGroup{}).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
+		group.SortOrder = maxOrder + 1
+
 		if err := database.DB.Create(&group).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		jsonOK(w, group)
 
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) handleGroupsReorder(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		UUIDs []string `json:"uuids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	tx := database.DB.Begin()
+	for i, uuid := range req.UUIDs {
+		if err := tx.Model(&database.NodeGroup{}).Where("uuid = ?", uuid).Update("sort_order", i).Error; err != nil {
+			tx.Rollback()
+			jsonError(w, "Failed to reorder: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	if err := tx.Commit().Error; err != nil {
+		jsonError(w, "Failed to commit reorder: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	jsonOK(w, map[string]string{"status": "reordered"})
+}
+
+// handleGroupByID handles /api/groups/{id} and /api/groups/{id}/refresh
+func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/groups/")
+	parts := strings.SplitN(path, "/", 2)
+	id := strings.TrimSpace(parts[0])
+
+	if id == "" {
+		jsonError(w, "Missing group ID", http.StatusBadRequest)
+		return
+	}
+
+	var group database.NodeGroup
+	if err := database.DB.First(&group, id).Error; err != nil {
+		jsonError(w, "Group not found", http.StatusNotFound)
+		return
+	}
+
+	// 检查子操作
+	if len(parts) > 1 {
+		switch parts[1] {
+		case "refresh":
+			if r.Method != http.MethodPost {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			if !group.IsSubscription {
+				jsonError(w, "Group is not a subscription group", http.StatusBadRequest)
+				return
+			}
+			go func() {
+				if err := s.subSvc.UpdateGroupSubscription(&group, false); err != nil {
+					log.Printf("Failed to refresh group %s: %v", group.Alias, err)
+				}
+			}()
+			jsonOK(w, map[string]string{"status": "refreshing"})
+			return
+
+		case "refresh-proxy":
+			if r.Method != http.MethodPost {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			if !group.IsSubscription {
+				jsonError(w, "Group is not a subscription group", http.StatusBadRequest)
+				return
+			}
+			go func() {
+				if err := s.subSvc.UpdateGroupSubscription(&group, true); err != nil {
+					log.Printf("Failed to refresh group %s via proxy: %v", group.Alias, err)
+				}
+			}()
+			jsonOK(w, map[string]string{"status": "refreshing"})
+			return
+
+		default:
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		// 计算节点数
+		var count int64
+		database.DB.Model(&database.Profile{}).Where("group_id = ?", group.ID).Count(&count)
+		group.NodeCount = int(count)
+		jsonOK(w, group)
+
 	case http.MethodPut:
-		var group database.NodeGroup
-		if err := json.NewDecoder(r.Body).Decode(&group); err != nil {
+		var updated database.NodeGroup
+		if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		if group.ID == 0 {
-			jsonError(w, "Missing group ID", http.StatusBadRequest)
-			return
+		updated.ID = group.ID
+		// 保留 UUID 不变
+		if updated.UUID == "" {
+			updated.UUID = group.UUID
 		}
-		if err := database.DB.Save(&group).Error; err != nil {
+		if err := database.DB.Save(&updated).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		jsonOK(w, group)
+		jsonOK(w, updated)
 
 	case http.MethodDelete:
-		var req struct {
-			ID uint `json:"id"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			jsonError(w, "Invalid request", http.StatusBadRequest)
+		// 检查是否只剩一个分组
+		var count int64
+		database.DB.Model(&database.NodeGroup{}).Count(&count)
+		if count <= 1 {
+			jsonError(w, "Cannot delete the last group", http.StatusBadRequest)
 			return
 		}
-		// Clear group references from profiles
-		database.DB.Model(&database.Profile{}).Where("group_id = ?", req.ID).Updates(map[string]interface{}{"group_id": 0, "group_name": ""})
-		database.DB.Delete(&database.NodeGroup{}, req.ID)
+		// 清除该分组下节点的分组引用
+		database.DB.Model(&database.Profile{}).Where("group_id = ?", group.ID).Updates(map[string]interface{}{"group_id": 0, "group_name": ""})
+		database.DB.Delete(&group)
 		jsonOK(w, map[string]string{"status": "deleted"})
 
 	default:
@@ -466,6 +610,11 @@ func (s *Server) handleProfileImportImage(w http.ResponseWriter, r *http.Request
 
 	var imageURL string
 
+	// Get group_id from form
+	groupIDStr := r.FormValue("group_id")
+	var groupID uint
+	fmt.Sscanf(groupIDStr, "%d", &groupID)
+
 	// Check for uploaded file
 	file, _, err := r.FormFile("image")
 	if err == nil {
@@ -482,7 +631,7 @@ func (s *Server) handleProfileImportImage(w http.ResponseWriter, r *http.Request
 			jsonError(w, "No QR code found in image: "+decodeErr.Error(), http.StatusBadRequest)
 			return
 		}
-		importParsedLinks(w, links)
+		importParsedLinksWithGroup(w, links, groupID)
 		return
 	}
 
@@ -513,21 +662,35 @@ func (s *Server) handleProfileImportImage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	importParsedLinks(w, links)
+	importParsedLinksWithGroup(w, links, groupID)
 }
 
 func importParsedLinks(w http.ResponseWriter, links []string) {
+	importParsedLinksWithGroup(w, links, 0)
+}
+
+func importParsedLinksWithGroup(w http.ResponseWriter, links []string, groupID uint) {
 	profiles, err := parser.ParseLinks(links)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	var groupName string
+	if groupID > 0 {
+		var group database.NodeGroup
+		if err := database.DB.First(&group, groupID).Error; err == nil {
+			groupName = group.Alias
+		}
+	}
+
 	var maxOrder int
-	database.DB.Model(&database.Profile{}).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
+	database.DB.Model(&database.Profile{}).Where("group_id = ?", groupID).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
 
 	for i, profile := range profiles {
 		profile.SortOrder = maxOrder + i + 1
+		profile.GroupID = groupID
+		profile.GroupName = groupName
 		database.DB.Create(profile)
 	}
 
@@ -896,69 +1059,6 @@ func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodDelete:
 		database.DB.Delete(&profile)
-		jsonOK(w, map[string]string{"status": "deleted"})
-
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-// ========== Subscription by ID API ==========
-
-func (s *Server) handleSubscriptionByID(w http.ResponseWriter, r *http.Request) {
-	// Extract ID from path: /api/subscriptions/{id} or /api/subscriptions/{id}/refresh
-	path := strings.TrimPrefix(r.URL.Path, "/api/subscriptions/")
-	parts := strings.SplitN(path, "/", 2)
-	id := strings.TrimSpace(parts[0])
-
-	if id == "" {
-		jsonError(w, "Missing subscription ID", http.StatusBadRequest)
-		return
-	}
-
-	var sub database.Subscription
-	if err := database.DB.First(&sub, id).Error; err != nil {
-		jsonError(w, "Subscription not found", http.StatusNotFound)
-		return
-	}
-
-	// Check for sub-action
-	if len(parts) > 1 {
-		switch parts[1] {
-		case "refresh":
-			if r.Method != http.MethodPost {
-				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-				return
-			}
-			go s.subSvc.UpdateSingleSubscription(&sub)
-			jsonOK(w, map[string]string{"status": "refreshing"})
-			return
-
-		default:
-			http.Error(w, "Not found", http.StatusNotFound)
-			return
-		}
-	}
-
-	switch r.Method {
-	case http.MethodGet:
-		jsonOK(w, sub)
-
-	case http.MethodPut:
-		var updated database.Subscription
-		if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
-			jsonError(w, "Invalid request", http.StatusBadRequest)
-			return
-		}
-		updated.ID = sub.ID
-		if err := database.DB.Save(&updated).Error; err != nil {
-			jsonError(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		jsonOK(w, updated)
-
-	case http.MethodDelete:
-		database.DB.Delete(&sub)
 		jsonOK(w, map[string]string{"status": "deleted"})
 
 	default:

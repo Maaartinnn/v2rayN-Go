@@ -1,6 +1,7 @@
 package database
 
 import (
+	"log"
 	"v2rayn-go/config"
 
 	"github.com/glebarez/sqlite"
@@ -23,13 +24,25 @@ func Init(cfg *config.AppConfig) error {
 	// 自动迁移表结构
 	if err := DB.AutoMigrate(
 		&Profile{},
-		&Subscription{},
 		&NodeGroup{},
 		&RoutingRule{},
 		&StrategyGroup{},
 		&AppSetting{},
 	); err != nil {
 		return err
+	}
+
+	// 如果分组为空，创建默认分组
+	var count int64
+	DB.Model(&NodeGroup{}).Count(&count)
+	if count == 0 {
+		DB.Create(&NodeGroup{
+			UUID:      GenerateUUID(),
+			Alias:     "",
+			SortOrder: 0,
+			Enabled:   true,
+		})
+		log.Println("Created default group")
 	}
 
 	return nil

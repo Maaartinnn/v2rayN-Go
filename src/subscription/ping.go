@@ -35,7 +35,7 @@ func NewPingService() *PingService {
 
 // TCPPing TCP 连接延迟测试
 func (ps *PingService) TCPPing(host string, port int) (int, error) {
-	addr := fmt.Sprintf("%s:%d", host, port)
+	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
 	start := time.Now()
 
 	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
