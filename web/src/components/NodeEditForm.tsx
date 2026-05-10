@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Check, X, Zap } from 'lucide-react'
 import { profileApi, coresApi } from '../lib/api'
 import { useT } from '../lib/i18n'
+import type { Profile } from '../store'
 import {
   PROTOCOLS, NETWORKS, TLS_OPTIONS, SECURITY_METHODS,
   getBestInstalledCore, getSupportedCores,
@@ -12,10 +13,12 @@ interface NodeEditFormProps {
   onClose: () => void
   onSaved: () => void
   groupId?: number
+  editData?: Profile
 }
 
-export function NodeEditForm({ onClose, onSaved, groupId }: NodeEditFormProps) {
+export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFormProps) {
   const t = useT()
+  const isEditing = !!editData
 
   // Basic fields
   const [name, setName] = useState('')
@@ -45,6 +48,28 @@ export function NodeEditForm({ onClose, onSaved, groupId }: NodeEditFormProps) {
   const [recommendedCore, setRecommendedCore] = useState<string | null>(null)
   const [installedCores, setInstalledCores] = useState<string[]>([])
 
+  // Pre-fill form when editing
+  useEffect(() => {
+    if (editData) {
+      setName(editData.name || '')
+      setProtocol(editData.protocol || 'vmess')
+      setAddress(editData.address || '')
+      setPort(String(editData.port || 443))
+      setUuid(editData.uuid || '')
+      setSecurity(editData.security || 'auto')
+      setNetwork(editData.network || 'tcp')
+      setHost(editData.host || '')
+      setPath(editData.path || '')
+      setTls(editData.tls || '')
+      setSni(editData.sni || '')
+      setFingerprint(editData.fingerprint || '')
+      setAllowInsecure(editData.allow_insecure || false)
+      setPublicKey(editData.public_key || '')
+      setShortId(editData.short_id || '')
+      setFlow(editData.flow || '')
+    }
+  }, [editData])
+
   // Load installed cores on mount
   useEffect(() => {
     coresApi.list().then((res) => {
@@ -64,32 +89,40 @@ export function NodeEditForm({ onClose, onSaved, groupId }: NodeEditFormProps) {
   const handleSubmit = async () => {
     if (!name.trim() || !address.trim() || !port) return
 
+    const payload = {
+      group_id: groupId || editData?.group_id || 0,
+      name: name.trim(),
+      address: address.trim(),
+      port: parseInt(port) || 443,
+      protocol,
+      uuid: uuid.trim(),
+      security,
+      network,
+      host: host.trim(),
+      path: path.trim(),
+      tls,
+      sni: sni.trim(),
+      fingerprint: fingerprint.trim(),
+      allow_insecure: allowInsecure,
+      public_key: publicKey.trim(),
+      short_id: shortId.trim(),
+      flow: flow.trim(),
+    }
+
     try {
-      await profileApi.create({
-        group_id: groupId || 0,
-        name: name.trim(),
-        address: address.trim(),
-        port: parseInt(port) || 443,
-        protocol,
-        uuid: uuid.trim(),
-        security,
-        network,
-        host: host.trim(),
-        path: path.trim(),
-        tls,
-        sni: sni.trim(),
-        fingerprint: fingerprint.trim(),
-        allow_insecure: allowInsecure,
-        public_key: publicKey.trim(),
-        short_id: shortId.trim(),
-        flow: flow.trim(),
-        is_active: false,
-        sort_order: 0,
-      })
+      if (isEditing && editData) {
+        await profileApi.update(editData.ID, payload)
+      } else {
+        await profileApi.create({
+          ...payload,
+          is_active: false,
+          sort_order: 0,
+        })
+      }
       onSaved()
       onClose()
     } catch (err) {
-      console.error('Failed to create node:', err)
+      console.error(`Failed to ${isEditing ? 'update' : 'create'} node:`, err)
     }
   }
 
@@ -121,6 +154,7 @@ export function NodeEditForm({ onClose, onSaved, groupId }: NodeEditFormProps) {
       initial={{ opacity: 0, height: 0 }}
       animate={{ opacity: 1, height: 'auto' }}
       exit={{ opacity: 0, height: 0 }}
+      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
       className="mb-4 overflow-hidden"
     >
       <div
@@ -473,7 +507,7 @@ export function NodeEditForm({ onClose, onSaved, groupId }: NodeEditFormProps) {
             style={{ fontFamily: 'var(--font-heading)' }}
           >
             <Check size={13} />
-            {t('nodes.confirm')}
+            {isEditing ? t('nodes.save') : t('nodes.confirm')}
           </button>
         </div>
       </div>

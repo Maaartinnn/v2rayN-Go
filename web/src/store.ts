@@ -6,11 +6,29 @@ export interface Profile {
   address: string
   port: number
   protocol: string
+  uuid: string
+  alter_id: number
+  security: string
+  network: string
+  tls: string
+  sni: string
+  fingerprint: string
+  allow_insecure: boolean
+  host: string
+  path: string
+  seed: string
+  flow: string
+  public_key: string
+  short_id: string
+  sider_sni: string
+  dialer_proxy: string
+  raw_link: string
   test_result: string
+  last_test_time: string
   is_active: boolean
+  sort_order: number
   group_id: number
   group_name: string
-  sort_order: number
 }
 
 export interface CoreStatus {

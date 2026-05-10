@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Wifi, WifiOff, RefreshCw, Trash2, Search, Layers, FolderOpen, Link } from 'lucide-react'
+import { Wifi, WifiOff, RefreshCw, Trash2, Search, Layers, FolderOpen, Link, Edit3 } from 'lucide-react'
 import { useStore } from '../store'
 import type { Profile } from '../store'
 import { profileApi, profileEnhancedApi, groupsApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 import { DeleteConfirmBanner } from './DeleteConfirmBanner'
+import { NodeEditForm } from './NodeEditForm'
 
 interface NodeGroupItem {
   ID: number
@@ -23,6 +24,7 @@ export function NodesView() {
   const [groups, setGroups] = useState<NodeGroupItem[]>([])
   const [dedupResult, setDedupResult] = useState<string>('')
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
+  const [editId, setEditId] = useState<number | null>(null)
   const t = useT()
 
   useEffect(() => {
@@ -308,6 +310,21 @@ export function NodesView() {
                             <WifiOff size={14} style={{ color: 'var(--color-text-muted)' }} />
                           )}
                           <button
+                            onClick={(e) => { e.stopPropagation(); setEditId(editId === profile.ID ? null : profile.ID) }}
+                            className="p-1 rounded-md transition-colors cursor-pointer"
+                            style={{ color: 'var(--color-text-muted)' }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = 'var(--color-accent-warm)'
+                              e.currentTarget.style.backgroundColor = 'var(--color-accent-dim)'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = 'var(--color-text-muted)'
+                              e.currentTarget.style.backgroundColor = 'transparent'
+                            }}
+                          >
+                            <Edit3 size={12} />
+                          </button>
+                          <button
                             onClick={(e) => { e.stopPropagation(); setDeleteTargetId(profile.ID) }}
                             className="p-1 rounded-md transition-colors cursor-pointer"
                             style={{ color: 'var(--color-text-muted)' }}
@@ -332,6 +349,17 @@ export function NodesView() {
                       onConfirm={() => handleDelete(profile.ID)}
                       onCancel={() => setDeleteTargetId(null)}
                     />
+                    {/* Edit panel (inline, like GroupsView) */}
+                    <AnimatePresence>
+                      {editId === profile.ID && (
+                        <NodeEditForm
+                          editData={profile}
+                          groupId={profile.group_id}
+                          onClose={() => setEditId(null)}
+                          onSaved={loadProfiles}
+                        />
+                      )}
+                    </AnimatePresence>
                   </motion.div>
                 )
               })
