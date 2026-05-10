@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"v2rayn-go/config"
@@ -48,10 +49,21 @@ type GitHubAsset struct {
 	Size               int64  `json:"size"`
 }
 
+// releaseCacheEntry release 缓存条目
+type releaseCacheEntry struct {
+	release   *GitHubRelease
+	fetchedAt time.Time
+}
+
+// releaseCacheTTL release 缓存有效期
+const releaseCacheTTL = 300 * time.Second
+
 // Updater 内核更新管理器
 type Updater struct {
-	cfg    *config.AppConfig
-	client *http.Client
+	cfg          *config.AppConfig
+	client       *http.Client
+	releaseCache map[string]*releaseCacheEntry // repo -> 缓存条目
+	cacheMu      sync.RWMutex                  // 保护 releaseCache 的读写锁
 }
 
 // NewUpdater 创建更新管理器
@@ -61,6 +73,7 @@ func NewUpdater(cfg *config.AppConfig) *Updater {
 		client: &http.Client{
 			Timeout: 120 * time.Second,
 		},
+		releaseCache: make(map[string]*releaseCacheEntry),
 	}
 }
 
@@ -484,8 +497,19 @@ func (u *Updater) getDownloadBaseURL(originalURL string) string {
 	return originalURL
 }
 
-// getLatestRelease 获取 GitHub 仓库的最新 release（支持镜像降级）
+// getLatestRelease 获取 GitHub 仓库的最新 release（支持镜像降级 + 缓存）
 func (u *Updater) getLatestRelease(repo string) (*GitHubRelease, error) {
+	// 先检查缓存
+	u.cacheMu.RLock()
+	if entry, ok := u.releaseCache[repo]; ok {
+		if time.Since(entry.fetchedAt) < releaseCacheTTL {
+			u.cacheMu.RUnlock()
+			log.Printf("Cache hit for %s (age: %s)", repo, time.Since(entry.fetchedAt).Round(time.Second))
+			return entry.release, nil
+		}
+	}
+	u.cacheMu.RUnlock()
+
 	// 构建候选 URL 列表：优先镜像，降级原站
 	var candidateURLs []string
 	mirrorBase := u.getBaseURL()
@@ -507,6 +531,13 @@ func (u *Updater) getLatestRelease(repo string) (*GitHubRelease, error) {
 			if i > 0 {
 				log.Printf("GitHub mirror failed, fallback to original succeeded for %s", repo)
 			}
+			// 写入缓存
+			u.cacheMu.Lock()
+			u.releaseCache[repo] = &releaseCacheEntry{
+				release:   release,
+				fetchedAt: time.Now(),
+			}
+			u.cacheMu.Unlock()
 			return release, nil
 		}
 		lastErr = err
