@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { HomeView } from './components/HomeView'
 import { NodesView } from './components/NodesView'
+import { ImportView } from './components/ImportView'
+import { GroupsView } from './components/GroupsView'
 import { LogConsole } from './components/LogConsole'
 import { SettingsView } from './components/SettingsView'
-import { SubscriptionsView } from './components/SubscriptionsView'
 import { CoresView } from './components/CoresView'
 import { RoutingView } from './components/RoutingView'
 import { StrategyGroupView } from './components/StrategyGroupView'
@@ -18,7 +19,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 const views: { [key: string]: React.FC } = {
   home: HomeView,
   nodes: NodesView,
-  subscriptions: SubscriptionsView,
+  import: ImportView,
+  groups: GroupsView,
   logs: LogConsole,
   settings: SettingsView,
   updater: CoresView,
@@ -52,7 +54,8 @@ export default function App() {
   const viewTitles: Record<string, string> = {
     home: t('nav.home'),
     nodes: t('nav.nodes'),
-    subscriptions: t('subs.title'),
+    import: t('nav.import'),
+    groups: t('groups.title'),
     logs: t('nav.logs'),
     settings: t('nav.settings'),
     updater: t('nav.cores'),

@@ -25,27 +25,22 @@ export const profileApi = {
   select: (id: number) => api.post(`/profiles/${id}/select`),
   ping: (id: number) => api.post(`/profiles/${id}/ping`),
   pingAll: () => api.post('/profiles/ping-all'),
-  importLinks: (links: string) => api.post('/profiles/import', { links }),
+  importLinks: (links: string, groupId?: number) =>
+    api.post('/profiles/import', { links, group_id: groupId || 0 }),
+  importToGroup: (links: string, groupId: number) =>
+    api.post('/profiles/import-to-group', { links, group_id: groupId }),
 }
 
-// ========== Subscription API ==========
-export const subscriptionApi = {
-  list: () => api.get('/subscriptions'),
-  create: (data: any) => api.post('/subscriptions', data),
-  update: (id: number, data: any) => api.put(`/subscriptions/${id}`, data),
-  delete: (id: number) => api.delete(`/subscriptions/${id}`),
-  refresh: (id: number) => api.post(`/subscriptions/${id}/refresh`),
-  refreshAll: () => api.post('/subscriptions/refresh-all'),
-}
-
-// ========== Groups API ==========
+// ========== Groups API (unified: normal + subscription groups) ==========
 export const groupsApi = {
   list: () => api.get('/groups'),
-  create: (data: { name: string; description?: string; color?: string }) =>
-    api.post('/groups', data),
-  update: (data: { ID: number; name: string; description?: string; color?: string }) =>
-    api.put('/groups', data),
-  delete: (id: number) => api.delete('/groups', { data: { id } }),
+  get: (id: number) => api.get(`/groups/${id}`),
+  create: (data: any) => api.post('/groups', data),
+  update: (id: number, data: any) => api.put(`/groups/${id}`, data),
+  delete: (id: number) => api.delete(`/groups/${id}`),
+  reorder: (uuids: string[]) => api.put('/groups/reorder', { uuids }),
+  refresh: (id: number) => api.post(`/groups/${id}/refresh`),
+  refreshProxy: (id: number) => api.post(`/groups/${id}/refresh-proxy`),
 }
 
 // ========== Profile Enhancements ==========
@@ -88,12 +83,6 @@ export const coresApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 300000,
     }),
-}
-
-// ========== Updater API (legacy) ==========
-export const updaterApi = {
-  check: () => api.get('/updater/check'),
-  download: (coreName: string) => api.post(`/updater/download/${coreName}`),
 }
 
 // ========== Settings API ==========

@@ -1,22 +1,18 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Wifi, WifiOff, RefreshCw, Trash2, Plus, Clipboard, Search, ScanLine, Layers, PenLine } from 'lucide-react'
+import { Wifi, WifiOff, RefreshCw, Trash2, Search, Layers } from 'lucide-react'
 import { useStore } from '../store'
 import type { Profile } from '../store'
 import { profileApi, profileEnhancedApi, groupsApi } from '../lib/api'
 import { useT } from '../lib/i18n'
-import { NodeEditForm } from './NodeEditForm'
 
 export function NodesView() {
   const { profiles, setProfiles, activeProfile, setActiveProfile } = useStore()
   const [loading, setLoading] = useState(false)
-  const [importText, setImportText] = useState('')
-  const [showImport, setShowImport] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedGroup, setSelectedGroup] = useState<string>('')
-  const [groups, setGroups] = useState<{ ID: number; name: string }[]>([])
+  const [groups, setGroups] = useState<{ ID: number; alias: string; node_count: number }[]>([])
   const [dedupResult, setDedupResult] = useState<string>('')
-  const [showManualAdd, setShowManualAdd] = useState(false)
   const t = useT()
 
   useEffect(() => {
@@ -62,18 +58,6 @@ export function NodesView() {
     }
   }
 
-  const handleImport = async () => {
-    if (!importText.trim()) return
-    try {
-      await profileApi.importLinks(importText)
-      setImportText('')
-      setShowImport(false)
-      await loadProfiles()
-    } catch (err) {
-      console.error('Import failed:', err)
-    }
-  }
-
   const getProtocolColor = (protocol: string) => {
     const colors: Record<string, { bg: string; text: string }> = {
       vmess: { bg: 'rgba(106, 155, 204, 0.12)', text: '#6A9BCC' },
@@ -114,23 +98,6 @@ export function NodesView() {
     }
   }
 
-  const handleImageImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const formData = new FormData()
-    formData.append('image', file)
-    try {
-      const res = await profileEnhancedApi.importImage(formData)
-      if (res.data.imported > 0) {
-        await loadProfiles()
-      }
-    } catch (err) {
-      console.error('Image import failed:', err)
-    }
-    // Reset input
-    e.target.value = ''
-  }
-
   const filteredProfiles = profiles.filter((p) => {
     const matchesSearch = !searchQuery || (() => {
       const q = searchQuery.toLowerCase()
@@ -157,20 +124,6 @@ export function NodesView() {
         </h1>
         <div className="flex gap-2">
           <motion.button
-            onClick={() => { setShowManualAdd(!showManualAdd); setShowImport(false) }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
-            style={{
-              backgroundColor: 'var(--color-muted)',
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-muted-foreground)',
-              fontFamily: 'var(--font-heading)',
-            }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <PenLine size={13} />
-            {t('nodes.manual_add')}
-          </motion.button>
-          <motion.button
             onClick={handlePingAll}
             disabled={loading}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
@@ -185,24 +138,10 @@ export function NodesView() {
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
             {t('nodes.test_all')}
           </motion.button>
-          <motion.button
-            onClick={() => setShowImport(!showImport)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer"
-            style={{
-              backgroundColor: 'var(--color-primary)',
-              color: 'var(--color-primary-foreground)',
-              boxShadow: 'var(--shadow-btn)',
-              fontFamily: 'var(--font-heading)',
-            }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Plus size={13} />
-            {t('nodes.import')}
-          </motion.button>
         </div>
       </div>
 
-      {/* Toolbar: search + group filter + actions */}
+      {/* Toolbar: search + group filter + dedup */}
       <div className="flex items-center gap-2 mb-4">
         <div className="relative flex-1">
           <Search
@@ -239,7 +178,7 @@ export function NodesView() {
           >
             <option value="">{t('nodes.all_groups')}</option>
             {groups.map((g) => (
-              <option key={g.ID} value={g.name}>{g.name}</option>
+              <option key={g.ID} value={g.alias}>{g.alias || t('groups.default_name')}</option>
             ))}
           </select>
         )}
@@ -257,27 +196,6 @@ export function NodesView() {
           title={t('nodes.dedup')}
         >
           <Layers size={13} />
-        </motion.button>
-        {/* QR Image import */}
-        <motion.button
-          onClick={() => {
-            const input = document.createElement('input')
-            input.type = 'file'
-            input.accept = 'image/*'
-            input.onchange = (e) => handleImageImport(e as unknown as React.ChangeEvent<HTMLInputElement>)
-            input.click()
-          }}
-          className="flex items-center gap-1 px-2.5 py-2 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
-          style={{
-            backgroundColor: 'var(--color-muted)',
-            borderColor: 'var(--color-border)',
-            color: 'var(--color-muted-foreground)',
-            fontFamily: 'var(--font-heading)',
-          }}
-          whileTap={{ scale: 0.95 }}
-          title={t('nodes.import_qr')}
-        >
-          <ScanLine size={13} />
         </motion.button>
       </div>
 
@@ -300,76 +218,6 @@ export function NodesView() {
         )}
       </AnimatePresence>
 
-      {/* Manual Add Form */}
-      <AnimatePresence>
-        {showManualAdd && (
-          <NodeEditForm
-            onClose={() => setShowManualAdd(false)}
-            onSaved={loadProfiles}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Import panel */}
-      <AnimatePresence>
-        {showImport && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mb-4 overflow-hidden"
-          >
-            <div
-              className="rounded-xl border p-4"
-              style={{
-                backgroundColor: 'var(--color-card)',
-                borderColor: 'var(--color-border)',
-                boxShadow: 'var(--shadow-card)',
-              }}
-            >
-              <textarea
-                value={importText}
-                onChange={(e) => setImportText(e.target.value)}
-                placeholder={t('nodes.import_placeholder')}
-                className="w-full h-24 rounded-lg p-3 text-sm resize-none border"
-                style={{
-                  backgroundColor: 'var(--color-muted)',
-                  borderColor: 'var(--color-border-subtle)',
-                  color: 'var(--color-foreground)',
-                  fontFamily: 'var(--font-mono)',
-                }}
-              />
-              <p
-                className="text-xs mt-2"
-                style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-heading)' }}
-              >
-                {t('nodes.import_base64')}
-              </p>
-              <div className="flex justify-end gap-2 mt-3">
-                <button
-                  onClick={() => { setShowImport(false); setImportText('') }}
-                  className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer"
-                  style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
-                >
-                  {t('nodes.cancel')}
-                </button>
-                <button
-                  onClick={handleImport}
-                  className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer"
-                  style={{
-                    backgroundColor: 'var(--color-primary)',
-                    color: 'var(--color-primary-foreground)',
-                    fontFamily: 'var(--font-heading)',
-                  }}
-                >
-                  {t('nodes.confirm')}
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Node list */}
       <div className="space-y-1.5">
         <AnimatePresence mode="popLayout">
@@ -379,7 +227,7 @@ export function NodesView() {
               animate={{ opacity: 1 }}
               className="text-center py-20"
             >
-              <Clipboard
+              <Layers
                 size={32}
                 className="mx-auto mb-3"
                 style={{ color: 'var(--color-text-muted)' }}
@@ -390,14 +238,6 @@ export function NodesView() {
               >
                 {searchQuery ? t('common.no_data') : t('nodes.no_nodes')}
               </p>
-              {!searchQuery && (
-                <p
-                  className="text-xs mt-1"
-                  style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-heading)' }}
-                >
-                  {t('nodes.import_hint')}
-                </p>
-              )}
             </motion.div>
           ) : (
             filteredProfiles.map((profile, index) => {
