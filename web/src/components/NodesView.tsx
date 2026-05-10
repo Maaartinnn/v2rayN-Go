@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Wifi, WifiOff, RefreshCw, Trash2, Search, Layers, FolderOpen, Link, Globe } from 'lucide-react'
+import { Wifi, WifiOff, RefreshCw, Trash2, Search, Layers, FolderOpen, Link } from 'lucide-react'
 import { useStore } from '../store'
 import type { Profile } from '../store'
 import { profileApi, profileEnhancedApi, groupsApi } from '../lib/api'
@@ -16,14 +16,13 @@ interface NodeGroupItem {
 }
 
 export function NodesView() {
-  const { profiles, setProfiles, activeProfile, setActiveProfile, addToast } = useStore()
+  const { profiles, setProfiles, activeProfile, setActiveProfile } = useStore()
   const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedGroupId, setSelectedGroupId] = useState<number>(0)
   const [groups, setGroups] = useState<NodeGroupItem[]>([])
   const [dedupResult, setDedupResult] = useState<string>('')
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
-  const [refreshing, setRefreshing] = useState<'direct' | 'proxy' | null>(null)
   const t = useT()
 
   useEffect(() => {
@@ -110,27 +109,6 @@ export function NodesView() {
       console.error('Dedup failed:', err)
     }
   }
-
-  const handleRefresh = async (useProxy: boolean) => {
-    const group = groups.find(g => g.ID === selectedGroupId)
-    if (!group?.is_subscription) return
-    setRefreshing(useProxy ? 'proxy' : 'direct')
-    try {
-      if (useProxy) {
-        await groupsApi.refreshProxy(selectedGroupId)
-      } else {
-        await groupsApi.refresh(selectedGroupId)
-      }
-      addToast(t('groups.update_success'), 'success')
-    } catch (err) {
-      console.error('Refresh failed:', err)
-      addToast(t('groups.update_failed'), 'error')
-    }
-    setRefreshing(null)
-  }
-
-  const currentGroup = groups.find(g => g.ID === selectedGroupId)
-  const isSubscriptionGroup = currentGroup?.is_subscription ?? false
 
   const filteredProfiles = profiles.filter((p) => {
     const matchesSearch = !searchQuery || (() => {
@@ -365,42 +343,6 @@ export function NodesView() {
       {/* Right: Group Selection Panel */}
       <div className="w-64 flex-shrink-0">
         <div className="sticky top-20">
-          {/* Update Subscription Buttons */}
-          <div className="flex gap-2 mb-3">
-            <motion.button
-              onClick={() => handleRefresh(false)}
-              disabled={!isSubscriptionGroup || refreshing !== null}
-              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] font-medium rounded-lg border transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-              style={{
-                backgroundColor: 'var(--color-muted)',
-                borderColor: 'var(--color-border)',
-                color: 'var(--color-muted-foreground)',
-                fontFamily: 'var(--font-heading)',
-              }}
-              whileTap={{ scale: 0.95 }}
-              title={t('groups.update_no_proxy')}
-            >
-              <RefreshCw size={11} className={refreshing === 'direct' ? 'animate-spin' : ''} />
-              {t('groups.update_no_proxy')}
-            </motion.button>
-            <motion.button
-              onClick={() => handleRefresh(true)}
-              disabled={!isSubscriptionGroup || refreshing !== null}
-              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] font-medium rounded-lg border transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-              style={{
-                backgroundColor: 'var(--color-muted)',
-                borderColor: 'var(--color-border)',
-                color: 'var(--color-muted-foreground)',
-                fontFamily: 'var(--font-heading)',
-              }}
-              whileTap={{ scale: 0.95 }}
-              title={t('groups.update_with_proxy')}
-            >
-              <Globe size={11} className={refreshing === 'proxy' ? 'animate-spin' : ''} />
-              {t('groups.update_with_proxy')}
-            </motion.button>
-          </div>
-
           <div
             className="rounded-xl border overflow-hidden"
             style={{
