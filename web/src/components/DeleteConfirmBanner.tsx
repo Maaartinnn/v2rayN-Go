@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AlertTriangle, X } from 'lucide-react'
+import { useT } from '../lib/i18n'
 
 interface DeleteConfirmBannerProps {
   /** 是否正在显示确认横幅 */
@@ -22,6 +23,7 @@ export function DeleteConfirmBanner({
   onCancel,
   timeout = 5000,
 }: DeleteConfirmBannerProps) {
+  const t = useT()
   const [timer, setTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
 
   const handleCancel = useCallback(() => {
@@ -71,14 +73,12 @@ export function DeleteConfirmBanner({
             <div className="flex items-center gap-2">
               <button
                 onClick={onConfirm}
-                className="px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors cursor-pointer"
+                className="px-2.5 py-1 text-[11px] font-medium cursor-pointer btn-danger"
                 style={{
-                  backgroundColor: 'var(--color-error)',
-                  color: '#fff',
                   fontFamily: 'var(--font-heading)',
                 }}
               >
-                删除
+                {t('nodes.delete')}
               </button>
               <button
                 onClick={handleCancel}

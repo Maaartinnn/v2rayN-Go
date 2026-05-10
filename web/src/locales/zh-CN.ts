@@ -34,6 +34,7 @@ const zhCN = {
   'nodes.sort': '排序',
   'nodes.dedup': '去重',
   'nodes.dedup_result': '从 {total} 个节点中移除了 {removed} 个重复项',
+  'nodes.delete_confirm': '确定删除节点「{name}」？',
 
   // 分组管理
   'groups.title': '分组管理',
@@ -55,7 +56,7 @@ const zhCN = {
   'groups.notes_placeholder': '备注备忘...',
   'groups.nodes_count': '{count} 个节点',
   'groups.cannot_delete': '不能删除最后一个分组',
-  'groups.delete_confirm': '确定删除此分组？',
+  'groups.delete_confirm': '确定删除分组「{name}」？',
   'groups.reorder_failed': '排序保存失败，已恢复',
   'groups.save_failed': '保存失败',
   'groups.update_no_proxy': '更新订阅（直连）',

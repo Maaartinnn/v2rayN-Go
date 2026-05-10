@@ -139,10 +139,8 @@ export function ImportView() {
             <motion.button
               onClick={handleImport}
               disabled={importing}
-              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium cursor-pointer btn-primary"
               style={{
-                backgroundColor: 'var(--color-primary)',
-                color: 'var(--color-primary-foreground)',
                 fontFamily: 'var(--font-heading)',
               }}
               whileTap={{ scale: 0.95 }}
@@ -157,11 +155,8 @@ export function ImportView() {
         <div className="flex gap-2 mb-4">
           <motion.button
             onClick={() => setShowManualAdd(!showManualAdd)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer btn-secondary"
             style={{
-              backgroundColor: 'var(--color-muted)',
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-muted-foreground)',
               fontFamily: 'var(--font-heading)',
             }}
             whileTap={{ scale: 0.95 }}
@@ -178,11 +173,8 @@ export function ImportView() {
                 handleImageImport(e as unknown as React.ChangeEvent<HTMLInputElement>)
               input.click()
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer btn-secondary"
             style={{
-              backgroundColor: 'var(--color-muted)',
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-muted-foreground)',
               fontFamily: 'var(--font-heading)',
             }}
             whileTap={{ scale: 0.95 }}

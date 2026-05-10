@@ -82,11 +82,8 @@ export function LogConsole() {
         </h1>
         <motion.button
           onClick={clearLogs}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer btn-danger"
           style={{
-            backgroundColor: 'var(--color-muted)',
-            borderColor: 'var(--color-border)',
-            color: 'var(--color-muted-foreground)',
             fontFamily: 'var(--font-heading)',
           }}
           whileTap={{ scale: 0.95 }}

@@ -247,3 +247,59 @@ button, input, select, textarea {
   0%, 100% { box-shadow: 0 0 0 0 rgba(107, 143, 71, 0.4); }
   50% { box-shadow: 0 0 0 6px rgba(107, 143, 71, 0); }
 }
+
+/* ═══════════════════════════════════════
+   Button Variants (Anthropic Style)
+   参考 plan/anthropic.html 统一按钮样式
+   ═══════════════════════════════════════ */
+
+.btn-primary {
+  background-color: var(--color-inverted);
+  color: var(--color-text-inverted);
+  border-radius: 0.75rem;
+  font-weight: 500;
+  box-shadow: var(--shadow-btn);
+  transition: all 0.2s ease;
+}
+.btn-primary:hover {
+  opacity: 0.85;
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background-color: var(--color-card);
+  color: var(--color-foreground);
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  font-weight: 500;
+  box-shadow: var(--shadow-card);
+  transition: all 0.2s ease;
+}
+.btn-secondary:hover {
+  background-color: var(--color-muted);
+}
+
+.btn-ghost {
+  color: var(--color-muted-foreground);
+  border-radius: 0.75rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.btn-ghost:hover {
+  background-color: var(--color-muted);
+}
+
+.btn-danger {
+  background-color: var(--color-error-dim);
+  color: var(--color-error);
+  border: 1px solid var(--color-error);
+  border-radius: 0.75rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.btn-danger:hover {
+  background-color: color-mix(in srgb, var(--color-error) 18%, transparent);
+}

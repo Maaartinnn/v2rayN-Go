@@ -302,11 +302,12 @@ export function SettingsView() {
       {/* Save Button */}
       <motion.button
         onClick={handleSave}
-        className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer"
+        className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium cursor-pointer ${saved ? '' : 'btn-primary'}`}
         style={{
-          backgroundColor: saved ? 'var(--color-success)' : 'var(--color-primary)',
-          color: 'var(--color-primary-foreground)',
-          boxShadow: 'var(--shadow-btn)',
+          backgroundColor: saved ? 'var(--color-success)' : undefined,
+          color: saved ? 'var(--color-primary-foreground)' : undefined,
+          borderRadius: saved ? '0.75rem' : undefined,
+          boxShadow: saved ? 'var(--shadow-btn)' : undefined,
           fontFamily: 'var(--font-heading)',
         }}
         whileHover={{ scale: 1.02 }}

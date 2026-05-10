@@ -335,8 +335,8 @@ export function StrategyGroupView() {
         </h1>
         <motion.button
           onClick={() => { cancelForm(); setShowAdd(!showAdd) }}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer"
-          style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-primary-foreground)', boxShadow: 'var(--shadow-btn)', fontFamily: 'var(--font-heading)' }}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer btn-primary"
+          style={{ fontFamily: 'var(--font-heading)' }}
           whileTap={{ scale: 0.95 }}
         >
           <Plus size={13} />

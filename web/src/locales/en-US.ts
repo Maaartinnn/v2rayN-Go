@@ -34,6 +34,7 @@ const enUS = {
   'nodes.sort': 'Sort',
   'nodes.dedup': 'Deduplicate',
   'nodes.dedup_result': 'Removed {removed} duplicates from {total} nodes',
+  'nodes.delete_confirm': 'Delete node "{name}"?',
 
   // Group Management
   'groups.title': 'Group Management',
@@ -55,7 +56,7 @@ const enUS = {
   'groups.notes_placeholder': 'Notes...',
   'groups.nodes_count': '{count} nodes',
   'groups.cannot_delete': 'Cannot delete the last group',
-  'groups.delete_confirm': 'Delete this group?',
+  'groups.delete_confirm': 'Delete group "{name}"?',
   'groups.reorder_failed': 'Failed to save order, reverted',
   'groups.save_failed': 'Save failed',
   'groups.update_no_proxy': 'Update (Direct)',

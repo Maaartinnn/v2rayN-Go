@@ -162,13 +162,10 @@ export function NodesView() {
           </h1>
           <div className="flex gap-2">
             <motion.button
-              onClick={handlePingAll}
+            onClick={handlePingAll}
               disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer btn-ghost"
               style={{
-                backgroundColor: 'var(--color-muted)',
-                borderColor: 'var(--color-border)',
-                color: 'var(--color-muted-foreground)',
                 fontFamily: 'var(--font-heading)',
               }}
               whileTap={{ scale: 0.95 }}
@@ -353,7 +350,7 @@ export function NodesView() {
                     {/* Delete confirm banner */}
                     <DeleteConfirmBanner
                       visible={deleteTargetId === profile.ID}
-                      message={`确定删除节点「${profile.name}」？`}
+                      message={t('nodes.delete_confirm', { name: profile.name })}
                       onConfirm={() => handleDelete(profile.ID)}
                       onCancel={() => setDeleteTargetId(null)}
                     />
