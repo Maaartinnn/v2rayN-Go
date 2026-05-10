@@ -1,14 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { HomeView } from './components/HomeView'
 import { NodesView } from './components/NodesView'
-import { ImportView } from './components/ImportView'
-import { GroupsView } from './components/GroupsView'
-import { LogConsole } from './components/LogConsole'
-import { SettingsView } from './components/SettingsView'
-import { CoresView } from './components/CoresView'
-import { RoutingView } from './components/RoutingView'
-import { StrategyGroupView } from './components/StrategyGroupView'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useWebSocket } from './lib/useWebSocket'
 import { useStore } from './store'
@@ -16,7 +9,16 @@ import { useT, initTheme } from './lib/i18n'
 import { coreApi } from './lib/api'
 import { motion, AnimatePresence } from 'framer-motion'
 
-const views: { [key: string]: React.FC } = {
+// 动态导入非首屏组件（代码分割）
+const ImportView = lazy(() => import('./components/ImportView').then(m => ({ default: m.ImportView })))
+const GroupsView = lazy(() => import('./components/GroupsView').then(m => ({ default: m.GroupsView })))
+const LogConsole = lazy(() => import('./components/LogConsole').then(m => ({ default: m.LogConsole })))
+const SettingsView = lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })))
+const CoresView = lazy(() => import('./components/CoresView').then(m => ({ default: m.CoresView })))
+const RoutingView = lazy(() => import('./components/RoutingView').then(m => ({ default: m.RoutingView })))
+const StrategyGroupView = lazy(() => import('./components/StrategyGroupView').then(m => ({ default: m.StrategyGroupView })))
+
+const views: { [key: string]: React.LazyExoticComponent<React.FC> | React.FC } = {
   home: HomeView,
   nodes: NodesView,
   import: ImportView,
@@ -26,6 +28,20 @@ const views: { [key: string]: React.FC } = {
   updater: CoresView,
   routing: RoutingView,
   strategy: StrategyGroupView,
+}
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center h-64">
+      <div
+        className="w-6 h-6 rounded-full border-2 animate-spin"
+        style={{
+          borderColor: 'var(--color-border)',
+          borderTopColor: 'var(--color-primary)',
+        }}
+      />
+    </div>
+  )
 }
 
 export default function App() {
@@ -133,7 +149,9 @@ export default function App() {
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             >
               <ErrorBoundary>
-                <View />
+                <Suspense fallback={<PageLoader />}>
+                  <View />
+                </Suspense>
               </ErrorBoundary>
             </motion.div>
           </AnimatePresence>

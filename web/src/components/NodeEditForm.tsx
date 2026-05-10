@@ -149,7 +149,7 @@ export function NodeEditForm({ onClose, onSaved }: NodeEditFormProps) {
             </div>
             <div>
               <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                {t('subs.name')}
+                {t('strategy.name')}
               </label>
               <input
                 type="text"
