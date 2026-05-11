@@ -254,148 +254,123 @@ export function NodesView() {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                   >
-                    <AnimatePresence mode="popLayout" initial={false}>
-                      {editId === profile.ID ? (
-                        // 状态 A：编辑表单形态
-                        <motion.div
-                          key="edit"
-                          initial={{ opacity: 0, scale: 0.98 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.98 }}
-                          transition={{ duration: 0.15 }}
-                        >
+                    <div
+                      onClick={() => handleSelect(profile)}
+                      className="rounded-xl border px-4 py-3 cursor-pointer transition-colors"
+                      style={{
+                        backgroundColor: activeProfile?.ID === profile.ID
+                          ? 'var(--color-accent-dim)'
+                          : 'var(--color-card)',
+                        borderColor: activeProfile?.ID === profile.ID
+                          ? 'var(--color-primary)'
+                          : 'var(--color-border)',
+                        boxShadow: 'var(--shadow-card)',
+                      }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: getLatencyDot(profile.test_result) }}
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="text-sm font-medium truncate"
+                                style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+                              >
+                                {profile.name}
+                              </span>
+                              <span
+                                className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                                style={{
+                                  backgroundColor: protoColor.bg,
+                                  color: protoColor.text,
+                                  fontFamily: 'var(--font-heading)',
+                                }}
+                              >
+                                {profile.protocol}
+                              </span>
+                            </div>
+                            <p
+                              className="text-xs mt-0.5 truncate"
+                              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
+                            >
+                              {profile.address}:{profile.port}
+                              {profile.group_name && (
+                                <span style={{ fontFamily: 'var(--font-heading)' }}> · {profile.group_name}</span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          {profile.test_result && (
+                            <span
+                              className="text-xs"
+                              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
+                            >
+                              {profile.test_result}
+                            </span>
+                          )}
+                          {activeProfile?.ID === profile.ID ? (
+                            <Wifi size={14} style={{ color: 'var(--color-success)' }} />
+                          ) : (
+                            <WifiOff size={14} style={{ color: 'var(--color-text-muted)' }} />
+                          )}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setEditId(editId === profile.ID ? null : profile.ID) }}
+                            className="p-1 rounded-md transition-colors cursor-pointer"
+                            style={{ color: 'var(--color-text-muted)' }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = 'var(--color-accent-warm)'
+                              e.currentTarget.style.backgroundColor = 'var(--color-accent-dim)'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = 'var(--color-text-muted)'
+                              e.currentTarget.style.backgroundColor = 'transparent'
+                            }}
+                          >
+                            <Edit3 size={12} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setDeleteTargetId(profile.ID) }}
+                            className="p-1 rounded-md transition-colors cursor-pointer"
+                            style={{ color: 'var(--color-text-muted)' }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = 'var(--color-error)'
+                              e.currentTarget.style.backgroundColor = 'var(--color-error-dim)'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = 'var(--color-text-muted)'
+                              e.currentTarget.style.backgroundColor = 'transparent'
+                            }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Delete confirm banner */}
+                    <DeleteConfirmBanner
+                      visible={deleteTargetId === profile.ID}
+                      message={t('nodes.delete_confirm', { name: profile.name })}
+                      onConfirm={() => handleDelete(profile.ID)}
+                      onCancel={() => setDeleteTargetId(null)}
+                    />
+                    {/* 恢复为直接使用 AnimatePresence 包裹，消除双重动画 */}
+                    <AnimatePresence>
+                      {editId === profile.ID && (
+                        <div className="mt-2">
                           <NodeEditForm
                             editData={profile}
                             groupId={profile.group_id}
                             onClose={() => setEditId(null)}
                             onSaved={handleNodeSaved}
                           />
-                        </motion.div>
-                      ) : deleteTargetId === profile.ID ? (
-                        // 状态 B：删除确认形态
-                        <motion.div
-                          key="delete"
-                          initial={{ opacity: 0, scale: 0.98 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.98 }}
-                          transition={{ duration: 0.15 }}
-                        >
-                          <DeleteConfirmBanner
-                            visible={true}
-                            message={t('nodes.delete_confirm', { name: profile.name })}
-                            onConfirm={() => handleDelete(profile.ID)}
-                            onCancel={() => setDeleteTargetId(null)}
-                          />
-                        </motion.div>
-                      ) : (
-                        // 状态 C：默认查看形态
-                        <motion.div
-                          key="view"
-                          initial={{ opacity: 0, scale: 0.98 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.98 }}
-                          transition={{ duration: 0.15 }}
-                        >
-                          <div
-                            onClick={() => handleSelect(profile)}
-                            className="rounded-xl border px-4 py-3 cursor-pointer transition-colors"
-                            style={{
-                              backgroundColor: activeProfile?.ID === profile.ID
-                                ? 'var(--color-accent-dim)'
-                                : 'var(--color-card)',
-                              borderColor: activeProfile?.ID === profile.ID
-                                ? 'var(--color-primary)'
-                                : 'var(--color-border)',
-                              boxShadow: 'var(--shadow-card)',
-                            }}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div
-                                  className="w-2 h-2 rounded-full shrink-0"
-                                  style={{ backgroundColor: getLatencyDot(profile.test_result) }}
-                                />
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span
-                                      className="text-sm font-medium truncate"
-                                      style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
-                                    >
-                                      {profile.name}
-                                    </span>
-                                    <span
-                                      className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
-                                      style={{
-                                        backgroundColor: protoColor.bg,
-                                        color: protoColor.text,
-                                        fontFamily: 'var(--font-heading)',
-                                      }}
-                                    >
-                                      {profile.protocol}
-                                    </span>
-                                  </div>
-                                  <p
-                                    className="text-xs mt-0.5 truncate"
-                                    style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
-                                  >
-                                    {profile.address}:{profile.port}
-                                    {profile.group_name && (
-                                      <span style={{ fontFamily: 'var(--font-heading)' }}> · {profile.group_name}</span>
-                                    )}
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-2 shrink-0">
-                                {profile.test_result && (
-                                  <span
-                                    className="text-xs"
-                                    style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
-                                  >
-                                    {profile.test_result}
-                                  </span>
-                                )}
-                                {activeProfile?.ID === profile.ID ? (
-                                  <Wifi size={14} style={{ color: 'var(--color-success)' }} />
-                                ) : (
-                                  <WifiOff size={14} style={{ color: 'var(--color-text-muted)' }} />
-                                )}
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setEditId(editId === profile.ID ? null : profile.ID) }}
-                                  className="p-1 rounded-md transition-colors cursor-pointer"
-                                  style={{ color: 'var(--color-text-muted)' }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.color = 'var(--color-accent-warm)'
-                                    e.currentTarget.style.backgroundColor = 'var(--color-accent-dim)'
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.color = 'var(--color-text-muted)'
-                                    e.currentTarget.style.backgroundColor = 'transparent'
-                                  }}
-                                >
-                                  <Edit3 size={12} />
-                                </button>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setDeleteTargetId(profile.ID) }}
-                                  className="p-1 rounded-md transition-colors cursor-pointer"
-                                  style={{ color: 'var(--color-text-muted)' }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.color = 'var(--color-error)'
-                                    e.currentTarget.style.backgroundColor = 'var(--color-error-dim)'
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.color = 'var(--color-text-muted)'
-                                    e.currentTarget.style.backgroundColor = 'transparent'
-                                  }}
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </motion.div>
+                        </div>
                       )}
                     </AnimatePresence>
                   </motion.div>
