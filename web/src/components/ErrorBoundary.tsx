@@ -54,12 +54,8 @@ export class ErrorBoundary extends Component<Props, State> {
           </p>
           <button
             onClick={this.handleReset}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer"
-            style={{
-              backgroundColor: 'var(--color-primary)',
-              color: 'var(--color-primary-foreground)',
-              fontFamily: 'var(--font-heading)',
-            }}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium cursor-pointer btn-primary"
+            style={{ fontFamily: 'var(--font-heading)' }}
           >
             <RefreshCw size={14} />
             重试

@@ -305,16 +305,16 @@ export function StrategyGroupView() {
         <div className="flex justify-end gap-2 mt-4">
           <button
             onClick={cancelForm}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer"
-            style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer btn-ghost"
+            style={{ fontFamily: 'var(--font-heading)' }}
           >
             <X size={13} />
             {t('nodes.cancel')}
           </button>
           <button
             onClick={editId !== null ? handleUpdate : handleAdd}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer"
-            style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-primary-foreground)', fontFamily: 'var(--font-heading)' }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer btn-primary"
+            style={{ fontFamily: 'var(--font-heading)' }}
           >
             <Check size={13} />
             {editId !== null ? t('nodes.save') : t('nodes.confirm')}

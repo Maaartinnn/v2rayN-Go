@@ -300,6 +300,7 @@ export function SettingsView() {
       </motion.div>
 
       {/* Save Button */}
+      <div className="flex justify-end">
       <motion.button
         onClick={handleSave}
         className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium cursor-pointer ${saved ? '' : 'btn-primary'}`}
@@ -316,6 +317,7 @@ export function SettingsView() {
         <Save size={14} />
         {saved ? t('settings.saved') : t('settings.save')}
       </motion.button>
+      </div>
     </div>
   )
 }

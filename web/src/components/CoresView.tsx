@@ -397,13 +397,13 @@ export function CoresView() {
                       exit={{ opacity: 0, height: 0 }}
                       className="overflow-hidden"
                     >
-                      <div className="flex items-center gap-2 mt-4 pt-4 border-t" style={{ borderColor: 'var(--color-border-subtle)' }}>
+                      <div className="flex items-center gap-2 mt-4 pt-4 border-t overflow-hidden" style={{ borderColor: 'var(--color-border-subtle)' }}>
                         <input
                           type="text"
                           value={customUrl}
                           onChange={(e) => setCustomUrl(e.target.value)}
                           placeholder="https://mirror.example.com/releases/download/v1.0.0/xray-windows-64.zip"
-                          className="flex-1 px-3 py-2 text-xs rounded-lg border"
+                          className="flex-1 min-w-0 px-3 py-2 text-xs rounded-lg border"
                           style={{
                             backgroundColor: 'var(--color-overlay)',
                             borderColor: 'var(--color-border)',
@@ -414,12 +414,8 @@ export function CoresView() {
                         <motion.button
                           onClick={handleCustomUrlDownload}
                           disabled={!customUrl.trim() || isDownloading}
-                          className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-                          style={{
-                            backgroundColor: 'var(--color-primary)',
-                            color: 'var(--color-primary-foreground)',
-                            fontFamily: 'var(--font-heading)',
-                          }}
+                          className="flex items-center gap-1.5 flex-shrink-0 px-3 py-2 text-xs font-medium cursor-pointer btn-secondary disabled:opacity-50"
+                          style={{ fontFamily: 'var(--font-heading)' }}
                           whileTap={{ scale: 0.95 }}
                         >
                           {isDownloading ? (
