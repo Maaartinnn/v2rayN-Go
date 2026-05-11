@@ -4,6 +4,7 @@ import { Download, Upload, Loader2, HardDrive, Link, X, ChevronDown, ExternalLin
 import { coresApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 import { useStore } from '../store'
+import { SmoothCollapse } from './ui/SmoothCollapse'
 
 interface CoreInfo {
   name: string
@@ -389,13 +390,7 @@ export function CoresView() {
                 </div>
 
                 {/* Custom URL input */}
-                <AnimatePresence>
-                  {customUrlCore === core.name && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
-                      animate={{ opacity: 1, height: 'auto', transitionEnd: { overflow: 'visible' } }}
-                      exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
-                    >
+                <SmoothCollapse isOpen={customUrlCore === core.name}>
                       <div className="flex items-center gap-2 mt-4 pt-4 border-t" style={{ borderColor: 'var(--color-border-subtle)' }}>
                         <input
                           type="text"
@@ -434,9 +429,7 @@ export function CoresView() {
                           <X size={14} />
                         </button>
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                </SmoothCollapse>
               </motion.div>
             )
           })}

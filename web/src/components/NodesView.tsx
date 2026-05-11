@@ -7,6 +7,7 @@ import { profileApi, profileEnhancedApi, groupsApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 import { DeleteConfirmBanner } from './DeleteConfirmBanner'
 import { NodeEditForm } from './NodeEditForm'
+import { SmoothCollapse } from './ui/SmoothCollapse'
 
 interface NodeGroupItem {
   ID: number
@@ -251,10 +252,11 @@ export function NodesView() {
                 return (
                   <motion.div
                     key={profile.ID}
+                    layout
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, x: -16 }}
-                    transition={{ duration: 0.2, delay: index * 0.02 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.3, delay: index * 0.02, ease: [0.16, 1, 0.3, 1] }}
                   >
                     <div
                       onClick={() => handleSelect(profile)}
@@ -360,17 +362,15 @@ export function NodesView() {
                       onConfirm={() => handleDelete(profile.ID)}
                       onCancel={() => setDeleteTargetId(null)}
                     />
-                    {/* Edit panel (inline, like GroupsView) */}
-                    <AnimatePresence>
-                      {editId === profile.ID && (
-                        <NodeEditForm
-                          editData={profile}
-                          groupId={profile.group_id}
-                          onClose={() => setEditId(null)}
-                          onSaved={handleNodeSaved}
-                        />
-                      )}
-                    </AnimatePresence>
+                    {/* Edit panel (inline, smooth collapse with safety margin) */}
+                    <SmoothCollapse isOpen={editId === profile.ID} className="mt-2">
+                      <NodeEditForm
+                        editData={profile}
+                        groupId={profile.group_id}
+                        onClose={() => setEditId(null)}
+                        onSaved={handleNodeSaved}
+                      />
+                    </SmoothCollapse>
                   </motion.div>
                 )
               })

@@ -32,6 +32,7 @@ import { useT } from '../lib/i18n'
 import { useStore } from '../store'
 import { DeleteConfirmBanner } from './DeleteConfirmBanner'
 import { EditFormCard } from './ui/EditFormCard'
+import { SmoothCollapse } from './ui/SmoothCollapse'
 import { FormField } from './ui/FormField'
 import { FormActions } from './ui/FormActions'
 import { inputStyle, inputHeadingStyle, textareaStyle } from './ui/formStyles'
@@ -119,14 +120,7 @@ function GroupEditForm({
         </div>
 
         {/* Subscription fields (conditional) */}
-        <AnimatePresence>
-          {formIsSub && (
-            <motion.div
-              initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
-              animate={{ opacity: 1, height: 'auto', transitionEnd: { overflow: 'visible' } }}
-              exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
-              className="space-y-3"
-            >
+        <SmoothCollapse isOpen={formIsSub} className="space-y-3">
               {/* URL */}
               <FormField label={t('groups.url')}>
                 <input
@@ -187,9 +181,7 @@ function GroupEditForm({
                   />
                 </FormField>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        </SmoothCollapse>
 
         {/* Notes */}
         <FormField label={t('groups.notes')}>
