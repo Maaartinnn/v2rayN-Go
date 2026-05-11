@@ -246,16 +246,15 @@ export function NodesView() {
                 </p>
               </motion.div>
             ) : (
-              filteredProfiles.map((profile, index) => {
+              filteredProfiles.map((profile) => {
                 const protoColor = getProtocolColor(profile.protocol)
                 return (
                   <motion.div
                     key={profile.ID}
-                    layout
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.3, delay: index * 0.02, ease: [0.16, 1, 0.3, 1] }}
+                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                   >
                     <div
                       onClick={() => handleSelect(profile)}

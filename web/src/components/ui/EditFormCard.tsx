@@ -12,14 +12,15 @@ interface EditFormCardProps {
 export function EditFormCard({ children }: EditFormCardProps) {
   return (
     <motion.div
+      layout
       initial={{ opacity: 0, height: 0 }}
       animate={{ opacity: 1, height: 'auto' }}
       exit={{ opacity: 0, height: 0 }}
       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      className="mb-4 overflow-hidden"
+      className="mb-4 overflow-hidden flex flex-col"
     >
       <div
-        className="rounded-xl border p-5"
+        className="rounded-xl border p-5 flex flex-col"
         style={{
           backgroundColor: 'var(--color-card)',
           borderColor: 'var(--color-border)',
