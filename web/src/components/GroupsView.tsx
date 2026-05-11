@@ -21,8 +21,6 @@ import {
   Plus,
   Trash2,
   Edit3,
-  Check,
-  X,
   FolderOpen,
   GripVertical,
   Link,
@@ -33,6 +31,10 @@ import { groupsApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 import { useStore } from '../store'
 import { DeleteConfirmBanner } from './DeleteConfirmBanner'
+import { EditFormCard } from './ui/EditFormCard'
+import { FormField } from './ui/FormField'
+import { FormActions } from './ui/FormActions'
+import { inputStyle, inputHeadingStyle, textareaStyle } from './ui/formStyles'
 
 interface NodeGroup {
   ID: number
@@ -52,25 +54,179 @@ interface NodeGroup {
   color: string
 }
 
+// ========== Group Edit Form (独立悬浮卡片) ==========
+function GroupEditForm({
+  group,
+  onSave,
+  onCancel,
+  t,
+}: {
+  group: NodeGroup
+  onSave: (data: Partial<NodeGroup>) => void
+  onCancel: () => void
+  t: (key: any, params?: Record<string, any>) => string
+}) {
+  const [formAlias, setFormAlias] = useState(group.alias)
+  const [formIsSub, setFormIsSub] = useState(group.is_subscription)
+  const [formUrl, setFormUrl] = useState(group.url || '')
+  const [formEnableUpdate, setFormEnableUpdate] = useState(group.enable_update)
+  const [formInterval, setFormInterval] = useState(String(group.update_interval || 0))
+  const [formAliasRegex, setFormAliasRegex] = useState(group.alias_regex || '')
+  const [formUserAgent, setUserAgent] = useState(group.user_agent || '')
+  const [formNotes, setFormNotes] = useState(group.notes || '')
+
+  const handleSave = () => {
+    onSave({
+      alias: formAlias,
+      is_subscription: formIsSub,
+      url: formUrl,
+      enabled: group.enabled,
+      enable_update: formEnableUpdate,
+      update_interval: parseInt(formInterval) || 0,
+      alias_regex: formAliasRegex,
+      user_agent: formUserAgent,
+      notes: formNotes,
+    })
+  }
+
+  return (
+    <EditFormCard>
+      <div className="space-y-3">
+        {/* Alias + Subscription Toggle */}
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label={t('groups.alias')} cols="1/2">
+            <input
+              type="text"
+              value={formAlias}
+              onChange={(e) => setFormAlias(e.target.value)}
+              placeholder={t('groups.default_name')}
+              className="w-full px-3 py-2 text-sm rounded-lg border"
+              style={inputHeadingStyle}
+            />
+          </FormField>
+          <FormField label={t('groups.is_subscription')} cols="1/2">
+            <button
+              onClick={() => setFormIsSub(!formIsSub)}
+              className="w-full px-3 py-2 text-sm rounded-lg border text-left transition-colors cursor-pointer"
+              style={{
+                ...inputHeadingStyle,
+                borderColor: formIsSub ? 'var(--color-primary)' : 'var(--color-border)',
+              }}
+            >
+              {formIsSub ? t('common.yes') : t('common.no')}
+            </button>
+          </FormField>
+        </div>
+
+        {/* Subscription fields (conditional) */}
+        <AnimatePresence>
+          {formIsSub && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="space-y-3 overflow-hidden"
+            >
+              {/* URL */}
+              <FormField label={t('groups.url')}>
+                <input
+                  type="text"
+                  value={formUrl}
+                  onChange={(e) => setFormUrl(e.target.value)}
+                  placeholder={t('groups.url_placeholder')}
+                  className="w-full px-3 py-2 text-sm rounded-lg border"
+                  style={inputStyle}
+                />
+              </FormField>
+
+              {/* Enable Update + Interval */}
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label={t('groups.enable_update')} cols="1/2">
+                  <button
+                    onClick={() => setFormEnableUpdate(!formEnableUpdate)}
+                    className="w-full px-3 py-2 text-sm rounded-lg border text-left transition-colors cursor-pointer"
+                    style={{
+                      ...inputHeadingStyle,
+                      borderColor: formEnableUpdate ? 'var(--color-primary)' : 'var(--color-border)',
+                    }}
+                  >
+                    {formEnableUpdate ? t('common.enabled') : t('common.disabled')}
+                  </button>
+                </FormField>
+                <FormField label={t('groups.update_interval')} cols="1/2" hint={t('groups.update_interval_hint')}>
+                  <input
+                    type="number"
+                    value={formInterval}
+                    onChange={(e) => setFormInterval(e.target.value)}
+                    className="w-full px-3 py-2 text-sm rounded-lg border"
+                    style={inputStyle}
+                  />
+                </FormField>
+              </div>
+
+              {/* Alias Regex + User Agent */}
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label={t('groups.alias_regex')} cols="1/2">
+                  <input
+                    type="text"
+                    value={formAliasRegex}
+                    onChange={(e) => setFormAliasRegex(e.target.value)}
+                    placeholder={t('groups.alias_regex_placeholder')}
+                    className="w-full px-3 py-2 text-sm rounded-lg border"
+                    style={inputStyle}
+                  />
+                </FormField>
+                <FormField label={t('groups.user_agent')} cols="1/2">
+                  <input
+                    type="text"
+                    value={formUserAgent}
+                    onChange={(e) => setUserAgent(e.target.value)}
+                    placeholder={t('groups.user_agent_placeholder')}
+                    className="w-full px-3 py-2 text-sm rounded-lg border"
+                    style={inputStyle}
+                  />
+                </FormField>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Notes */}
+        <FormField label={t('groups.notes')}>
+          <textarea
+            value={formNotes}
+            onChange={(e) => setFormNotes(e.target.value)}
+            placeholder={t('groups.notes_placeholder')}
+            rows={2}
+            className="w-full px-3 py-2 text-sm rounded-lg border resize-none"
+            style={textareaStyle}
+          />
+        </FormField>
+      </div>
+
+      <FormActions
+        onCancel={onCancel}
+        onSubmit={handleSave}
+        cancelLabel={t('nodes.cancel')}
+        submitLabel={t('nodes.save')}
+      />
+    </EditFormCard>
+  )
+}
+
 // ========== Sortable Group Card ==========
 function SortableGroupCard({
   group,
-  isEditing,
   onEdit,
   onDelete,
-  onSave,
-  onCancel,
   onRefresh,
   onRefreshProxy,
   canDelete,
   t,
 }: {
   group: NodeGroup
-  isEditing: boolean
   onEdit: () => void
   onDelete: () => void
-  onSave: (data: Partial<NodeGroup>) => void
-  onCancel: () => void
   onRefresh: () => void
   onRefreshProxy: () => void
   canDelete: boolean
@@ -90,46 +246,6 @@ function SortableGroupCard({
     transition,
     zIndex: isDragging ? 50 : 'auto',
     opacity: isDragging ? 0.8 : 1,
-  }
-
-  // Edit form state
-  const [formAlias, setFormAlias] = useState(group.alias)
-  const [formIsSub, setFormIsSub] = useState(group.is_subscription)
-  const [formUrl, setFormUrl] = useState(group.url || '')
-  const [formEnabled, setFormEnabled] = useState(group.enabled)
-  const [formEnableUpdate, setFormEnableUpdate] = useState(group.enable_update)
-  const [formInterval, setFormInterval] = useState(String(group.update_interval || 0))
-  const [formAliasRegex, setFormAliasRegex] = useState(group.alias_regex || '')
-  const [formUserAgent, setFormUserAgent] = useState(group.user_agent || '')
-  const [formNotes, setFormNotes] = useState(group.notes || '')
-
-  // Reset form when edit starts
-  useEffect(() => {
-    if (isEditing) {
-      setFormAlias(group.alias)
-      setFormIsSub(group.is_subscription)
-      setFormUrl(group.url || '')
-      setFormEnabled(group.enabled)
-      setFormEnableUpdate(group.enable_update)
-      setFormInterval(String(group.update_interval || 0))
-      setFormAliasRegex(group.alias_regex || '')
-      setFormUserAgent(group.user_agent || '')
-      setFormNotes(group.notes || '')
-    }
-  }, [isEditing, group])
-
-  const handleSave = () => {
-    onSave({
-      alias: formAlias,
-      is_subscription: formIsSub,
-      url: formUrl,
-      enabled: formEnabled,
-      enable_update: formEnableUpdate,
-      update_interval: parseInt(formInterval) || 0,
-      alias_regex: formAliasRegex,
-      user_agent: formUserAgent,
-      notes: formNotes,
-    })
   }
 
   const displayName = group.alias || t('groups.default_name')
@@ -291,245 +407,6 @@ function SortableGroupCard({
             </button>
           </div>
         </div>
-
-        {/* Edit Panel (expands below the card) */}
-        <AnimatePresence>
-          {isEditing && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="overflow-hidden"
-            >
-              <div
-                className="px-4 pb-4 pt-1 border-t"
-                style={{ borderColor: 'var(--color-border)' }}
-              >
-                <div className="space-y-3">
-                  {/* Alias + Subscription Toggle */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label
-                        className="text-xs font-medium block mb-1"
-                        style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
-                      >
-                        {t('groups.alias')}
-                      </label>
-                      <input
-                        type="text"
-                        value={formAlias}
-                        onChange={(e) => setFormAlias(e.target.value)}
-                        placeholder={t('groups.default_name')}
-                        className="w-full px-3 py-2 text-sm rounded-lg border"
-                        style={{
-                          backgroundColor: 'var(--color-overlay)',
-                          borderColor: 'var(--color-border)',
-                          color: 'var(--color-foreground)',
-                          fontFamily: 'var(--font-heading)',
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <label
-                        className="text-xs font-medium block mb-1"
-                        style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
-                      >
-                        {t('groups.is_subscription')}
-                      </label>
-                      <button
-                        onClick={() => setFormIsSub(!formIsSub)}
-                        className="w-full px-3 py-2 text-sm rounded-lg border text-left transition-colors cursor-pointer"
-                        style={{
-                          backgroundColor: 'var(--color-overlay)',
-                          borderColor: formIsSub ? 'var(--color-primary)' : 'var(--color-border)',
-                          color: 'var(--color-foreground)',
-                          fontFamily: 'var(--font-heading)',
-                        }}
-                      >
-                        {formIsSub ? t('common.yes') : t('common.no')}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Subscription fields (conditional) */}
-                  <AnimatePresence>
-                    {formIsSub && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="space-y-3 overflow-hidden"
-                      >
-                        {/* URL */}
-                        <div>
-                          <label
-                            className="text-xs font-medium block mb-1"
-                            style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
-                          >
-                            {t('groups.url')}
-                          </label>
-                          <input
-                            type="text"
-                            value={formUrl}
-                            onChange={(e) => setFormUrl(e.target.value)}
-                            placeholder={t('groups.url_placeholder')}
-                            className="w-full px-3 py-2 text-sm rounded-lg border"
-                            style={{
-                              backgroundColor: 'var(--color-overlay)',
-                              borderColor: 'var(--color-border)',
-                              color: 'var(--color-foreground)',
-                              fontFamily: 'var(--font-mono)',
-                            }}
-                          />
-                        </div>
-
-                        {/* Enable Update + Interval */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label
-                              className="text-xs font-medium block mb-1"
-                              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
-                            >
-                              {t('groups.enable_update')}
-                            </label>
-                            <button
-                              onClick={() => setFormEnableUpdate(!formEnableUpdate)}
-                              className="w-full px-3 py-2 text-sm rounded-lg border text-left transition-colors cursor-pointer"
-                              style={{
-                                backgroundColor: 'var(--color-overlay)',
-                                borderColor: formEnableUpdate ? 'var(--color-primary)' : 'var(--color-border)',
-                                color: 'var(--color-foreground)',
-                                fontFamily: 'var(--font-heading)',
-                              }}
-                            >
-                              {formEnableUpdate ? t('common.enabled') : t('common.disabled')}
-                            </button>
-                          </div>
-                          <div>
-                            <label
-                              className="text-xs font-medium block mb-1"
-                              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
-                            >
-                              {t('groups.update_interval')}
-                            </label>
-                            <input
-                              type="number"
-                              value={formInterval}
-                              onChange={(e) => setFormInterval(e.target.value)}
-                              className="w-full px-3 py-2 text-sm rounded-lg border"
-                              style={{
-                                backgroundColor: 'var(--color-overlay)',
-                                borderColor: 'var(--color-border)',
-                                color: 'var(--color-foreground)',
-                                fontFamily: 'var(--font-mono)',
-                              }}
-                            />
-                            <span
-                              className="text-[10px] mt-0.5 block"
-                              style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-heading)' }}
-                            >
-                              {t('groups.update_interval_hint')}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Alias Regex + User Agent */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label
-                              className="text-xs font-medium block mb-1"
-                              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
-                            >
-                              {t('groups.alias_regex')}
-                            </label>
-                            <input
-                              type="text"
-                              value={formAliasRegex}
-                              onChange={(e) => setFormAliasRegex(e.target.value)}
-                              placeholder={t('groups.alias_regex_placeholder')}
-                              className="w-full px-3 py-2 text-sm rounded-lg border"
-                              style={{
-                                backgroundColor: 'var(--color-overlay)',
-                                borderColor: 'var(--color-border)',
-                                color: 'var(--color-foreground)',
-                                fontFamily: 'var(--font-mono)',
-                              }}
-                            />
-                          </div>
-                          <div>
-                            <label
-                              className="text-xs font-medium block mb-1"
-                              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
-                            >
-                              {t('groups.user_agent')}
-                            </label>
-                            <input
-                              type="text"
-                              value={formUserAgent}
-                              onChange={(e) => setFormUserAgent(e.target.value)}
-                              placeholder={t('groups.user_agent_placeholder')}
-                              className="w-full px-3 py-2 text-sm rounded-lg border"
-                              style={{
-                                backgroundColor: 'var(--color-overlay)',
-                                borderColor: 'var(--color-border)',
-                                color: 'var(--color-foreground)',
-                                fontFamily: 'var(--font-mono)',
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Notes */}
-                  <div>
-                    <label
-                      className="text-xs font-medium block mb-1"
-                      style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
-                    >
-                      {t('groups.notes')}
-                    </label>
-                    <textarea
-                      value={formNotes}
-                      onChange={(e) => setFormNotes(e.target.value)}
-                      placeholder={t('groups.notes_placeholder')}
-                      rows={2}
-                      className="w-full px-3 py-2 text-sm rounded-lg border resize-none"
-                      style={{
-                        backgroundColor: 'var(--color-overlay)',
-                        borderColor: 'var(--color-border)',
-                        color: 'var(--color-foreground)',
-                        fontFamily: 'var(--font-heading)',
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Save / Cancel */}
-                <div className="flex justify-end gap-2 mt-4">
-                  <button
-                    onClick={onCancel}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer btn-ghost"
-                    style={{ fontFamily: 'var(--font-heading)' }}
-                  >
-                    <X size={13} />
-                    {t('nodes.cancel')}
-                  </button>
-                  <button
-                    onClick={handleSave}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer btn-primary"
-                    style={{ fontFamily: 'var(--font-heading)' }}
-                  >
-                    <Check size={13} />
-                    {t('nodes.save')}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </motion.div>
     </div>
   )
@@ -701,30 +578,38 @@ export function GroupsView() {
             >
               {groups.map((group) => (
                 <div key={group.uuid}>
-                <SortableGroupCard
-                  group={group}
-                  isEditing={editId === group.ID}
-                  onEdit={() => setEditId(editId === group.ID ? null : group.ID)}
-                  onDelete={() => {
-                    if (groups.length <= 1) {
-                      addToast(t('groups.cannot_delete'), 'error')
-                      return
-                    }
-                    setDeleteTargetId(deleteTargetId === group.ID ? null : group.ID)
-                  }}
-                  onSave={(data) => handleSave(group.ID, data)}
-                  onCancel={() => setEditId(null)}
-                  onRefresh={() => handleRefresh(group.ID)}
-                  onRefreshProxy={() => handleRefreshProxy(group.ID)}
-                  canDelete={groups.length > 1}
-                  t={t}
-                />
-                <DeleteConfirmBanner
-                  visible={deleteTargetId === group.ID}
-                  message={t('groups.delete_confirm', { name: group.alias || t('groups.default_name') })}
-                  onConfirm={() => handleDelete(group.ID)}
-                  onCancel={() => setDeleteTargetId(null)}
-                />
+                  <SortableGroupCard
+                    group={group}
+                    onEdit={() => setEditId(editId === group.ID ? null : group.ID)}
+                    onDelete={() => {
+                      if (groups.length <= 1) {
+                        addToast(t('groups.cannot_delete'), 'error')
+                        return
+                      }
+                      setDeleteTargetId(deleteTargetId === group.ID ? null : group.ID)
+                    }}
+                    onRefresh={() => handleRefresh(group.ID)}
+                    onRefreshProxy={() => handleRefreshProxy(group.ID)}
+                    canDelete={groups.length > 1}
+                    t={t}
+                  />
+                  <AnimatePresence>
+                    {editId === group.ID && (
+                      <GroupEditForm
+                        key={`edit-${group.ID}`}
+                        group={group}
+                        onSave={(data) => handleSave(group.ID, data)}
+                        onCancel={() => setEditId(null)}
+                        t={t}
+                      />
+                    )}
+                  </AnimatePresence>
+                  <DeleteConfirmBanner
+                    visible={deleteTargetId === group.ID}
+                    message={t('groups.delete_confirm', { name: group.alias || t('groups.default_name') })}
+                    onConfirm={() => handleDelete(group.ID)}
+                    onCancel={() => setDeleteTargetId(null)}
+                  />
                 </div>
               ))}
             </SortableContext>

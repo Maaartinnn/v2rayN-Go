@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { Check, X, Zap } from 'lucide-react'
+import { Zap } from 'lucide-react'
 import { profileApi, coresApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 import type { Profile } from '../store'
@@ -8,6 +7,10 @@ import {
   PROTOCOLS, NETWORKS, TLS_OPTIONS, SECURITY_METHODS,
   getBestInstalledCore, getSupportedCores,
 } from '../lib/coreMap'
+import { EditFormCard } from './ui/EditFormCard'
+import { FormField } from './ui/FormField'
+import { FormActions } from './ui/FormActions'
+import { inputStyle } from './ui/formStyles'
 
 interface NodeEditFormProps {
   onClose: () => void
@@ -138,226 +141,191 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
 
   const supportedCores = getSupportedCores(protocol)
 
-  const inputStyle = {
-    backgroundColor: 'var(--color-overlay)',
-    borderColor: 'var(--color-border)',
-    color: 'var(--color-foreground)',
-    fontFamily: 'var(--font-mono)',
-  }
-
-  const labelStyle = {
-    color: 'var(--color-muted-foreground)',
-    fontFamily: 'var(--font-heading)' as const,
-  }
-
   return (
-    <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
-      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      className="mb-4 overflow-hidden"
-    >
-      <div
-        className="rounded-xl border p-5"
-        style={{
-          backgroundColor: 'var(--color-card)',
-          borderColor: 'var(--color-border)',
-          boxShadow: 'var(--shadow-card)',
-        }}
-      >
-        <div className="space-y-4">
-          {/* Row 1: Protocol + Name */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                {t('routing.type')}
-              </label>
-              <select
-                value={protocol}
-                onChange={(e) => setProtocol(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
-                style={inputStyle}
-              >
-                {PROTOCOLS.map((p) => (
-                  <option key={p.value} value={p.value}>{p.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                {t('strategy.name')}
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="My Node"
-                className="w-full px-3 py-2 text-sm rounded-lg border"
-                style={inputStyle}
-              />
-            </div>
-          </div>
+    <EditFormCard>
+      <div className="space-y-4">
+        {/* Row 1: Protocol + Name */}
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label={t('routing.type')} cols="1/2">
+            <select
+              value={protocol}
+              onChange={(e) => setProtocol(e.target.value)}
+              className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
+              style={inputStyle}
+            >
+              {PROTOCOLS.map((p) => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </select>
+          </FormField>
+          <FormField label={t('strategy.name')} cols="1/2">
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="My Node"
+              className="w-full px-3 py-2 text-sm rounded-lg border"
+              style={inputStyle}
+            />
+          </FormField>
+        </div>
 
-          {/* Row 2: Address + Port */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-2">
-              <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                Address
-              </label>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="example.com"
-                className="w-full px-3 py-2 text-sm rounded-lg border"
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                Port
-              </label>
-              <input
-                type="text"
-                value={port}
-                onChange={(e) => setPort(e.target.value)}
-                placeholder="443"
-                className="w-full px-3 py-2 text-sm rounded-lg border"
-                style={inputStyle}
-              />
-            </div>
-          </div>
+        {/* Row 2: Address + Port */}
+        <div className="grid grid-cols-3 gap-3">
+          <FormField label="Address" cols="2/3">
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="example.com"
+              className="w-full px-3 py-2 text-sm rounded-lg border"
+              style={inputStyle}
+            />
+          </FormField>
+          <FormField label="Port" cols="1/3">
+            <input
+              type="text"
+              value={port}
+              onChange={(e) => setPort(e.target.value)}
+              placeholder="443"
+              className="w-full px-3 py-2 text-sm rounded-lg border"
+              style={inputStyle}
+            />
+          </FormField>
+        </div>
 
-          {/* UUID / Password */}
-          {(showUUID || showPassword) && (
-            <div>
-              <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                {showUUID ? 'UUID / ID' : 'Password'}
-              </label>
-              <input
-                type="text"
-                value={uuid}
-                onChange={(e) => setUuid(e.target.value)}
-                placeholder={showUUID ? '00000000-0000-0000-0000-000000000000' : 'password'}
-                className="w-full px-3 py-2 text-sm rounded-lg border"
-                style={inputStyle}
-              />
-            </div>
-          )}
+        {/* UUID / Password */}
+        {(showUUID || showPassword) && (
+          <FormField label={showUUID ? 'UUID / ID' : 'Password'}>
+            <input
+              type="text"
+              value={uuid}
+              onChange={(e) => setUuid(e.target.value)}
+              placeholder={showUUID ? '00000000-0000-0000-0000-000000000000' : 'password'}
+              className="w-full px-3 py-2 text-sm rounded-lg border"
+              style={inputStyle}
+            />
+          </FormField>
+        )}
 
-          {/* VMess Security */}
-          {showSecurity && (
-            <div>
-              <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                Security
-              </label>
-              <select
-                value={security}
-                onChange={(e) => setSecurity(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
-                style={inputStyle}
-              >
-                {SECURITY_METHODS.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </div>
-          )}
+        {/* VMess Security */}
+        {showSecurity && (
+          <FormField label="Security">
+            <select
+              value={security}
+              onChange={(e) => setSecurity(e.target.value)}
+              className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
+              style={inputStyle}
+            >
+              {SECURITY_METHODS.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </FormField>
+        )}
 
-          {/* VLESS Flow */}
-          {showFlow && (
-            <div>
-              <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                Flow
-              </label>
-              <select
-                value={flow}
-                onChange={(e) => setFlow(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
-                style={inputStyle}
-              >
-                <option value="">None</option>
-                <option value="xtls-rprx-vision">xtls-rprx-vision</option>
-              </select>
-            </div>
-          )}
+        {/* VLESS Flow */}
+        {showFlow && (
+          <FormField label="Flow">
+            <select
+              value={flow}
+              onChange={(e) => setFlow(e.target.value)}
+              className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
+              style={inputStyle}
+            >
+              <option value="">None</option>
+              <option value="xtls-rprx-vision">xtls-rprx-vision</option>
+            </select>
+          </FormField>
+        )}
 
-          {/* Transport */}
-          {showTransport && (
-            <>
+        {/* Transport */}
+        {showTransport && (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Transport" cols="1/2">
+                <select
+                  value={network}
+                  onChange={(e) => setNetwork(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
+                  style={inputStyle}
+                >
+                  {NETWORKS.map((n) => (
+                    <option key={n.value} value={n.value}>{n.label}</option>
+                  ))}
+                </select>
+              </FormField>
+              <FormField label="TLS" cols="1/2">
+                <select
+                  value={tls}
+                  onChange={(e) => setTls(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
+                  style={inputStyle}
+                >
+                  {TLS_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </FormField>
+            </div>
+
+            {/* Host & Path for ws/h2/grpc */}
+            {network !== 'tcp' && (
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                    Transport
-                  </label>
-                  <select
-                    value={network}
-                    onChange={(e) => setNetwork(e.target.value)}
-                    className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
+                <FormField label="Host" cols="1/2">
+                  <input
+                    type="text"
+                    value={host}
+                    onChange={(e) => setHost(e.target.value)}
+                    placeholder="example.com"
+                    className="w-full px-3 py-2 text-sm rounded-lg border"
                     style={inputStyle}
-                  >
-                    {NETWORKS.map((n) => (
-                      <option key={n.value} value={n.value}>{n.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                    TLS
-                  </label>
-                  <select
-                    value={tls}
-                    onChange={(e) => setTls(e.target.value)}
-                    className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
+                  />
+                </FormField>
+                <FormField label="Path" cols="1/2">
+                  <input
+                    type="text"
+                    value={path}
+                    onChange={(e) => setPath(e.target.value)}
+                    placeholder={network === 'ws' ? '/ws' : network === 'grpc' ? 'grpc-service' : '/path'}
+                    className="w-full px-3 py-2 text-sm rounded-lg border"
                     style={inputStyle}
-                  >
-                    {TLS_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </div>
+                  />
+                </FormField>
               </div>
+            )}
 
-              {/* Host & Path for ws/h2/grpc */}
-              {network !== 'tcp' && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                      Host
-                    </label>
-                    <input
-                      type="text"
-                      value={host}
-                      onChange={(e) => setHost(e.target.value)}
-                      placeholder="example.com"
-                      className="w-full px-3 py-2 text-sm rounded-lg border"
-                      style={inputStyle}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                      Path
-                    </label>
-                    <input
-                      type="text"
-                      value={path}
-                      onChange={(e) => setPath(e.target.value)}
-                      placeholder={network === 'ws' ? '/ws' : network === 'grpc' ? 'grpc-service' : '/path'}
-                      className="w-full px-3 py-2 text-sm rounded-lg border"
-                      style={inputStyle}
-                    />
-                  </div>
-                </div>
-              )}
+            {/* TLS fields */}
+            {tls === 'tls' && (
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="SNI" cols="1/2">
+                  <input
+                    type="text"
+                    value={sni}
+                    onChange={(e) => setSni(e.target.value)}
+                    placeholder="example.com"
+                    className="w-full px-3 py-2 text-sm rounded-lg border"
+                    style={inputStyle}
+                  />
+                </FormField>
+                <FormField label="Fingerprint" cols="1/2">
+                  <input
+                    type="text"
+                    value={fingerprint}
+                    onChange={(e) => setFingerprint(e.target.value)}
+                    placeholder="chrome / firefox / random"
+                    className="w-full px-3 py-2 text-sm rounded-lg border"
+                    style={inputStyle}
+                  />
+                </FormField>
+              </div>
+            )}
 
-              {/* TLS fields */}
-              {tls === 'tls' && (
+            {/* Reality fields */}
+            {showReality && (
+              <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                      SNI
-                    </label>
+                  <FormField label="SNI (ServerName)" cols="1/2">
                     <input
                       type="text"
                       value={sni}
@@ -366,152 +334,96 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
                       className="w-full px-3 py-2 text-sm rounded-lg border"
                       style={inputStyle}
                     />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                      Fingerprint
-                    </label>
+                  </FormField>
+                  <FormField label="Fingerprint" cols="1/2">
                     <input
                       type="text"
                       value={fingerprint}
                       onChange={(e) => setFingerprint(e.target.value)}
-                      placeholder="chrome / firefox / random"
+                      placeholder="chrome"
                       className="w-full px-3 py-2 text-sm rounded-lg border"
                       style={inputStyle}
                     />
-                  </div>
+                  </FormField>
                 </div>
-              )}
-
-              {/* Reality fields */}
-              {showReality && (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                        SNI (ServerName)
-                      </label>
-                      <input
-                        type="text"
-                        value={sni}
-                        onChange={(e) => setSni(e.target.value)}
-                        placeholder="example.com"
-                        className="w-full px-3 py-2 text-sm rounded-lg border"
-                        style={inputStyle}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                        Fingerprint
-                      </label>
-                      <input
-                        type="text"
-                        value={fingerprint}
-                        onChange={(e) => setFingerprint(e.target.value)}
-                        placeholder="chrome"
-                        className="w-full px-3 py-2 text-sm rounded-lg border"
-                        style={inputStyle}
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                        Public Key
-                      </label>
-                      <input
-                        type="text"
-                        value={publicKey}
-                        onChange={(e) => setPublicKey(e.target.value)}
-                        placeholder="Public key"
-                        className="w-full px-3 py-2 text-sm rounded-lg border"
-                        style={inputStyle}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium block mb-1" style={labelStyle}>
-                        Short ID
-                      </label>
-                      <input
-                        type="text"
-                        value={shortId}
-                        onChange={(e) => setShortId(e.target.value)}
-                        placeholder="Short ID"
-                        className="w-full px-3 py-2 text-sm rounded-lg border"
-                        style={inputStyle}
-                      />
-                    </div>
-                  </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField label="Public Key" cols="1/2">
+                    <input
+                      type="text"
+                      value={publicKey}
+                      onChange={(e) => setPublicKey(e.target.value)}
+                      placeholder="Public key"
+                      className="w-full px-3 py-2 text-sm rounded-lg border"
+                      style={inputStyle}
+                    />
+                  </FormField>
+                  <FormField label="Short ID" cols="1/2">
+                    <input
+                      type="text"
+                      value={shortId}
+                      onChange={(e) => setShortId(e.target.value)}
+                      placeholder="Short ID"
+                      className="w-full px-3 py-2 text-sm rounded-lg border"
+                      style={inputStyle}
+                    />
+                  </FormField>
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* Allow Insecure */}
-              {tls && (
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={allowInsecure}
-                    onChange={(e) => setAllowInsecure(e.target.checked)}
-                    className="rounded"
-                  />
-                  <span className="text-xs" style={labelStyle}>
-                    Allow Insecure (skip certificate verification)
+            {/* Allow Insecure */}
+            {tls && (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={allowInsecure}
+                  onChange={(e) => setAllowInsecure(e.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-xs" style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}>
+                  Allow Insecure (skip certificate verification)
+                </span>
+              </label>
+            )}
+          </>
+        )}
+
+        {/* Smart Core Recommendation */}
+        {supportedCores.length > 0 && (
+          <div
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
+            style={{
+              backgroundColor: recommendedCore ? 'var(--color-success-dim)' : 'var(--color-warning-dim)',
+              color: recommendedCore ? 'var(--color-success)' : 'var(--color-warning)',
+              fontFamily: 'var(--font-heading)',
+            }}
+          >
+            <Zap size={13} />
+            {recommendedCore ? (
+              <span>
+                推荐内核: <strong>{recommendedCore}</strong>
+                {supportedCores.length > 1 && (
+                  <span style={{ opacity: 0.7 }}>
+                    {' '}(也支持: {supportedCores.filter(c => c !== recommendedCore).join(', ')})
                   </span>
-                </label>
-              )}
-            </>
-          )}
-
-          {/* Smart Core Recommendation */}
-          {supportedCores.length > 0 && (
-            <div
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
-              style={{
-                backgroundColor: recommendedCore ? 'var(--color-success-dim)' : 'var(--color-warning-dim)',
-                color: recommendedCore ? 'var(--color-success)' : 'var(--color-warning)',
-                fontFamily: 'var(--font-heading)',
-              }}
-            >
-              <Zap size={13} />
-              {recommendedCore ? (
-                <span>
-                  推荐内核: <strong>{recommendedCore}</strong>
-                  {supportedCores.length > 1 && (
-                    <span style={{ opacity: 0.7 }}>
-                      {' '}(也支持: {supportedCores.filter(c => c !== recommendedCore).join(', ')})
-                    </span>
-                  )}
-                </span>
-              ) : (
-                <span>
-                  无已安装内核支持此协议 (需要: {supportedCores.join(', ')})
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Action buttons */}
-        <div className="flex justify-end gap-2 mt-5">
-          <button
-            onClick={onClose}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer btn-ghost"
-            style={{ fontFamily: 'var(--font-heading)' }}
-          >
-            <X size={13} />
-            {t('nodes.cancel')}
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!name.trim() || !address.trim() || !port}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer btn-primary"
-            style={{ fontFamily: 'var(--font-heading)' }}
-          >
-            <Check size={13} />
-            {isEditing ? t('nodes.save') : t('nodes.confirm')}
-          </button>
-        </div>
+                )}
+              </span>
+            ) : (
+              <span>
+                无已安装内核支持此协议 (需要: {supportedCores.join(', ')})
+              </span>
+            )}
+          </div>
+        )}
       </div>
-    </motion.div>
+
+      <FormActions
+        onCancel={onClose}
+        onSubmit={handleSubmit}
+        cancelLabel={t('nodes.cancel')}
+        submitLabel={isEditing ? t('nodes.save') : t('nodes.confirm')}
+        submitDisabled={!name.trim() || !address.trim() || !port}
+      />
+    </EditFormCard>
   )
 }
