@@ -122,10 +122,10 @@ function GroupEditForm({
         <AnimatePresence>
           {formIsSub && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="space-y-3 overflow-hidden"
+              initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
+              animate={{ opacity: 1, height: 'auto', transitionEnd: { overflow: 'visible' } }}
+              exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+              className="space-y-3"
             >
               {/* URL */}
               <FormField label={t('groups.url')}>

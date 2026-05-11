@@ -392,10 +392,9 @@ export function CoresView() {
                 <AnimatePresence>
                   {customUrlCore === core.name && (
                     <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="overflow-hidden"
+                      initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                      animate={{ opacity: 1, height: 'auto', transitionEnd: { overflow: 'visible' } }}
+                      exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
                     >
                       <div className="flex items-center gap-2 mt-4 pt-4 border-t" style={{ borderColor: 'var(--color-border-subtle)' }}>
                         <input

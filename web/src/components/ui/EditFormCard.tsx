@@ -12,11 +12,11 @@ interface EditFormCardProps {
 export function EditFormCard({ children }: EditFormCardProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
+      initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
+      animate={{ opacity: 1, height: 'auto', transitionEnd: { overflow: 'visible' } }}
+      exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      className="mb-4 overflow-hidden"
+      className="mb-4"
     >
       <div
         className="rounded-xl border p-5"
