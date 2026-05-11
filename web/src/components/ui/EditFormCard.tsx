@@ -16,8 +16,7 @@ export function EditFormCard({ children }: EditFormCardProps) {
       animate={{ opacity: 1, height: 'auto' }}
       exit={{ opacity: 0, height: 0 }}
       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      // 空间补偿：p-1 + -m-1 撑开 4px 容纳焦点边框
-      className="mb-4 overflow-hidden p-1 -m-1"
+      className="mb-4 overflow-hidden"
     >
       <div
         className="rounded-xl border p-5"

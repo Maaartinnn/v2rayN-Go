@@ -7,7 +7,6 @@ import { profileApi, profileEnhancedApi, groupsApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 import { DeleteConfirmBanner } from './DeleteConfirmBanner'
 import { NodeEditForm } from './NodeEditForm'
-import { SmoothCollapse } from './ui/SmoothCollapse'
 
 interface NodeGroupItem {
   ID: number
@@ -362,15 +361,19 @@ export function NodesView() {
                       onConfirm={() => handleDelete(profile.ID)}
                       onCancel={() => setDeleteTargetId(null)}
                     />
-                    {/* Edit panel (inline, smooth collapse with safety margin) */}
-                    <SmoothCollapse isOpen={editId === profile.ID} className="mt-2">
-                      <NodeEditForm
-                        editData={profile}
-                        groupId={profile.group_id}
-                        onClose={() => setEditId(null)}
-                        onSaved={handleNodeSaved}
-                      />
-                    </SmoothCollapse>
+                    {/* 恢复为直接使用 AnimatePresence 包裹，消除双重动画 */}
+                    <AnimatePresence>
+                      {editId === profile.ID && (
+                        <div className="mt-2">
+                          <NodeEditForm
+                            editData={profile}
+                            groupId={profile.group_id}
+                            onClose={() => setEditId(null)}
+                            onSaved={handleNodeSaved}
+                          />
+                        </div>
+                      )}
+                    </AnimatePresence>
                   </motion.div>
                 )
               })
