@@ -234,7 +234,7 @@ function SortableGroupCard({
   } = useSortable({ id: group.uuid })
 
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: CSS.Translate.toString(transform),
     transition,
     zIndex: isDragging ? 50 : 'auto',
     opacity: isDragging ? 0.8 : 1,
@@ -245,7 +245,6 @@ function SortableGroupCard({
   return (
     <div ref={setNodeRef} style={style}>
       <motion.div
-        layout
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         className="rounded-xl border"
@@ -413,7 +412,7 @@ export function GroupsView() {
   const { addToast } = useStore()
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
