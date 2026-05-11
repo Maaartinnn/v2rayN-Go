@@ -397,9 +397,11 @@ export function CoresView() {
                       exit={{ opacity: 0, height: 0 }}
                       className="overflow-hidden"
                     >
-                      <div className="flex items-center gap-2 mt-4 pt-4 border-t overflow-hidden" style={{ borderColor: 'var(--color-border-subtle)' }}>
+                      <div className="flex items-center gap-2 mt-4 pt-4 border-t" style={{ borderColor: 'var(--color-border-subtle)' }}>
                         <input
                           type="text"
+                          id={`custom-url-${core.name}`}
+                          name={`custom_url_${core.name}`}
                           value={customUrl}
                           onChange={(e) => setCustomUrl(e.target.value)}
                           placeholder="https://mirror.example.com/releases/download/v1.0.0/xray-windows-64.zip"
@@ -423,7 +425,7 @@ export function CoresView() {
                           ) : (
                             <Download size={13} />
                           )}
-                          {t('cores.download_custom')}
+                          {t('cores.download')}
                         </motion.button>
                         <button
                           onClick={() => { setCustomUrlCore(''); setCustomUrl('') }}
