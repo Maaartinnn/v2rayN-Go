@@ -197,7 +197,7 @@ export function ImportView() {
       </div>
 
       {/* Right: Group Selection Panel (1/4) */}
-      <div className="w-64 flex-shrink-0">
+      <div className="w-64 shrink-0">
         <div className="sticky top-20">
           <div
             className="rounded-xl border overflow-hidden"
@@ -239,7 +239,7 @@ export function ImportView() {
                       whileTap={{ scale: 0.98 }}
                     >
                       <div
-                        className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                        className="w-5 h-5 rounded flex items-center justify-center shrink-0"
                         style={{
                           backgroundColor: group.is_subscription
                             ? 'rgba(217, 119, 87, 0.12)'
@@ -266,7 +266,7 @@ export function ImportView() {
                         </span>
                       </div>
                       <span
-                        className="text-[9px] flex-shrink-0"
+                        className="text-[9px] shrink-0"
                         style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}
                       >
                         {group.node_count}

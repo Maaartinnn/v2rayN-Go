@@ -272,7 +272,7 @@ export function NodesView() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 min-w-0">
                           <div
-                            className="w-2 h-2 rounded-full flex-shrink-0"
+                            className="w-2 h-2 rounded-full shrink-0"
                             style={{ backgroundColor: getLatencyDot(profile.test_result) }}
                           />
                           <div className="min-w-0">
@@ -306,7 +306,7 @@ export function NodesView() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="flex items-center gap-2 shrink-0">
                           {profile.test_result && (
                             <span
                               className="text-xs"
@@ -382,7 +382,7 @@ export function NodesView() {
       </div>
 
       {/* Right: Group Selection Panel */}
-      <div className="w-64 flex-shrink-0">
+      <div className="w-64 shrink-0">
         <div className="sticky top-20">
           <div
             className="rounded-xl border overflow-hidden"
@@ -406,7 +406,7 @@ export function NodesView() {
                 whileTap={{ scale: 0.98 }}
               >
                 <div
-                  className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                  className="w-5 h-5 rounded flex items-center justify-center shrink-0"
                   style={{ backgroundColor: 'var(--color-muted)' }}
                 >
                   <Layers size={10} style={{ color: 'var(--color-muted-foreground)' }} />
@@ -423,7 +423,7 @@ export function NodesView() {
                   </span>
                 </div>
                 <span
-                  className="text-[9px] flex-shrink-0"
+                  className="text-[9px] shrink-0"
                   style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}
                 >
                   {profiles.length}
@@ -446,7 +446,7 @@ export function NodesView() {
                     whileTap={{ scale: 0.98 }}
                   >
                     <div
-                      className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                      className="w-5 h-5 rounded flex items-center justify-center shrink-0"
                       style={{
                         backgroundColor: group.is_subscription
                           ? 'rgba(217, 119, 87, 0.12)'
@@ -471,7 +471,7 @@ export function NodesView() {
                       </span>
                     </div>
                     <span
-                      className="text-[9px] flex-shrink-0"
+                      className="text-[9px] shrink-0"
                       style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}
                     >
                       {group.node_count}

@@ -150,7 +150,7 @@ export function LogConsole() {
         {/* Log content */}
         <div
           ref={scrollRef}
-          className="h-[500px] overflow-y-auto p-4 text-xs leading-relaxed"
+          className="h-125 overflow-y-auto p-4 text-xs leading-relaxed"
           style={{
             color: isDark ? '#EAE7DC' : '#141413',
             fontFamily: 'var(--font-mono)',
@@ -170,14 +170,14 @@ export function LogConsole() {
             filteredLogs.map((log, i) => (
               <div key={i} className="flex gap-3 py-0.5">
                 <span
-                  className="flex-shrink-0 select-none"
+                  className="shrink-0 select-none"
                   style={{ color: isDark ? '#5C5A54' : '#B0AEA5' }}
                 >
                   {new Date(log.time).toLocaleTimeString('en-US', { hour12: false })}
                 </span>
                 {activeSource === 'all' && (
                   <span
-                    className="flex-shrink-0 select-none text-[10px] font-medium px-1 py-0.5 rounded"
+                    className="shrink-0 select-none text-[10px] font-medium px-1 py-0.5 rounded"
                     style={{
                       color: getSourceColor(log.source),
                       backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',

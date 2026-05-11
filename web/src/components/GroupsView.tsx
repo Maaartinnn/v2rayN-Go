@@ -262,7 +262,7 @@ function SortableGroupCard({
             <div
               {...attributes}
               {...listeners}
-              className="cursor-grab active:cursor-grabbing p-1 rounded-md flex-shrink-0"
+              className="cursor-grab active:cursor-grabbing p-1 rounded-md shrink-0"
               style={{ color: 'var(--color-text-muted)' }}
             >
               <GripVertical size={14} />
@@ -270,7 +270,7 @@ function SortableGroupCard({
 
             {/* Group Icon */}
             <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
               style={{
                 backgroundColor: group.is_subscription
                   ? 'rgba(217, 119, 87, 0.12)'
@@ -315,7 +315,7 @@ function SortableGroupCard({
                 </span>
                 {group.is_subscription && group.notes && (
                   <span
-                    className="text-[10px] truncate max-w-[200px]"
+                    className="text-[10px] truncate max-w-50"
                     style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-heading)' }}
                   >
                     {group.notes}
@@ -326,7 +326,7 @@ function SortableGroupCard({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-1 flex-shrink-0 ml-3">
+          <div className="flex items-center gap-1 shrink-0 ml-3">
             {/* Refresh buttons (subscription only) */}
             {group.is_subscription && (
               <>

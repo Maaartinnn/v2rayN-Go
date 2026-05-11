@@ -410,7 +410,7 @@ export function CoresView() {
                         <motion.button
                           onClick={handleCustomUrlDownload}
                           disabled={!customUrl.trim() || isDownloading}
-                          className="flex items-center gap-1.5 flex-shrink-0 px-3 py-2 text-xs font-medium cursor-pointer btn-secondary disabled:opacity-50"
+className="flex items-center gap-1.5 shrink-0 px-3 py-2 text-xs font-medium cursor-pointer btn-secondary disabled:opacity-50"
                           style={{ fontFamily: 'var(--font-heading)' }}
                           whileTap={{ scale: 0.95 }}
                         >

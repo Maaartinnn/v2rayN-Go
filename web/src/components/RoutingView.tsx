@@ -243,7 +243,7 @@ export function RoutingView() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 min-w-0">
                       <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
                         style={{ backgroundColor: typeInfo.bg }}
                       >
                         <TypeIcon size={14} style={{ color: typeInfo.text }} />
@@ -278,7 +278,7 @@ export function RoutingView() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => {
                           setShowAdd(false)

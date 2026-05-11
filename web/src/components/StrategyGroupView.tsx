@@ -160,7 +160,7 @@ function StrategyGroupEditForm({
               profiles.map(p => (
                 <label
                   key={p.ID}
-                  className="flex items-center gap-2 px-2 py-1 rounded cursor-pointer hover:bg-[var(--color-muted)] transition-colors"
+                  className="flex items-center gap-2 px-2 py-1 rounded cursor-pointer hover:bg-(--color-muted) transition-colors"
                 >
                   <input
                     type="checkbox"
@@ -335,7 +335,7 @@ export function StrategyGroupView() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 min-w-0">
                       <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
                         style={{ backgroundColor: 'var(--color-accent-dim)' }}
                       >
                         <TypeIcon size={14} style={{ color: 'var(--color-accent-warm)' }} />
@@ -362,7 +362,7 @@ export function StrategyGroupView() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => {
                           setShowAdd(false)

@@ -38,7 +38,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {/* Logo & Brand */}
       <div className="flex items-center h-14 px-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
         <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
           style={{ backgroundColor: 'var(--color-primary)' }}
         >
           <span className="text-sm font-bold" style={{ color: 'var(--color-primary-foreground)', fontFamily: 'var(--font-heading)' }}>V</span>
@@ -60,7 +60,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       {/* Status Indicator */}
       <div className="flex items-center h-10 px-4 mx-3 mt-3 rounded-lg" style={{ backgroundColor: 'var(--color-card)' }}>
-        <div className="relative flex-shrink-0">
+        <div className="relative shrink-0">
           <div
             className="w-2 h-2 rounded-full"
             style={{
@@ -110,12 +110,12 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               {isActive && (
                 <motion.div
                   layoutId="sidebar-active"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full"
+                  className="absolute left-0 top-1/2 -translate-y-1/2 w-0.75 h-4 rounded-r-full"
                   style={{ backgroundColor: 'var(--color-primary)' }}
                   transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                 />
               )}
-              <Icon size={17} strokeWidth={1.6} className="flex-shrink-0" />
+              <Icon size={17} strokeWidth={1.6} className="shrink-0" />
               <AnimatePresence>
                 {!collapsed && (
                   <motion.span
