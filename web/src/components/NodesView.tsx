@@ -41,6 +41,17 @@ export function NodesView() {
     }
   }
 
+  // 局部更新单个节点（编辑后替换对应条目，不全量刷新）
+  const handleNodeSaved = (updatedProfile?: Profile) => {
+    if (updatedProfile) {
+      // 编辑模式：用后端返回的数据局部替换
+      setProfiles(profiles.map(p => p.ID === updatedProfile.ID ? updatedProfile : p))
+    } else {
+      // 新建模式（从 NodeEditForm 创建后）：全量刷新
+      loadProfiles()
+    }
+  }
+
   const handleSelect = async (profile: Profile) => {
     try {
       await profileApi.select(profile.ID)
@@ -356,7 +367,7 @@ export function NodesView() {
                           editData={profile}
                           groupId={profile.group_id}
                           onClose={() => setEditId(null)}
-                          onSaved={loadProfiles}
+                          onSaved={handleNodeSaved}
                         />
                       )}
                     </AnimatePresence>

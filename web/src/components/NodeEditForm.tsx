@@ -11,7 +11,7 @@ import {
 
 interface NodeEditFormProps {
   onClose: () => void
-  onSaved: () => void
+  onSaved: (updatedProfile?: Profile) => void
   groupId?: number
   editData?: Profile
 }
@@ -111,15 +111,16 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
 
     try {
       if (isEditing && editData) {
-        await profileApi.update(editData.ID, payload)
+        const res = await profileApi.update(editData.ID, payload)
+        onSaved(res.data)
       } else {
         await profileApi.create({
           ...payload,
           is_active: false,
           sort_order: 0,
         })
+        onSaved()
       }
-      onSaved()
       onClose()
     } catch (err) {
       console.error(`Failed to ${isEditing ? 'update' : 'create'} node:`, err)
