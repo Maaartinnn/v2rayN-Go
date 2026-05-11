@@ -17,23 +17,25 @@
 
 - 🚀 **Single Binary** — One executable with embedded frontend, zero dependencies, just run
 - 🌐 **Modern Web UI** — Anthropic-style warm beige theme, React 19 + Tailwind CSS v4 minimalist control panel
-- 🔌 **Multi-Core Support** — Compatible with Xray-core, Sing-box, Mihomo, and other proxy engines
-- 📡 **Multi-Protocol Parsing** — VMess, VLESS, Trojan, Shadowsocks, ShadowsocksR, Hysteria2, Hysteria, TUIC
-- 📋 **Subscription Management** — Concurrent fetching, auto-update, custom User-Agent, alias regex filtering, one-click link import
+- 🔌 **Multi-Core Support** — Compatible with Xray-core, Sing-box, Mihomo, with full lifecycle management (start/stop/status monitoring/log collection)
+- 📡 **Multi-Protocol Parsing** — VMess, VLESS, Trojan, Shadowsocks, ShadowsocksR, Hysteria2, Hysteria, TUIC, AnyTLS, WireGuard
+- 📋 **Subscription Management** — Concurrent fetching, scheduled auto-update, custom User-Agent, alias regex filtering, one-click link import, transactional atomic updates
 - 📦 **Group Management** — Multi-level node groups with drag-and-drop reorder, filter by group, assign subscriptions to groups
 - 🖼️ **QR Code Import** — Dedicated import page with drag/paste/upload image or URL for QR code node parsing
-- ⚡ **Latency Testing** — Batch TCP Ping with concurrent workers, visual latency indicators
+- ⚡ **Latency Testing** — TCP Ping and HTTP Ping dual modes, batch concurrent testing, visual latency indicators, auto-save to database
 - 🔄 **Node Deduplication** — One-click removal of duplicate nodes
-- 🧩 **Routing Rules** — Visual management of direct/proxy/block routing rules
+- ⛓️ **Chain Proxy** — DialerProxy support for multi-hop forwarding chains
+- 🧩 **Routing Rules** — Visual management of direct/proxy/block routing rules with domain/IP/port conditions
 - ♻️ **Strategy Groups** — Visual management of Selector, URLTest, Fallback, and LoadBalance proxy groups
-- 🔧 **Type-Safe Config** — Generate kernel configs via Go Structs, no JSON syntax errors
-- 🖥️ **System Service** — Register as Windows Service or systemd daemon
+- 🔧 **Type-Safe Config** — Generate Xray / Sing-box kernel configs via Go Structs, no JSON syntax errors
+- 📝 **Kernel Config Generation** — Auto-generate Xray and Sing-box configuration files from node data
+- 🖥️ **System Service** — Register as Windows Service or systemd daemon with install/start/stop/restart/uninstall/daemon commands
 - 🌍 **Multi-Language** — Chinese / English with standalone locale files
 - 🌙 **Dark Mode** — Follows system preference or manual override, full Anthropic style adaptation
-- ⚙️ **External Config** — CLI flags, config.json, and Web settings page with three-tier priority
+- ⚙️ **External Config** — CLI flags, config.json, and Web settings page with three-tier priority, auto-persist on Web changes
 - 🎯 **System Proxy** — One-click toggle for system-wide proxy
-- 📦 **Multi-Source Kernel Download** — GitHub direct, mirror, custom URL, local binary/archive upload
-- 📝 **Real-Time Logs** — Filterable log terminal with level and source filtering
+- 📦 **Multi-Source Kernel Download** — GitHub direct, mirror, custom URL, local binary/archive upload (tar.gz/zip auto-extract), automatic platform matching
+- 📡 **WebSocket Real-Time Logs** — Live kernel log streaming with level and source filtering
 - 🧩 **Code Splitting** — Lazy-loaded non-critical components for faster initial load
 - 📦 **Dual Distribution** — Lite (~15MB) and Full (with kernels) editions
 
@@ -63,52 +65,65 @@ v2rayN-Go/
 │   └── src/
 │       ├── components/            # UI Components
 │       │   ├── Sidebar.tsx        # Collapsible navigation sidebar
-│       │   ├── HomeView.tsx       # Dashboard control panel
-│       │   ├── NodesView.tsx      # Node management (search/group/dedup/latency test)
+│       │   ├── HomeView.tsx       # Dashboard control panel (traffic stats + quick actions)
+│       │   ├── NodesView.tsx      # Node management (search/group/dedup/latency test/activate)
 │       │   ├── ImportView.tsx     # Import page (links/QR code/manual add)
 │       │   ├── GroupsView.tsx     # Group management (CRUD / drag-and-drop / subscription config)
 │       │   ├── NodeEditForm.tsx   # Node edit/create form
-│       │   ├── CoresView.tsx      # Core management (multi-source download/upload)
+│       │   ├── CoresView.tsx      # Core management (multi-source download/upload/start/stop)
 │       │   ├── RoutingView.tsx    # Routing rule management
 │       │   ├── StrategyGroupView.tsx  # Strategy group management
 │       │   ├── SettingsView.tsx   # Settings (language/theme/network/system proxy)
 │       │   ├── LogConsole.tsx     # Log terminal (level/source filtering)
-│       │   └── ErrorBoundary.tsx  # Error boundary
+│       │   ├── ErrorBoundary.tsx  # Error boundary
+│       │   └── ui/               # Atomic UI components
+│       ├── lib/
+│       │   ├── api.ts             # API client (Axios)
+│       │   ├── i18n.ts            # i18n + theme management
+│       │   ├── useWebSocket.ts    # WebSocket hook
+│       │   └── coreMap.ts         # Core name mapping utility
 │       ├── locales/               # Standalone locale files
 │       │   ├── zh-CN.ts           # Chinese
 │       │   └── en-US.ts           # English
-│       ├── lib/
-│       │   ├── api.ts             # API client
-│       │   ├── i18n.ts            # i18n + theme management
-│       │   └── useWebSocket.ts    # WebSocket hook
-│       └── store.ts               # Zustand global state
+│       ├── store.ts               # Zustand global state management
+│       ├── App.tsx                # Root component (routing + layout)
+│       ├── main.tsx               # Entry point
+│       └── index.css              # Global styles (Tailwind CSS v4)
 └── src/                           # Backend (Go)
-    ├── main.go                    # Entry point
+    ├── main.go                    # Entry point: init config → load config → execute CLI
     ├── cmd/cli.go                 # CLI commands + flag parsing
+    │                              # Commands: install/uninstall/start/stop/restart/daemon/help
     ├── config/                    # App config (three-tier priority)
-    │   └── config.go              # AppConfig definition and loading
-    ├── database/                  # SQLite database (pure Go)
-    │   ├── db.go                  # DB initialization / AutoMigrate
-    │   ├── models.go              # Profile, Subscription, NodeGroup, RoutingRule, StrategyGroup
+    │   └── config.go              # AppConfig definition, JSON loading, CLI parsing, settings persistence
+    ├── database/                  # SQLite database (pure Go, no CGO required)
+    │   ├── db.go                  # DB initialization / AutoMigrate / default group creation
+    │   ├── models.go              # Profile, NodeGroup, RoutingRule, StrategyGroup, AppSetting
     │   └── utils.go               # UUID generation
     ├── parser/                    # Multi-protocol parsers + QR code decoder
-    │   ├── parser.go              # Parse entry dispatch
+    │   ├── parser.go              # Parse entry dispatch + batch parsing + subscription content parsing
     │   ├── vmess.go / vless.go / trojan.go
     │   ├── shadowsocks.go / ssr.go
     │   ├── hysteria2.go / hysteria.go / tuic.go
-    │   └── qrcode.go              # QR code decoding
-    ├── subscription/              # Subscription service + latency testing
-    │   └── subscription.go        # Subscription fetch / node parsing / TCPing
-    ├── configbuilder/             # Type-safe config generator
-    │   └── builder.go             # Xray / Sing-box core config generation
+    │   ├── anytls.go              # AnyTLS protocol parser
+    │   ├── wireguard.go           # WireGuard protocol parser
+    │   ├── qrcode.go              # QR code decoding
+    │   └── utils.go               # Base64 decode / URL parse / name extraction utilities
+    ├── subscription/              # Subscription management service
+    │   ├── subscription.go        # Subscription fetch/parse/filter/update, auto-update scheduler
+    │   └── ping.go                # TCP Ping + HTTP Ping batch concurrent latency testing
+    ├── configbuilder/             # Type-safe kernel config generator
+    │   ├── xray.go                # Xray config struct definitions and generation
+    │   ├── singbox.go             # Sing-box config struct definitions and generation
+    │   └── utils.go               # Common utility functions
     ├── core/                      # Kernel process manager
-    │   └── admin.go               # Kernel start / stop / status monitoring
-    ├── updater/                   # Kernel online updater
-    │   └── updater.go             # Xray / Sing-box / Mihomo multi-source download
+    │   └── admin.go               # Three-core lifecycle management (start/stop/status/log/graceful shutdown)
+    ├── updater/                   # Kernel online download & update
+    │   └── updater.go             # Xray / Sing-box / Mihomo multi-source download (tar.gz/zip auto-extract)
     ├── service/                   # System service integration
-    │   └── service.go             # Windows service / systemd
-    └── web/                       # Web server + go:embed
-        └── server.go              # HTTP routes / API endpoints / WebSocket / static files
+    │   └── service.go             # Windows service / systemd registration & management / foreground direct run
+    └── web/                       # Web server
+        ├── embed.go               # Frontend static asset embedding (go:embed dist/*)
+        └── server.go              # HTTP routes / RESTful API / WebSocket / static files / kernel config generation
 ```
 
 ---
@@ -150,12 +165,12 @@ After starting, open your browser and navigate to **http://127.0.0.1:2017**
 ### Obtain Kernels
 
 On first run with the Lite edition, go to the **Core Manager** page which supports multiple ways to obtain kernels:
-- **GitHub Direct** — Auto-fetch latest release from GitHub Releases
+- **GitHub Direct** — Auto-fetch latest release from GitHub Releases with automatic OS/architecture detection
 - **GitHub Mirror** — Download via configured mirror URL
 - **Custom URL** — Manually enter download URL
-- **Local Upload** — Upload binary files or archives
+- **Local Upload** — Upload binary files or tar.gz/zip archives (auto-extract)
 
-Kernels are stored in the local `bin/` directory.
+Kernels are stored in the local `bin/` directory, organized by type (`bin/xray/`, `bin/sing_box/`, `bin/mihomo/`).
 
 ---
 
@@ -195,7 +210,7 @@ Create a `config.json` in the same directory as the executable:
 
 ### 3. Web Settings Page
 
-After startup, use the **Settings** page to visually modify network parameters, GitHub mirror, system proxy, etc. Changes are automatically saved to `config.json`.
+After startup, use the **Settings** page to visually modify network parameters, GitHub mirror, system proxy, etc. Changes are automatically persisted to `config.json`.
 
 ---
 
@@ -229,6 +244,7 @@ cd src
 GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o v2rayN-Go-linux-arm64 .
 
 # macOS ARM64 (Apple Silicon)
+cd src
 GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o v2rayN-Go-darwin-arm64 .
 ```
 
@@ -246,16 +262,18 @@ GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o v2rayN-Go-da
 | Hysteria2 | ✅ | — | ✅ |
 | Hysteria | ✅ | — | ✅ |
 | TUIC | ✅ | — | ✅ |
+| AnyTLS | ✅ | — | — |
+| WireGuard | ✅ | — | — |
 
 ---
 
 ## 🧩 Supported Kernels
 
-| Kernel | GitHub Repository | One-Click Download | Local Upload | Mirror/Custom URL |
-|--------|-------------------|:------------------:|:------------:|:-----------------:|
-| Xray-core | [XTLS/Xray-core](https://github.com/XTLS/Xray-core) | ✅ | ✅ | ✅ |
-| Sing-box | [SagerNet/sing-box](https://github.com/SagerNet/sing-box) | ✅ | ✅ | ✅ |
-| Mihomo | [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) | ✅ | ✅ | ✅ |
+| Kernel | GitHub Repository | One-Click Download | Local Upload | Mirror/Custom URL | Log Collection |
+|--------|-------------------|:------------------:|:------------:|:-----------------:|:--------------:|
+| Xray-core | [XTLS/Xray-core](https://github.com/XTLS/Xray-core) | ✅ | ✅ | ✅ | ✅ |
+| Sing-box | [SagerNet/sing-box](https://github.com/SagerNet/sing-box) | ✅ | ✅ | ✅ | ✅ |
+| Mihomo | [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) | ✅ | ✅ | ✅ | ✅ |
 
 ---
 
@@ -272,10 +290,13 @@ GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o v2rayN-Go-da
 
 ### Frontend
 - **Framework**: React 19 + TypeScript
-- **Build Tool**: Vite
+- **Build Tool**: Vite 8
 - **Styling**: Tailwind CSS v4 + Anthropic-style design system
-- **State Management**: Zustand
-- **Animations**: Framer Motion
+- **Routing**: wouter (lightweight React router)
+- **State Management**: Zustand 5
+- **Drag & Drop**: @dnd-kit
+- **Animations**: Framer Motion 12
+- **Command Palette**: cmdk
 - **Icons**: Lucide Icons
 - **HTTP Client**: Axios
 

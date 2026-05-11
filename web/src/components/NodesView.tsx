@@ -5,7 +5,7 @@ import { useStore } from '../store'
 import type { Profile } from '../store'
 import { profileApi, profileEnhancedApi, groupsApi } from '../lib/api'
 import { useT } from '../lib/i18n'
-import { DeleteConfirmBanner } from './DeleteConfirmBanner'
+import { DeleteConfirmBanner } from './ui/DeleteConfirmBanner'
 import { NodeEditForm } from './NodeEditForm'
 import { RightDrawer } from './ui/RightDrawer'
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AlertTriangle, X } from 'lucide-react'
-import { useT } from '../lib/i18n'
+import { useT } from '../../lib/i18n'
 
 interface DeleteConfirmBannerProps {
   /** 是否正在显示确认横幅 */
