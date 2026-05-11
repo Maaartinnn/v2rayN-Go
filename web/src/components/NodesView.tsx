@@ -7,6 +7,7 @@ import { profileApi, profileEnhancedApi, groupsApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 import { DeleteConfirmBanner } from './DeleteConfirmBanner'
 import { NodeEditForm } from './NodeEditForm'
+import { RightDrawer } from './ui/RightDrawer'
 
 interface NodeGroupItem {
   ID: number
@@ -24,7 +25,7 @@ export function NodesView() {
   const [groups, setGroups] = useState<NodeGroupItem[]>([])
   const [dedupResult, setDedupResult] = useState<string>('')
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
-  const [editId, setEditId] = useState<number | null>(null)
+  const [editProfile, setEditProfile] = useState<Profile | null>(null)
   const t = useT()
 
   useEffect(() => {
@@ -50,6 +51,7 @@ export function NodesView() {
       // 新建模式（从 NodeEditForm 创建后）：全量刷新
       loadProfiles()
     }
+    setEditProfile(null)
   }
 
   const handleSelect = async (profile: Profile) => {
@@ -321,7 +323,7 @@ export function NodesView() {
                             <WifiOff size={14} style={{ color: 'var(--color-text-muted)' }} />
                           )}
                           <button
-                            onClick={(e) => { e.stopPropagation(); setEditId(editId === profile.ID ? null : profile.ID) }}
+                            onClick={(e) => { e.stopPropagation(); setEditProfile(profile) }}
                             className="p-1 rounded-md transition-colors cursor-pointer"
                             style={{ color: 'var(--color-text-muted)' }}
                             onMouseEnter={(e) => {
@@ -360,19 +362,6 @@ export function NodesView() {
                       onConfirm={() => handleDelete(profile.ID)}
                       onCancel={() => setDeleteTargetId(null)}
                     />
-                    {/* 恢复为直接使用 AnimatePresence 包裹，消除双重动画 */}
-                    <AnimatePresence>
-                      {editId === profile.ID && (
-                        <div className="mt-2">
-                          <NodeEditForm
-                            editData={profile}
-                            groupId={profile.group_id}
-                            onClose={() => setEditId(null)}
-                            onSaved={handleNodeSaved}
-                          />
-                        </div>
-                      )}
-                    </AnimatePresence>
                   </motion.div>
                 )
               })
@@ -483,6 +472,23 @@ export function NodesView() {
           </div>
         </div>
       </div>
+
+      {/* Edit Node Drawer */}
+      <RightDrawer
+        isOpen={editProfile !== null}
+        onClose={() => setEditProfile(null)}
+        title={editProfile ? `${t('nodes.edit') || '编辑'}: ${editProfile.name}` : ''}
+        subtitle={editProfile ? `${editProfile.protocol.toUpperCase()} · ${editProfile.address}:${editProfile.port}` : ''}
+      >
+        {editProfile && (
+          <NodeEditForm
+            editData={editProfile}
+            groupId={editProfile.group_id}
+            onClose={() => setEditProfile(null)}
+            onSaved={handleNodeSaved}
+          />
+        )}
+      </RightDrawer>
     </div>
   )
 }
