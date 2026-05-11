@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Zap } from 'lucide-react'
-import { profileApi, coresApi } from '../lib/api'
+import { profileApi, coresApi, groupsApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 import type { Profile } from '../store'
 import {
@@ -47,14 +47,26 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
   const [shortId, setShortId] = useState('')
   const [flow, setFlow] = useState('')
 
+  // Group selection
+  const [selectedGroupId, setSelectedGroupId] = useState<number>(groupId || 0)
+  const [groups, setGroups] = useState<Array<{ ID: number; alias: string; is_subscription: boolean }>>([])
+
   // Smart core selection
   const [recommendedCore, setRecommendedCore] = useState<string | null>(null)
   const [installedCores, setInstalledCores] = useState<string[]>([])
+
+  // Load groups on mount
+  useEffect(() => {
+    groupsApi.list().then((res) => {
+      setGroups(res.data || [])
+    }).catch(() => {})
+  }, [])
 
   // Pre-fill form when editing
   useEffect(() => {
     if (editData) {
       setName(editData.name || '')
+      setSelectedGroupId(editData.group_id || 0)
       setProtocol(editData.protocol || 'vmess')
       setAddress(editData.address || '')
       setPort(String(editData.port || 443))
@@ -93,7 +105,7 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
     if (!name.trim() || !address.trim() || !port) return
 
     const payload = {
-      group_id: groupId || editData?.group_id || 0,
+      group_id: selectedGroupId,
       name: name.trim(),
       address: address.trim(),
       port: parseInt(port) || 443,
@@ -144,7 +156,19 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
   return (
     <EditFormCard>
       <div className="space-y-4">
-        {/* Row 1: Protocol + Name */}
+        {/* Row 0: Name (full width) */}
+        <FormField label={t('strategy.name')}>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="My Node"
+            className="w-full px-3 py-2 text-sm rounded-lg border"
+            style={inputStyle}
+          />
+        </FormField>
+
+        {/* Row 1: Protocol + Group */}
         <div className="grid grid-cols-2 gap-3">
           <FormField label={t('routing.type')} cols="1/2">
             <select
@@ -158,15 +182,18 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
               ))}
             </select>
           </FormField>
-          <FormField label={t('strategy.name')} cols="1/2">
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="My Node"
-              className="w-full px-3 py-2 text-sm rounded-lg border"
+          <FormField label={t('nodes.group')} cols="1/2">
+            <select
+              value={selectedGroupId}
+              onChange={(e) => setSelectedGroupId(Number(e.target.value))}
+              className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
               style={inputStyle}
-            />
+            >
+              <option value={0}>{t('nodes.ungrouped') || 'Ungrouped'}</option>
+              {groups.map((g) => (
+                <option key={g.ID} value={g.ID}>{g.alias || t('groups.default_name')}</option>
+              ))}
+            </select>
           </FormField>
         </div>
 
