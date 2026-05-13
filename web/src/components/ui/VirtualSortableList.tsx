@@ -260,11 +260,11 @@ export function VirtualSortableList<T extends { uuid: string }>({
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        {/* 滚动视窗：contain: strict + overflow-anchor: none 防止浏览器滚动锚定干扰 */}
+        {/* 滚动视窗：contain: content + overflow-anchor: none 防止浏览器滚动锚定干扰 */}
         <div
           ref={scrollRef}
           className="flex-1 overflow-y-auto pr-2 relative custom-scrollbar"
-          style={{ minHeight: 0, contain: 'strict', overflowAnchor: 'none' }}
+          style={{ minHeight: 0, contain: 'content', overflowAnchor: 'none' }}
         >
           {/* 占位层：撑开滚动条 */}
           <div style={{ height: virtualizer.getTotalSize(), width: '100%', position: 'relative' }}>
