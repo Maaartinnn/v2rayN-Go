@@ -42,6 +42,24 @@ const getLatencyDot = (result?: string) => {
   return 'var(--color-error)'
 }
 
+// 动态提升层级的包装器：解决展开面板时被下一个绝对定位卡片覆盖的 Virtual List 通病
+function ZIndexWrapper({ active, children }: { active: boolean, children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  
+  useEffect(() => {
+    if (ref.current) {
+      // 向上寻找到 virtualizer 创建的 absolute 包装容器并修改 zIndex
+      const parent = ref.current.closest('[data-index]') as HTMLElement
+      if (parent) {
+        // active 时 zIndex 设置为 40 (介于普通卡片 1 和正在拖拽的卡片 50 之间)
+        parent.style.zIndex = active ? '40' : '1'
+      }
+    }
+  }, [active])
+  
+  return <div ref={ref} className="w-full">{children}</div>
+}
+
 // ==========================================
 // 主视图组件: NodesView
 // ==========================================
@@ -157,8 +175,16 @@ export function NodesView() {
     })
   }, [profiles, searchQuery, selectedGroupId])
 
-  // Ctrl/Shift 多选逻辑
+  // Ctrl/Shift 多选逻辑与双击逻辑（隔离了拖拽区）
+  const isInteractiveTarget = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement
+    // 若点击部位在拖拽手柄、按钮元素内，判定为交互操作，应跳过行选中
+    return target.closest('.drag-handle') || target.closest('button')
+  }
+
   const handleRowClick = useCallback((profile: Profile, e: React.MouseEvent) => {
+    if (isInteractiveTarget(e)) return
+
     if (e.shiftKey) {
       e.preventDefault()
       window.getSelection()?.removeAllRanges()
@@ -189,6 +215,18 @@ export function NodesView() {
     setLastClickedId(profile.ID)
   }, [filteredProfiles, lastClickedId])
 
+  const handleRowDoubleClick = useCallback((profile: Profile, e: React.MouseEvent) => {
+    if (isInteractiveTarget(e)) return
+    e.stopPropagation()
+    handleActivate(profile, e)
+  }, [handleActivate])
+
+  const handleRowMouseDown = useCallback((e: React.MouseEvent) => {
+    if (isInteractiveTarget(e)) return
+    // 阻止 Shift 按下时浏览器的默认文本选中行为
+    if (e.shiftKey) e.preventDefault()
+  }, [])
+
   // Ctrl+A 快捷键
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -205,7 +243,6 @@ export function NodesView() {
 
   // 拖拽排序逻辑
   const handleReorder = useCallback(async (newFilteredItems: Profile[]) => {
-    // 将筛选列表中的新顺序合并回全局 profiles 列表
     const originalIndices = profiles
       .map((p, i) => filteredProfiles.find(fp => fp.ID === p.ID) ? i : -1)
       .filter(i => i !== -1)
@@ -215,7 +252,7 @@ export function NodesView() {
       newProfiles[origIdx] = newFilteredItems[i]
     })
 
-    setProfiles(newProfiles) // 本地立即生效 UI
+    setProfiles(newProfiles)
 
     try {
       await fetch('/api/profiles/reorder', {
@@ -257,8 +294,8 @@ export function NodesView() {
     return (
       <div
         onClick={(e) => handleRowClick(profile, e)}
-        onDoubleClick={(e) => { e.stopPropagation(); handleActivate(profile, e) }}
-        onMouseDown={(e) => { if (e.shiftKey) e.preventDefault() }}
+        onDoubleClick={(e) => handleRowDoubleClick(profile, e)}
+        onMouseDown={handleRowMouseDown}
         className={`rounded-xl border px-4 py-3 cursor-pointer transition-colors select-none bg-white`}
         style={{
           backgroundColor: isActive
@@ -278,15 +315,12 @@ export function NodesView() {
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            {/* 拖拽手柄：阻止冒泡，彻底隔绝外层卡片的单选/多选事件干扰 */}
+            {/* 拖拽手柄：带有 .drag-handle 标识供外部拦截，不加 stopPropagation 让 dnd-kit 原生捕获 */}
             {!disableDrag && (
               <div
                 {...dragAttributes}
                 {...dragListeners}
-                onClick={(e) => e.stopPropagation()}
-                onDoubleClick={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-                className="cursor-grab active:cursor-grabbing p-1 rounded-md shrink-0 text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                className="drag-handle cursor-grab active:cursor-grabbing p-1 rounded-md shrink-0 text-gray-400 hover:text-gray-700 hover:bg-gray-100"
               >
                 <GripVertical size={14} />
               </div>
@@ -389,16 +423,21 @@ export function NodesView() {
         </div>
       </div>
     )
-  }, [activeProfile, selectedIds, searchQuery, handleRowClick, handleActivate, deleteTargetId])
+  }, [activeProfile, selectedIds, searchQuery, handleRowClick, handleRowDoubleClick, handleRowMouseDown, handleActivate, deleteTargetId])
 
-  const renderExtra = useCallback((profile: Profile) => (
-    <DeleteConfirmBanner
-      visible={deleteTargetId === profile.ID}
-      message={t('nodes.delete_confirm', { name: profile.name })}
-      onConfirm={() => handleDelete(profile.ID)}
-      onCancel={() => setDeleteTargetId(null)}
-    />
-  ), [deleteTargetId, t, handleDelete])
+  const renderExtra = useCallback((profile: Profile) => {
+    const isVisible = deleteTargetId === profile.ID
+    return (
+      <ZIndexWrapper active={isVisible}>
+        <DeleteConfirmBanner
+          visible={isVisible}
+          message={t('nodes.delete_confirm', { name: profile.name })}
+          onConfirm={() => handleDelete(profile.ID)}
+          onCancel={() => setDeleteTargetId(null)}
+        />
+      </ZIndexWrapper>
+    )
+  }, [deleteTargetId, t, handleDelete])
 
   const emptyContent = useMemo(() => (
     <div className="text-center py-20">
