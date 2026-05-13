@@ -93,10 +93,9 @@ function SortableVirtualItem<T extends { uuid: string }>({
       data-index={virtualItem.index}
       style={{
         position: 'absolute',
-        top: 0,
+        top: `${virtualItem.start}px`,
         left: 0,
         width: '100%',
-        transform: `translateY(${virtualItem.start}px)`,
         zIndex: isDragging ? 50 : 1,
       }}
     >
@@ -155,6 +154,7 @@ export function VirtualSortableList<T extends { uuid: string }>({
     getScrollElement: () => scrollRef.current,
     estimateSize: () => estimateSize,
     overscan,
+    getItemKey: (index) => items[index].uuid,
   })
 
   // 拖拽事件处理
@@ -205,26 +205,26 @@ export function VirtualSortableList<T extends { uuid: string }>({
           className="flex-1 overflow-y-auto pr-2 relative custom-scrollbar"
           style={{ minHeight: 0 }}
         >
-          {/* 占位层：撑开滚动条 */}
-          <div style={{ height: virtualizer.getTotalSize(), width: '100%', position: 'relative' }}>
-            <SortableContext items={items.map((g) => g.uuid)} strategy={verticalListSortingStrategy}>
-              {virtualizer.getVirtualItems().map((virtualItem) => {
-                const item = items[virtualItem.index]
-                return (
-                  <SortableVirtualItem
-                    key={virtualItem.key}
-                    item={item}
-                    virtualItem={virtualItem}
-                    virtualizer={virtualizer}
-                    renderItem={renderItem}
-                    renderExtra={renderExtra}
-                    disableDrag={disableDrag}
-                  />
-                )
-              })}
-            </SortableContext>
-          </div>
+        {/* 占位层：撑开滚动条 */}
+        <div style={{ height: virtualizer.getTotalSize(), width: '100%', position: 'relative' }}>
+          <SortableContext items={items.map((g) => g.uuid)} strategy={verticalListSortingStrategy}>
+            {virtualizer.getVirtualItems().map((virtualItem) => {
+              const item = items[virtualItem.index]
+              return (
+                <SortableVirtualItem
+                  key={item.uuid}
+                  item={item}
+                  virtualItem={virtualItem}
+                  virtualizer={virtualizer}
+                  renderItem={renderItem}
+                  renderExtra={renderExtra}
+                  disableDrag={disableDrag}
+                />
+              )
+            })}
+          </SortableContext>
         </div>
+      </div>
 
         {/* 悬浮层：拖拽时的替身 */}
         <DragOverlay
