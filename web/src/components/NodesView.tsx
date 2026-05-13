@@ -42,23 +42,9 @@ const getLatencyDot = (result?: string) => {
   return 'var(--color-error)'
 }
 
-// 动态提升层级的包装器：解决展开面板时被下一个绝对定位卡片覆盖的 Virtual List 通病
-function ZIndexWrapper({ active, children }: { active: boolean, children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null)
-  
-  useEffect(() => {
-    if (ref.current) {
-      // 向上寻找到 virtualizer 创建的 absolute 包装容器并修改 zIndex
-      const parent = ref.current.closest('[data-index]') as HTMLElement
-      if (parent) {
-        // active 时 zIndex 设置为 40 (介于普通卡片 1 和正在拖拽的卡片 50 之间)
-        parent.style.zIndex = active ? '40' : '1'
-      }
-    }
-  }, [active])
-  
-  return <div ref={ref} className="w-full">{children}</div>
-}
+// 【已移除 ZIndexWrapper】
+// 原 ZIndexWrapper 通过直接操作 DOM 修改 zIndex，会在 React 重渲染时被覆盖失效。
+// 现改用 VirtualSortableList 的 isItemExpanded prop，由 React 状态驱动 zIndex 提升。
 
 // ==========================================
 // 主视图组件: NodesView
@@ -428,16 +414,19 @@ export function NodesView() {
   const renderExtra = useCallback((profile: Profile) => {
     const isVisible = deleteTargetId === profile.ID
     return (
-      <ZIndexWrapper active={isVisible}>
-        <DeleteConfirmBanner
-          visible={isVisible}
-          message={t('nodes.delete_confirm', { name: profile.name })}
-          onConfirm={() => handleDelete(profile.ID)}
-          onCancel={() => setDeleteTargetId(null)}
-        />
-      </ZIndexWrapper>
+      <DeleteConfirmBanner
+        visible={isVisible}
+        message={t('nodes.delete_confirm', { name: profile.name })}
+        onConfirm={() => handleDelete(profile.ID)}
+        onCancel={() => setDeleteTargetId(null)}
+      />
     )
   }, [deleteTargetId, t, handleDelete])
+
+  // 【修复3】：判断 item 是否处于展开状态（删除确认面板可见），用于提升 zIndex
+  const isItemExpanded = useCallback((profile: Profile) => {
+    return deleteTargetId === profile.ID
+  }, [deleteTargetId])
 
   const emptyContent = useMemo(() => (
     <div className="text-center py-20">
@@ -547,6 +536,7 @@ export function NodesView() {
             onItemsChange={handleReorder}
             renderItem={renderItem}
             renderExtra={renderExtra}
+            isItemExpanded={isItemExpanded} // 【修复3】：展开面板时提升 zIndex
             estimateSize={74}
             overscan={5}
             className="h-full flex flex-col"
