@@ -90,10 +90,12 @@ function SortableVirtualItem<T extends { uuid: string }>({
 
   const extraContent = renderExtra?.(item)
 
-  // 【修复9】：外层（虚拟层）只负责测量和定位，不做 transform
-  // 内层（DND 层）负责 transform 变形，不影响 measureElement 的测量结果
+  // 修复方案：
+  // 1. marginBottom 从内层移到外层，避免 transform 把 margin 也带跑
+  // 2. 外层 overflow: visible 确保扩展内容不被裁切
+  // 3. 内层 position: relative + zIndex 确保 stacking context 正确
   return (
-    // 外层容器 - Virtual Layer: 负责高度测算和绝对定位
+    // 外层容器 - Virtual Layer: 负责高度测算、定位和间距
     <div
       ref={virtualizer.measureElement}
       data-index={virtualItem.index}
@@ -102,7 +104,8 @@ function SortableVirtualItem<T extends { uuid: string }>({
         top: `${virtualItem.start}px`,
         left: 0,
         width: '100%',
-        // 【修复3】：支持 isExpanded 提升 zIndex，避免直接 DOM 操作被 React 重渲染覆盖
+        marginBottom: '8px',
+        overflow: 'visible',
         zIndex: isDragging ? 50 : isExpanded ? 40 : 1,
       }}
     >
@@ -112,13 +115,13 @@ function SortableVirtualItem<T extends { uuid: string }>({
         style={{
           transform: CSS.Translate.toString(transform),
           transition,
-          opacity: isDragging ? 0.3 : 1, // 让原位置的占位符半透明
-          marginBottom: '8px',
+          opacity: isDragging ? 0.3 : 1,
+          position: 'relative',
+          zIndex: isExpanded ? 1 : 'auto',
         }}
       >
         {renderItem({
           item,
-          // 【修复2】：传递真实的 isDragging 状态，而非硬编码 false
           isDragging,
           isOverlay: false,
           dragListeners: listeners || {},
@@ -151,15 +154,15 @@ export function VirtualSortableList<T extends { uuid: string }>({
   const [activeDragId, setActiveDragId] = useState<UniqueIdentifier | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // 【修复6】：用 ref 跟踪最新的 items，避免 handleDragEnd 闭包陷阱
+  // 用 ref 跟踪最新的 items，避免 handleDragEnd 闭包陷阱
   const itemsRef = useRef(items)
   itemsRef.current = items
 
-  // 【修复1核心】：拖拽开始时快照可见 items，拖拽结束前不再更新
-  const frozenSortableItemsRef = useRef<string[] | null>(null)
-
-  // 【修复5】：缓存拖拽中的 activeItem，用于 drop animation 期间保持 overlay 内容
+  // 缓存拖拽中的 activeItem，用于 drop animation 期间保持 overlay 内容
   const activeItemCacheRef = useRef<T | null>(null)
+
+  // 清除拖拽状态的 setTimeout 句柄，用于防止竞态
+  const clearTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // DND 传感器配置
   const sensors = useSensors(
@@ -167,7 +170,7 @@ export function VirtualSortableList<T extends { uuid: string }>({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  // 初始化虚拟列表
+  // 初始化虚拟列表 - 增加 overscan 让编辑表单展开时有更多缓冲
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef.current,
@@ -176,21 +179,34 @@ export function VirtualSortableList<T extends { uuid: string }>({
     getItemKey: (index) => items[index].uuid,
   })
 
+  // ===== 核心修复：拖拽期间使用完整 items 的 UUID 列表 =====
+  // 拖拽时 SortableContext 接收所有项目的 UUID（而非仅可见项快照），
+  // 这样新滚入的节点会动态注册到 dnd-kit 并立即成为有效 drop target。
+  // 非拖拽时保持可见项 UUID 列表，减少不必要的 SortableContext 重建。
+  const allUuids = useMemo(() => items.map((i) => i.uuid), [items])
+  const visibleUuids = useMemo(
+    () => virtualizer.getVirtualItems().map((v) => items[v.index]?.uuid).filter(Boolean) as string[],
+    [virtualizer, items]
+  )
+  const sortableItems = activeDragId ? allUuids : visibleUuids
+
   // 拖拽事件处理
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
+      // 清除任何残留的延迟清除
+      if (clearTimeoutRef.current) {
+        clearTimeout(clearTimeoutRef.current)
+        clearTimeoutRef.current = null
+      }
       setActiveDragId(event.active.id)
       onDragStart?.()
     },
     [onDragStart]
   )
 
-  // 【修复6】：使用 itemsRef.current 替代闭包中的 items
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event
-      // 【修复5】：不在这里清除 activeDragId，让 DragOverlay 完成 drop animation
-      // 先计算新顺序，再通过 setTimeout 清除拖拽状态
       if (over && active.id !== over.id) {
         const currentItems = itemsRef.current
         const oldIndex = currentItems.findIndex((g) => g.uuid === active.id)
@@ -201,53 +217,31 @@ export function VirtualSortableList<T extends { uuid: string }>({
         }
       }
       // 延迟清除拖拽状态，让 DragOverlay 完成 drop 动画
-      frozenSortableItemsRef.current = null
-      // 给 DragOverlay 畏够时间完成动画后清除
-      setTimeout(() => {
+      clearTimeoutRef.current = setTimeout(() => {
         setActiveDragId(null)
         activeItemCacheRef.current = null
+        clearTimeoutRef.current = null
       }, 200)
     },
     [onItemsChange]
   )
 
   const handleDragCancel = useCallback(() => {
-    frozenSortableItemsRef.current = null
+    if (clearTimeoutRef.current) {
+      clearTimeout(clearTimeoutRef.current)
+      clearTimeoutRef.current = null
+    }
     setActiveDragId(null)
     activeItemCacheRef.current = null
   }, [])
 
-  // 【修复5】：计算 activeItem，带缓存
+  // 计算 activeItem，带缓存
   const activeItem = useMemo(() => {
     if (!activeDragId) return activeItemCacheRef.current
     const found = items.find((g) => g.uuid === activeDragId) || null
     if (found) activeItemCacheRef.current = found
     return found
   }, [items, activeDragId])
-
-  // 计算当前可见的虚拟节点
-  const virtualItems = virtualizer.getVirtualItems()
-
-  // 【修复1核心】：
-  // - 非拖拽时：动态计算可见节点（正常行为）
-  // - 拖拽时：使用快照值，滚动不会改变 SortableContext 的 items，避免状态破坏
-  const computedSortableItems = useMemo(
-    () => virtualItems.map((v) => items[v.index]?.uuid).filter(Boolean) as string[],
-    [virtualItems, items]
-  )
-
-  const activeSortableItems = useMemo(() => {
-    if (activeDragId) {
-      // 拖拽进行中：如果还没有快照，创建一个；之后冻结不变
-      if (!frozenSortableItemsRef.current) {
-        frozenSortableItemsRef.current = computedSortableItems
-      }
-      return frozenSortableItemsRef.current
-    }
-    // 非拖拽状态：使用动态计算值
-    frozenSortableItemsRef.current = null
-    return computedSortableItems
-  }, [activeDragId, computedSortableItems])
 
   // 空状态
   if (items.length === 0 && emptyContent) {
@@ -271,8 +265,8 @@ export function VirtualSortableList<T extends { uuid: string }>({
         >
           {/* 占位层：撑开滚动条 */}
           <div style={{ height: virtualizer.getTotalSize(), width: '100%', position: 'relative' }}>
-            <SortableContext items={activeSortableItems} strategy={verticalListSortingStrategy}>
-              {virtualItems.map((virtualItem) => {
+            <SortableContext items={sortableItems} strategy={verticalListSortingStrategy}>
+              {virtualizer.getVirtualItems().map((virtualItem) => {
                 const item = items[virtualItem.index]
                 if (!item) return null
 

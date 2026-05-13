@@ -314,6 +314,11 @@ export function GroupsView() {
     )
   }, [editId, deleteTargetId, t, handleSave, handleDelete])
 
+  // 判断某个 group 是否处于展开状态（编辑表单或删除确认可见），用于提升 zIndex 避免重叠
+  const isItemExpanded = useCallback((group: NodeGroup) => {
+    return editId === group.ID || deleteTargetId === group.ID
+  }, [editId, deleteTargetId])
+
   // 空状态
   const emptyContent = useMemo(() => (
     <div className="text-center py-20">
@@ -530,6 +535,7 @@ export function GroupsView() {
         onItemsChange={handleReorder}
         renderItem={renderItem}
         renderExtra={renderExtra}
+        isItemExpanded={isItemExpanded}
         estimateSize={72}
         overscan={5}
         className="flex-1 min-h-0"
