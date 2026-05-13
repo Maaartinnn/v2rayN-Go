@@ -234,7 +234,7 @@ export function NodesView() {
   }, [])
 
   // ==========================================
-  // Render Item / Render Extra (修复了 TypeScript 隐式 any 错误)
+  // Render Item / Render Extra 
   // ==========================================
 
   const renderItem = useCallback(({ 
@@ -278,11 +278,14 @@ export function NodesView() {
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            {/* 拖拽手柄 */}
+            {/* 拖拽手柄：阻止冒泡，彻底隔绝外层卡片的单选/多选事件干扰 */}
             {!disableDrag && (
               <div
                 {...dragAttributes}
                 {...dragListeners}
+                onClick={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
                 className="cursor-grab active:cursor-grabbing p-1 rounded-md shrink-0 text-gray-400 hover:text-gray-700 hover:bg-gray-100"
               >
                 <GripVertical size={14} />
