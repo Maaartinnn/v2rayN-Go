@@ -94,6 +94,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/profiles/import", s.handleProfileImport)
 	mux.HandleFunc("/api/profiles/dedup", s.handleProfileDedup)
 	mux.HandleFunc("/api/profiles/ping-all", s.handlePingAll)
+	mux.HandleFunc("/api/profiles/reorder", s.handleProfilesReorder)
 	mux.HandleFunc("/api/profiles/", s.handleProfileByID)
 	mux.HandleFunc("/api/profiles", s.handleProfiles)
 
@@ -378,6 +379,36 @@ func (s *Server) handlePingAll(w http.ResponseWriter, r *http.Request) {
 
 	go s.pingSvc.PingAllProfiles(r.Context(), 20)
 	jsonOK(w, map[string]string{"status": "pinging"})
+}
+
+func (s *Server) handleProfilesReorder(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		UUIDs []string `json:"uuids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	tx := database.DB.Begin()
+	for i, uuid := range req.UUIDs {
+		if err := tx.Model(&database.Profile{}).Where("uuid = ?", uuid).Update("sort_order", i).Error; err != nil {
+			tx.Rollback()
+			jsonError(w, "Failed to reorder: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	if err := tx.Commit().Error; err != nil {
+		jsonError(w, "Failed to commit reorder: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	jsonOK(w, map[string]string{"status": "reordered"})
 }
 
 // ========== Groups API ==========
@@ -1071,6 +1102,8 @@ func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		updated.ID = profile.ID
+		// 保留原始 sort_order，编辑操作不改变排序
+		updated.SortOrder = profile.SortOrder
 		if err := database.DB.Save(&updated).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return

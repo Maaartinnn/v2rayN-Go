@@ -192,8 +192,18 @@ export function NodesView() {
 
   const displayName = (g: NodeGroupItem) => g.alias || t('groups.default_name')
 
-  // 拖拽排序后的持久化
-  const handleReorder = useCallback(async (newProfiles: Profile[]) => {
+  // 拖拽排序后的持久化（合并回完整列表）
+  const handleReorder = useCallback(async (reorderedFiltered: Profile[]) => {
+    // 将 reorderedFiltered（子集）的顺序合并回完整 profiles 列表
+    const reorderedMap = new Map(reorderedFiltered.map((p, i) => [p.ID, i]))
+    const newProfiles = [...profiles].sort((a, b) => {
+      const aOrder = reorderedMap.has(a.ID) ? reorderedMap.get(a.ID)! : Infinity
+      const bOrder = reorderedMap.has(b.ID) ? reorderedMap.get(b.ID)! : Infinity
+      if (aOrder !== Infinity && bOrder !== Infinity) return aOrder - bOrder
+      if (aOrder !== Infinity) return -1
+      if (bOrder !== Infinity) return 1
+      return 0
+    })
     setProfiles(newProfiles)
     try {
       await profileApi.reorder(newProfiles.map((p) => p.uuid))
@@ -201,7 +211,7 @@ export function NodesView() {
       console.error('Reorder failed:', err)
       await loadProfiles()
     }
-  }, [setProfiles])
+  }, [profiles, setProfiles])
 
   // 拖拽开始时关闭编辑/删除状态
   const handleDragStart = useCallback(() => {
@@ -477,7 +487,7 @@ export function NodesView() {
           className="flex-1 min-h-0"
           onDragStart={handleDragStart}
           emptyContent={emptyContent}
-          disableDrag={selectedGroupId !== 0} // 仅在"全部分组"视图下允许拖拽排序
+          disableDrag={false}
         />
       </div>
 

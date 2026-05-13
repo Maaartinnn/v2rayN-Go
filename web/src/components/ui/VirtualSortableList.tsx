@@ -98,7 +98,6 @@ function SortableVirtualItem<T extends { uuid: string }>({
         width: '100%',
         transform: `translateY(${virtualItem.start}px)`,
         zIndex: isDragging ? 50 : 1,
-        paddingBottom: '8px',
       }}
     >
       {/* 内层容器 - DND Layer: 负责拖拽时的物理变形和占位 */}
@@ -108,6 +107,7 @@ function SortableVirtualItem<T extends { uuid: string }>({
           transform: CSS.Transform.toString(transform),
           transition,
           opacity: isDragging ? 0.4 : 1,
+          marginBottom: '8px',
         }}
       >
         {renderItem({
@@ -212,7 +212,7 @@ export function VirtualSortableList<T extends { uuid: string }>({
                 const item = items[virtualItem.index]
                 return (
                   <SortableVirtualItem
-                    key={item.uuid}
+                    key={virtualItem.key}
                     item={item}
                     virtualItem={virtualItem}
                     virtualizer={virtualizer}
