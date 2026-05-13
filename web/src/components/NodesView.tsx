@@ -148,6 +148,12 @@ export function NodesView() {
 
   // Row click: select node (Ctrl/Shift for multi-select)
   const handleRowClick = useCallback((profile: Profile, e: React.MouseEvent) => {
+    // Prevent text selection on Shift+click
+    if (e.shiftKey) {
+      e.preventDefault()
+      window.getSelection()?.removeAllRanges()
+    }
+
     if (e.ctrlKey || e.metaKey) {
       // Ctrl+click: toggle selection
       setSelectedIds(prev => {
@@ -279,7 +285,10 @@ export function NodesView() {
         </AnimatePresence>
 
         {/* Node list */}
-        <div className="space-y-1.5" key={selectedGroupId}>
+        <div className="space-y-1.5" key={selectedGroupId} onDoubleClick={(e) => {
+          // Double-click blank area to deselect all
+          if (e.target === e.currentTarget) setSelectedIds(new Set())
+        }}>
           <AnimatePresence>
             {filteredProfiles.length === 0 ? (
               <motion.div
@@ -312,7 +321,9 @@ export function NodesView() {
                   >
                     <div
                       onClick={(e) => handleRowClick(profile, e)}
-                      className="rounded-xl border px-4 py-3 cursor-pointer transition-colors"
+                      onDoubleClick={(e) => { e.stopPropagation(); handleActivate(profile, e) }}
+                      onMouseDown={(e) => { if (e.shiftKey) e.preventDefault() }}
+                      className="rounded-xl border px-4 py-3 cursor-pointer transition-colors select-none"
                       style={{
                         backgroundColor: activeProfile?.ID === profile.ID
                           ? 'var(--color-accent-dim)'
