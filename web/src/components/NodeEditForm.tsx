@@ -10,7 +10,7 @@ import {
 import { EditFormCard } from './ui/EditFormCard'
 import { FormField } from './ui/FormField'
 import { FormActions } from './ui/FormActions'
-import { inputStyle } from './ui/formStyles'
+import { inputStyle, inputHeadingStyle } from './ui/formStyles'
 
 interface NodeEditFormProps {
   onClose: () => void
@@ -433,61 +433,42 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
 
         {/* 内核设置 */}
         {supportedCores.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <label
-                className="text-xs font-medium shrink-0"
-                style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)', minWidth: 56 }}
-              >
-                内核选择
-              </label>
-              {/* Segmented toggle: 自动 / 手动 */}
-              <div
-                className="flex rounded-lg overflow-hidden border"
-                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-muted)' }}
-              >
-                <button
-                  type="button"
-                  onClick={() => { setKernelMode('auto'); setManualCore('') }}
-                  className="px-3 py-1 text-xs font-medium transition-colors"
-                  style={{
-                    fontFamily: 'var(--font-heading)',
-                    backgroundColor: kernelMode === 'auto' ? 'var(--color-primary)' : 'transparent',
-                    color: kernelMode === 'auto' ? 'var(--color-primary-foreground, #fff)' : 'var(--color-muted-foreground)',
-                  }}
-                >
-                  自动
-                </button>
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="内核选择" cols="1/2">
                 <button
                   type="button"
                   onClick={() => {
-                    setKernelMode('manual')
-                    if (!manualCore && recommendedCore) setManualCore(recommendedCore)
+                    if (kernelMode === 'auto') {
+                      setKernelMode('manual')
+                      if (!manualCore && recommendedCore) setManualCore(recommendedCore)
+                    } else {
+                      setKernelMode('auto')
+                      setManualCore('')
+                    }
                   }}
-                  className="px-3 py-1 text-xs font-medium transition-colors"
+                  className="w-full px-3 py-2 text-sm rounded-lg border text-left transition-colors cursor-pointer"
                   style={{
-                    fontFamily: 'var(--font-heading)',
-                    backgroundColor: kernelMode === 'manual' ? 'var(--color-primary)' : 'transparent',
-                    color: kernelMode === 'manual' ? 'var(--color-primary-foreground, #fff)' : 'var(--color-muted-foreground)',
+                    ...inputHeadingStyle,
+                    borderColor: kernelMode === 'manual' ? 'var(--color-primary)' : 'var(--color-border)',
                   }}
                 >
-                  手动
+                  {kernelMode === 'auto' ? '自动' : '手动'}
                 </button>
-              </div>
-              {/* 右侧：自动模式显示推荐内核，手动模式显示下拉 */}
-              <div className="flex-1 flex items-center gap-2">
+              </FormField>
+              <FormField label={kernelMode === 'auto' ? '推荐内核' : '手动内核'} cols="1/2">
                 {kernelMode === 'auto' ? (
                   <div
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm"
                     style={{
                       backgroundColor: recommendedCore ? 'var(--color-success-dim)' : 'var(--color-warning-dim)',
                       color: recommendedCore ? 'var(--color-success)' : 'var(--color-warning)',
                       fontFamily: 'var(--font-heading)',
                     }}
                   >
-                    <Zap size={12} />
+                    <Zap size={13} />
                     {recommendedCore ? (
-                      <span>推荐: <strong>{recommendedCore}</strong></span>
+                      <span><strong>{recommendedCore}</strong></span>
                     ) : (
                       <span>无可用内核</span>
                     )}
@@ -496,7 +477,7 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
                   <select
                     value={manualCore}
                     onChange={(e) => setManualCore(e.target.value)}
-                    className="flex-1 px-2.5 py-1.5 text-xs rounded-lg border cursor-pointer"
+                    className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
                     style={inputStyle}
                   >
                     {supportedCores.map((c) => {
@@ -509,18 +490,18 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
                     })}
                   </select>
                 )}
-              </div>
+              </FormField>
             </div>
             {/* 提示信息 */}
             {kernelMode === 'manual' && supportedCores.length > 1 && (
               <p
-                className="text-xs pl-17"
+                className="text-xs"
                 style={{ color: 'var(--color-muted-foreground)', opacity: 0.6, fontFamily: 'var(--font-heading)' }}
               >
                 此协议也支持: {supportedCores.filter(c => c !== manualCore).join(', ')}
               </p>
             )}
-          </div>
+          </>
         )}
       </div>
 
