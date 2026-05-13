@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Wifi, WifiOff, RefreshCw, Trash2, Search, Layers, FolderOpen, Link, Edit3 } from 'lucide-react'
 import { useStore } from '../store'
@@ -26,6 +26,11 @@ export function NodesView() {
   const [dedupResult, setDedupResult] = useState<string>('')
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
   const [editProfile, setEditProfile] = useState<Profile | null>(null)
+
+  // Multi-selection state
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [lastClickedId, setLastClickedId] = useState<number | null>(null)
+
   const t = useT()
 
   useEffect(() => {
@@ -54,12 +59,14 @@ export function NodesView() {
     setEditProfile(null)
   }
 
-  const handleSelect = async (profile: Profile) => {
+  // Activate a node as proxy (clicking WiFi icon)
+  const handleActivate = async (profile: Profile, e: React.MouseEvent) => {
+    e.stopPropagation()
     try {
       await profileApi.select(profile.ID)
       setActiveProfile(profile)
     } catch (err) {
-      console.error('Select failed:', err)
+      console.error('Activate failed:', err)
     }
   }
 
@@ -138,6 +145,51 @@ export function NodesView() {
     const matchesGroup = selectedGroupId === 0 || p.group_id === selectedGroupId
     return matchesSearch && matchesGroup
   })
+
+  // Row click: select node (Ctrl/Shift for multi-select)
+  const handleRowClick = useCallback((profile: Profile, e: React.MouseEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      // Ctrl+click: toggle selection
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        if (next.has(profile.ID)) next.delete(profile.ID)
+        else next.add(profile.ID)
+        return next
+      })
+    } else if (e.shiftKey && lastClickedId !== null) {
+      // Shift+click: range selection
+      const ids = filteredProfiles.map(p => p.ID)
+      const from = ids.indexOf(lastClickedId)
+      const to = ids.indexOf(profile.ID)
+      if (from !== -1 && to !== -1) {
+        const [start, end] = from < to ? [from, to] : [to, from]
+        setSelectedIds(prev => {
+          const next = new Set(prev)
+          for (let i = start; i <= end; i++) next.add(ids[i])
+          return next
+        })
+      }
+    } else {
+      // Normal click: single select
+      setSelectedIds(new Set([profile.ID]))
+    }
+    setLastClickedId(profile.ID)
+  }, [filteredProfiles, lastClickedId])
+
+  // Ctrl+A: select all visible nodes
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        // Only capture if not focused on an input
+        const tag = (e.target as HTMLElement)?.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+        e.preventDefault()
+        setSelectedIds(new Set(filteredProfiles.map(p => p.ID)))
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [filteredProfiles])
 
   const displayName = (g: NodeGroupItem) => g.alias || t('groups.default_name')
 
@@ -259,15 +311,19 @@ export function NodesView() {
                     transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                   >
                     <div
-                      onClick={() => handleSelect(profile)}
+                      onClick={(e) => handleRowClick(profile, e)}
                       className="rounded-xl border px-4 py-3 cursor-pointer transition-colors"
                       style={{
                         backgroundColor: activeProfile?.ID === profile.ID
                           ? 'var(--color-accent-dim)'
-                          : 'var(--color-card)',
+                          : selectedIds.has(profile.ID)
+                            ? 'color-mix(in srgb, var(--color-primary) 6%, var(--color-card))'
+                            : 'var(--color-card)',
                         borderColor: activeProfile?.ID === profile.ID
                           ? 'var(--color-primary)'
-                          : 'var(--color-border)',
+                          : selectedIds.has(profile.ID)
+                            ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)'
+                            : 'var(--color-border)',
                         boxShadow: 'var(--shadow-card)',
                       }}
                     >
@@ -317,11 +373,34 @@ export function NodesView() {
                               {profile.test_result}
                             </span>
                           )}
-                          {activeProfile?.ID === profile.ID ? (
-                            <Wifi size={14} style={{ color: 'var(--color-success)' }} />
-                          ) : (
-                            <WifiOff size={14} style={{ color: 'var(--color-text-muted)' }} />
-                          )}
+                          <motion.button
+                            onClick={(e) => handleActivate(profile, e)}
+                            className="p-1 rounded-md transition-colors cursor-pointer"
+                            style={{
+                              color: activeProfile?.ID === profile.ID
+                                ? 'var(--color-success)'
+                                : 'var(--color-text-muted)',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = 'var(--color-success)'
+                              e.currentTarget.style.backgroundColor = 'var(--color-success-dim)'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = activeProfile?.ID === profile.ID
+                                ? 'var(--color-success)'
+                                : 'var(--color-text-muted)'
+                              e.currentTarget.style.backgroundColor = 'transparent'
+                            }}
+                            whileHover={{ scale: 1.15 }}
+                            whileTap={{ scale: 0.9 }}
+                            title={activeProfile?.ID === profile.ID ? '当前激活' : '点击激活'}
+                          >
+                            {activeProfile?.ID === profile.ID ? (
+                              <Wifi size={14} />
+                            ) : (
+                              <WifiOff size={14} />
+                            )}
+                          </motion.button>
                           <button
                             onClick={(e) => { e.stopPropagation(); setEditProfile(profile) }}
                             className="p-1 rounded-md transition-colors cursor-pointer"
