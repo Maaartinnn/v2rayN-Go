@@ -92,39 +92,16 @@ function SortableVirtualItem<T extends { uuid: string }>({
 
   const extraContent = renderExtra?.(item)
 
-  const outerRef = useRef<HTMLDivElement>(null)
-
-  // 使用 ResizeObserver 持续监测高度变化（如 DeleteConfirmBanner 展开/收起），
-  // 确保虚拟列表在动态内容高度变化后及时重新测量，避免下一个节点压到展开内容上。
-  useLayoutEffect(() => {
-    const el = outerRef.current
-    if (!el) return
-    virtualizer.measureElement(el)
-    const ro = new ResizeObserver(() => {
-      if (outerRef.current) {
-        virtualizer.measureElement(outerRef.current)
-      }
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [virtualizer])
-
-  // 修复方案：
-  // 1. marginBottom 从内层移到外层，避免 transform 把 margin 也带跑
-  // 2. 外层 overflow: visible 确保扩展内容不被裁切
-  // 3. 内层 position: relative + zIndex 确保 stacking context 正确
+  // 外层：文档流中、挂 measureElement ref 做自动测量（内部用 ResizeObserver）
+  // paddingBottom 与 virtualizer 的 gap 对齐，提供视觉间距
   return (
-    // 外层容器 - Virtual Layer: 负责高度测算、定位和间距
     <div
-      ref={outerRef}
+      ref={virtualizer.measureElement}
       data-index={virtualItem.index}
       style={{
-        position: 'absolute',
-        top: `${virtualItem.start}px`,
-        left: 0,
-        width: '100%',
         paddingBottom: 8,
         overflow: 'visible',
+        position: 'relative',
         zIndex: isDragging ? 50 : isExpanded ? 40 : 1,
       }}
     >
@@ -191,19 +168,29 @@ export function VirtualSortableList<T extends { uuid: string }>({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  // 初始化虚拟列表 - 增加 overscan 让编辑表单展开时有更多缓冲
+  // 初始化虚拟列表
+  // gap: 8 让虚拟器在 start/end 计算中包含项间距，与 paddingBottom 对齐
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => estimateSize,
     overscan,
+    gap: 8,
     getItemKey: (index) => items[index].uuid,
   })
 
   // SortableContext 始终使用全量 UUID 列表，避免拖拽开始时切换集合导致闪烁和错位。
-  // 虚拟化只负责"渲染哪些 DOM"，不影响 SortableContext 的 id 集合。
   const allUuids = useMemo(() => items.map((i) => i.uuid), [items])
-  const sortableItems = allUuids
+
+  // 展开状态追踪：当展开/收起面板时触发 virtualizer.measure() 清除缓存
+  const expandedStateKey = useMemo(
+    () => items.map((i) => (isItemExpanded?.(i) ? '1' : '0')).join(''),
+    [items, isItemExpanded]
+  )
+  useLayoutEffect(() => {
+    // 展开/收起后清除测量缓存，确保动态高度（如 DeleteConfirmBanner 动画）被正确测量
+    virtualizer.measure()
+  }, [expandedStateKey, virtualizer])
 
   // 拖拽事件处理
   const handleDragStart = useCallback(
@@ -258,6 +245,8 @@ export function VirtualSortableList<T extends { uuid: string }>({
     return found
   }, [items, activeDragId])
 
+  const virtualItems = virtualizer.getVirtualItems()
+
   // 空状态
   if (items.length === 0 && emptyContent) {
     return <div className={className} style={style}>{emptyContent}</div>
@@ -272,32 +261,43 @@ export function VirtualSortableList<T extends { uuid: string }>({
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        {/* 滚动视窗 */}
+        {/* 滚动视窗：contain: strict + overflow-anchor: none 防止浏览器滚动锚定干扰 */}
         <div
           ref={scrollRef}
           className="flex-1 overflow-y-auto pr-2 relative custom-scrollbar"
-          style={{ minHeight: 0 }}
+          style={{ minHeight: 0, contain: 'strict', overflowAnchor: 'none' }}
         >
           {/* 占位层：撑开滚动条 */}
           <div style={{ height: virtualizer.getTotalSize(), width: '100%', position: 'relative' }}>
-            <SortableContext items={sortableItems} strategy={verticalListSortingStrategy}>
-              {virtualizer.getVirtualItems().map((virtualItem) => {
-                const item = items[virtualItem.index]
-                if (!item) return null
+            <SortableContext items={allUuids} strategy={verticalListSortingStrategy}>
+              {/* 整块平移层：block translation，替代逐项绝对定位 */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualItems[0]?.start ?? 0}px)`,
+                }}
+              >
+                {virtualItems.map((virtualItem) => {
+                  const item = items[virtualItem.index]
+                  if (!item) return null
 
-                return (
-                  <SortableVirtualItem
-                    key={item.uuid}
-                    item={item}
-                    virtualItem={virtualItem}
-                    virtualizer={virtualizer}
-                    renderItem={renderItem}
-                    renderExtra={renderExtra}
-                    disableDrag={disableDrag}
-                    isExpanded={isItemExpanded?.(item) ?? false}
-                  />
-                )
-              })}
+                  return (
+                    <SortableVirtualItem
+                      key={virtualItem.key}
+                      item={item}
+                      virtualItem={virtualItem}
+                      virtualizer={virtualizer}
+                      renderItem={renderItem}
+                      renderExtra={renderExtra}
+                      disableDrag={disableDrag}
+                      isExpanded={isItemExpanded?.(item) ?? false}
+                    />
+                  )
+                })}
+              </div>
             </SortableContext>
           </div>
         </div>
