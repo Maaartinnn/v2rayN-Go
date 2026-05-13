@@ -8,6 +8,7 @@ import { useT } from '../lib/i18n'
 import { DeleteConfirmBanner } from './ui/DeleteConfirmBanner'
 import { NodeEditForm } from './NodeEditForm'
 import { RightDrawer } from './ui/RightDrawer'
+import { VirtualSortableList, DefaultDragHandle } from './ui/VirtualSortableList'
 
 interface NodeGroupItem {
   ID: number
@@ -102,7 +103,7 @@ export function NodesView() {
     return colors[protocol] || { bg: 'var(--color-muted)', text: 'var(--color-muted-foreground)' }
   }
 
-  const getLatencyDot = (result: string) => {
+  const getLatencyDot = (result?: string) => {
     if (!result || result === 'timeout') return 'var(--color-error)'
     const ms = parseInt(result)
     if (ms < 100) return 'var(--color-success)'
@@ -139,7 +140,7 @@ export function NodesView() {
         p.name.toLowerCase().includes(q) ||
         p.address.toLowerCase().includes(q) ||
         p.protocol.toLowerCase().includes(q) ||
-        p.group_name.toLowerCase().includes(q)
+        p.group_name?.toLowerCase().includes(q)
       )
     })()
     const matchesGroup = selectedGroupId === 0 || p.group_id === selectedGroupId
@@ -197,14 +198,41 @@ export function NodesView() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [filteredProfiles])
 
+  // 处理列表重新排序：将筛选列表中的新顺序合并回全局 profiles 列表，并调用后端API保存
+  const handleItemsChange = async (newFilteredItems: Profile[]) => {
+    // 根据新顺序重建完整的 profiles 数组
+    const originalIndices = profiles
+      .map((p, i) => filteredProfiles.find(fp => fp.ID === p.ID) ? i : -1)
+      .filter(i => i !== -1)
+
+    const newProfiles = [...profiles]
+    originalIndices.forEach((origIdx, i) => {
+      newProfiles[origIdx] = newFilteredItems[i]
+    })
+
+    // 本地优先更新 UI
+    setProfiles(newProfiles)
+
+    try {
+      // 发送全局排序到后端
+      await fetch('/api/profiles/reorder', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uuids: newProfiles.map(p => p.uuid) })
+      })
+    } catch (err) {
+      console.error('Failed to reorder profiles:', err)
+    }
+  }
+
   const displayName = (g: NodeGroupItem) => g.alias || t('groups.default_name')
 
   return (
-    <div className="flex gap-6 max-w-5xl mx-auto">
+    <div className="flex gap-6 max-w-5xl mx-auto h-[calc(100vh-80px)]">
       {/* Left: Node List */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col h-full">
         {/* Header */}
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-5 shrink-0">
           <h1
             className="text-xl font-semibold"
             style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
@@ -213,7 +241,7 @@ export function NodesView() {
           </h1>
           <div className="flex gap-2">
             <motion.button
-            onClick={handlePingAll}
+              onClick={handlePingAll}
               disabled={loading}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer btn-ghost"
               style={{
@@ -228,7 +256,7 @@ export function NodesView() {
         </div>
 
         {/* Toolbar: search + dedup */}
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-4 shrink-0">
           <div className="relative flex-1">
             <Search
               size={14}
@@ -269,10 +297,10 @@ export function NodesView() {
         <AnimatePresence>
           {dedupResult && (
             <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="mb-3 px-4 py-2 rounded-lg text-xs font-medium"
+              initial={{ opacity: 0, y: -8, height: 0, marginBottom: 0 }}
+              animate={{ opacity: 1, y: 0, height: 'auto', marginBottom: 12 }}
+              exit={{ opacity: 0, y: -8, height: 0, marginBottom: 0 }}
+              className="px-4 py-2 rounded-lg text-xs font-medium overflow-hidden shrink-0"
               style={{
                 backgroundColor: 'var(--color-success-dim)',
                 color: 'var(--color-success)',
@@ -284,18 +312,24 @@ export function NodesView() {
           )}
         </AnimatePresence>
 
-        {/* Node list */}
-        <div className="space-y-1.5" key={selectedGroupId} onDoubleClick={(e) => {
-          // Double-click blank area to deselect all
-          if (e.target === e.currentTarget) setSelectedIds(new Set())
-        }}>
-          <AnimatePresence>
-            {filteredProfiles.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-center py-20"
-              >
+        {/* Node list (Virtualized & Sortable) */}
+        <div 
+          className="flex-1 min-h-0" 
+          onDoubleClick={(e) => {
+            // Double-click blank area to deselect all
+            if (e.target === e.currentTarget) setSelectedIds(new Set())
+          }}
+        >
+          <VirtualSortableList
+            key={selectedGroupId} // 当切换分组时强制重新实例化以重置滚动
+            className="h-full flex flex-col"
+            items={filteredProfiles}
+            estimateSize={74}
+            disableDrag={!!searchQuery} // 仅在未搜索时允许拖拽
+            onDragStart={() => setDeleteTargetId(null)}
+            onItemsChange={handleItemsChange}
+            emptyContent={
+              <div className="text-center py-20">
                 <Layers
                   size={32}
                   className="mx-auto mb-3"
@@ -307,162 +341,157 @@ export function NodesView() {
                 >
                   {searchQuery ? t('common.no_data') : t('nodes.no_nodes')}
                 </p>
-              </motion.div>
-            ) : (
-              filteredProfiles.map((profile) => {
-                const protoColor = getProtocolColor(profile.protocol)
-                return (
-                  <motion.div
-                    key={profile.ID}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  >
-                    <div
-                      onClick={(e) => handleRowClick(profile, e)}
-                      onDoubleClick={(e) => { e.stopPropagation(); handleActivate(profile, e) }}
-                      onMouseDown={(e) => { if (e.shiftKey) e.preventDefault() }}
-                      className="rounded-xl border px-4 py-3 cursor-pointer transition-colors select-none"
-                      style={{
-                        backgroundColor: activeProfile?.ID === profile.ID
-                          ? 'var(--color-accent-dim)'
-                          : selectedIds.has(profile.ID)
-                            ? 'color-mix(in srgb, var(--color-primary) 6%, var(--color-card))'
-                            : 'var(--color-card)',
-                        borderColor: activeProfile?.ID === profile.ID
-                          ? 'var(--color-primary)'
-                          : selectedIds.has(profile.ID)
-                            ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)'
-                            : 'var(--color-border)',
-                        boxShadow: 'var(--shadow-card)',
-                      }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className="w-2 h-2 rounded-full shrink-0"
-                            style={{ backgroundColor: getLatencyDot(profile.test_result) }}
-                          />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className="text-sm font-medium truncate"
-                                style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
-                              >
-                                {profile.name}
-                              </span>
-                              <span
-                                className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
-                                style={{
-                                  backgroundColor: protoColor.bg,
-                                  color: protoColor.text,
-                                  fontFamily: 'var(--font-heading)',
-                                }}
-                              >
-                                {profile.protocol}
-                              </span>
-                            </div>
-                            <p
-                              className="text-xs mt-0.5 truncate"
-                              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
-                            >
-                              {profile.address}:{profile.port}
-                              {profile.group_name && (
-                                <span style={{ fontFamily: 'var(--font-heading)' }}> · {profile.group_name}</span>
-                              )}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          {profile.test_result && (
-                            <span
-                              className="text-xs"
-                              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
-                            >
-                              {profile.test_result}
-                            </span>
-                          )}
-                          <motion.button
-                            onClick={(e) => handleActivate(profile, e)}
-                            className="p-1 rounded-md transition-colors cursor-pointer"
+              </div>
+            }
+            renderItem={({ item: profile, isDragging, isOverlay, dragListeners, dragAttributes }) => {
+              const protoColor = getProtocolColor(profile.protocol)
+              return (
+                <div
+                  onClick={(e) => handleRowClick(profile, e)}
+                  onDoubleClick={(e) => { e.stopPropagation(); handleActivate(profile, e) }}
+                  onMouseDown={(e) => { if (e.shiftKey) e.preventDefault() }}
+                  className={`rounded-xl border px-4 py-3 cursor-pointer transition-colors select-none ${isDragging && !isOverlay ? 'opacity-50' : ''}`}
+                  style={{
+                    backgroundColor: activeProfile?.ID === profile.ID
+                      ? 'var(--color-accent-dim)'
+                      : selectedIds.has(profile.ID)
+                        ? 'color-mix(in srgb, var(--color-primary) 6%, var(--color-card))'
+                        : 'var(--color-card)',
+                    borderColor: activeProfile?.ID === profile.ID
+                      ? 'var(--color-primary)'
+                      : selectedIds.has(profile.ID)
+                        ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)'
+                        : 'var(--color-border)',
+                    boxShadow: isOverlay ? 'var(--shadow-lg)' : 'var(--shadow-card)',
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {!searchQuery && (
+                        <DefaultDragHandle listeners={dragListeners} attributes={dragAttributes} />
+                      )}
+                      <div
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: getLatencyDot(profile.test_result) }}
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="text-sm font-medium truncate"
+                            style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+                          >
+                            {profile.name}
+                          </span>
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
                             style={{
-                              color: activeProfile?.ID === profile.ID
-                                ? 'var(--color-success)'
-                                : 'var(--color-text-muted)',
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.color = 'var(--color-success)'
-                              e.currentTarget.style.backgroundColor = 'var(--color-success-dim)'
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.color = activeProfile?.ID === profile.ID
-                                ? 'var(--color-success)'
-                                : 'var(--color-text-muted)'
-                              e.currentTarget.style.backgroundColor = 'transparent'
-                            }}
-                            whileHover={{ scale: 1.15 }}
-                            whileTap={{ scale: 0.9 }}
-                            title={activeProfile?.ID === profile.ID ? '当前激活' : '点击激活'}
-                          >
-                            {activeProfile?.ID === profile.ID ? (
-                              <Wifi size={14} />
-                            ) : (
-                              <WifiOff size={14} />
-                            )}
-                          </motion.button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setEditProfile(profile) }}
-                            className="p-1 rounded-md transition-colors cursor-pointer"
-                            style={{ color: 'var(--color-text-muted)' }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.color = 'var(--color-accent-warm)'
-                              e.currentTarget.style.backgroundColor = 'var(--color-accent-dim)'
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.color = 'var(--color-text-muted)'
-                              e.currentTarget.style.backgroundColor = 'transparent'
+                              backgroundColor: protoColor.bg,
+                              color: protoColor.text,
+                              fontFamily: 'var(--font-heading)',
                             }}
                           >
-                            <Edit3 size={12} />
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setDeleteTargetId(profile.ID) }}
-                            className="p-1 rounded-md transition-colors cursor-pointer"
-                            style={{ color: 'var(--color-text-muted)' }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.color = 'var(--color-error)'
-                              e.currentTarget.style.backgroundColor = 'var(--color-error-dim)'
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.color = 'var(--color-text-muted)'
-                              e.currentTarget.style.backgroundColor = 'transparent'
-                            }}
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                            {profile.protocol}
+                          </span>
                         </div>
+                        <p
+                          className="text-xs mt-0.5 truncate"
+                          style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
+                        >
+                          {profile.address}:{profile.port}
+                          {profile.group_name && (
+                            <span style={{ fontFamily: 'var(--font-heading)' }}> · {profile.group_name}</span>
+                          )}
+                        </p>
                       </div>
                     </div>
-                    {/* Delete confirm banner */}
-                    <DeleteConfirmBanner
-                      visible={deleteTargetId === profile.ID}
-                      message={t('nodes.delete_confirm', { name: profile.name })}
-                      onConfirm={() => handleDelete(profile.ID)}
-                      onCancel={() => setDeleteTargetId(null)}
-                    />
-                  </motion.div>
-                )
-              })
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {profile.test_result && (
+                        <span
+                          className="text-xs"
+                          style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
+                        >
+                          {profile.test_result}
+                        </span>
+                      )}
+                      <motion.button
+                        onClick={(e) => handleActivate(profile, e)}
+                        className="p-1 rounded-md transition-colors cursor-pointer"
+                        style={{
+                          color: activeProfile?.ID === profile.ID
+                            ? 'var(--color-success)'
+                            : 'var(--color-text-muted)',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = 'var(--color-success)'
+                          e.currentTarget.style.backgroundColor = 'var(--color-success-dim)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = activeProfile?.ID === profile.ID
+                            ? 'var(--color-success)'
+                            : 'var(--color-text-muted)'
+                          e.currentTarget.style.backgroundColor = 'transparent'
+                        }}
+                        whileHover={{ scale: 1.15 }}
+                        whileTap={{ scale: 0.9 }}
+                        title={activeProfile?.ID === profile.ID ? '当前激活' : '点击激活'}
+                      >
+                        {activeProfile?.ID === profile.ID ? (
+                          <Wifi size={14} />
+                        ) : (
+                          <WifiOff size={14} />
+                        )}
+                      </motion.button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditProfile(profile) }}
+                        className="p-1 rounded-md transition-colors cursor-pointer"
+                        style={{ color: 'var(--color-text-muted)' }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = 'var(--color-accent-warm)'
+                          e.currentTarget.style.backgroundColor = 'var(--color-accent-dim)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = 'var(--color-text-muted)'
+                          e.currentTarget.style.backgroundColor = 'transparent'
+                        }}
+                      >
+                        <Edit3 size={12} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeleteTargetId(profile.ID) }}
+                        className="p-1 rounded-md transition-colors cursor-pointer"
+                        style={{ color: 'var(--color-text-muted)' }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = 'var(--color-error)'
+                          e.currentTarget.style.backgroundColor = 'var(--color-error-dim)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = 'var(--color-text-muted)'
+                          e.currentTarget.style.backgroundColor = 'transparent'
+                        }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            }}
+            renderExtra={(profile) => (
+              <DeleteConfirmBanner
+                visible={deleteTargetId === profile.ID}
+                message={t('nodes.delete_confirm', { name: profile.name })}
+                onConfirm={() => handleDelete(profile.ID)}
+                onCancel={() => setDeleteTargetId(null)}
+              />
             )}
-          </AnimatePresence>
+          />
         </div>
       </div>
 
       {/* Right: Group Selection Panel */}
-      <div className="w-64 shrink-0">
-        <div className="sticky top-20">
+      <div className="w-64 shrink-0 h-full overflow-y-auto">
+        <div className="sticky top-0">
           <div
             className="rounded-xl border overflow-hidden"
             style={{
