@@ -177,10 +177,6 @@ func (s *Server) handleCoreStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.CoreType == "" {
-		req.CoreType = "xray"
-	}
-
 	// 如果没有指定配置路径，生成一个
 	if req.ConfigPath == "" {
 		// 获取当前激活的节点
@@ -188,6 +184,11 @@ func (s *Server) handleCoreStart(w http.ResponseWriter, r *http.Request) {
 		if err := database.DB.Where("is_active = ?", true).First(&profile).Error; err != nil {
 			jsonError(w, "No active profile selected", http.StatusBadRequest)
 			return
+		}
+
+		// 如果请求未指定内核类型，使用节点保存的 core_type
+		if req.CoreType == "" {
+			req.CoreType = profile.CoreType
 		}
 
 		// 获取路由规则

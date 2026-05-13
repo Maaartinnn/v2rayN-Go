@@ -27,6 +27,7 @@ export interface Profile {
   last_test_time: string
   is_active: boolean
   sort_order: number
+  core_type: string
   group_id: number
   group_name: string
 }

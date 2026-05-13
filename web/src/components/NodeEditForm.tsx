@@ -54,6 +54,8 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
   // Smart core selection
   const [recommendedCore, setRecommendedCore] = useState<string | null>(null)
   const [installedCores, setInstalledCores] = useState<string[]>([])
+  const [kernelMode, setKernelMode] = useState<'auto' | 'manual'>('auto')
+  const [manualCore, setManualCore] = useState('')
 
   // Load groups on mount
   useEffect(() => {
@@ -82,6 +84,19 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
       setPublicKey(editData.public_key || '')
       setShortId(editData.short_id || '')
       setFlow(editData.flow || '')
+
+      // 内核设置：有 core_type 则手动，否则自动
+      if (editData.core_type) {
+        setKernelMode('manual')
+        setManualCore(editData.core_type)
+      } else {
+        setKernelMode('auto')
+        setManualCore('')
+      }
+    } else {
+      // 新增模式默认自动
+      setKernelMode('auto')
+      setManualCore('')
     }
   }, [editData])
 
@@ -122,6 +137,7 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
       public_key: publicKey.trim(),
       short_id: shortId.trim(),
       flow: flow.trim(),
+      core_type: kernelMode === 'manual' ? manualCore : '',
     }
 
     try {
@@ -415,30 +431,94 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
           </>
         )}
 
-        {/* Smart Core Recommendation */}
+        {/* 内核设置 */}
         {supportedCores.length > 0 && (
-          <div
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
-            style={{
-              backgroundColor: recommendedCore ? 'var(--color-success-dim)' : 'var(--color-warning-dim)',
-              color: recommendedCore ? 'var(--color-success)' : 'var(--color-warning)',
-              fontFamily: 'var(--font-heading)',
-            }}
-          >
-            <Zap size={13} />
-            {recommendedCore ? (
-              <span>
-                推荐内核: <strong>{recommendedCore}</strong>
-                {supportedCores.length > 1 && (
-                  <span style={{ opacity: 0.7 }}>
-                    {' '}(也支持: {supportedCores.filter(c => c !== recommendedCore).join(', ')})
-                  </span>
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <label
+                className="text-xs font-medium shrink-0"
+                style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)', minWidth: 56 }}
+              >
+                内核选择
+              </label>
+              {/* Segmented toggle: 自动 / 手动 */}
+              <div
+                className="flex rounded-lg overflow-hidden border"
+                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-muted)' }}
+              >
+                <button
+                  type="button"
+                  onClick={() => { setKernelMode('auto'); setManualCore('') }}
+                  className="px-3 py-1 text-xs font-medium transition-colors"
+                  style={{
+                    fontFamily: 'var(--font-heading)',
+                    backgroundColor: kernelMode === 'auto' ? 'var(--color-primary)' : 'transparent',
+                    color: kernelMode === 'auto' ? 'var(--color-primary-foreground, #fff)' : 'var(--color-muted-foreground)',
+                  }}
+                >
+                  自动
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setKernelMode('manual')
+                    if (!manualCore && recommendedCore) setManualCore(recommendedCore)
+                  }}
+                  className="px-3 py-1 text-xs font-medium transition-colors"
+                  style={{
+                    fontFamily: 'var(--font-heading)',
+                    backgroundColor: kernelMode === 'manual' ? 'var(--color-primary)' : 'transparent',
+                    color: kernelMode === 'manual' ? 'var(--color-primary-foreground, #fff)' : 'var(--color-muted-foreground)',
+                  }}
+                >
+                  手动
+                </button>
+              </div>
+              {/* 右侧：自动模式显示推荐内核，手动模式显示下拉 */}
+              <div className="flex-1 flex items-center gap-2">
+                {kernelMode === 'auto' ? (
+                  <div
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs"
+                    style={{
+                      backgroundColor: recommendedCore ? 'var(--color-success-dim)' : 'var(--color-warning-dim)',
+                      color: recommendedCore ? 'var(--color-success)' : 'var(--color-warning)',
+                      fontFamily: 'var(--font-heading)',
+                    }}
+                  >
+                    <Zap size={12} />
+                    {recommendedCore ? (
+                      <span>推荐: <strong>{recommendedCore}</strong></span>
+                    ) : (
+                      <span>无可用内核</span>
+                    )}
+                  </div>
+                ) : (
+                  <select
+                    value={manualCore}
+                    onChange={(e) => setManualCore(e.target.value)}
+                    className="flex-1 px-2.5 py-1.5 text-xs rounded-lg border cursor-pointer"
+                    style={inputStyle}
+                  >
+                    {supportedCores.map((c) => {
+                      const isInstalled = installedCores.includes(c)
+                      return (
+                        <option key={c} value={c}>
+                          {c}{isInstalled ? ' ✓' : ' (未安装)'}
+                        </option>
+                      )
+                    })}
+                  </select>
                 )}
-              </span>
-            ) : (
-              <span>
-                无已安装内核支持此协议 (需要: {supportedCores.join(', ')})
-              </span>
+              </div>
+            </div>
+            {/* 提示信息 */}
+            {kernelMode === 'manual' && supportedCores.length > 1 && (
+              <p
+                className="text-xs pl-17"
+                style={{ color: 'var(--color-muted-foreground)', opacity: 0.6, fontFamily: 'var(--font-heading)' }}
+              >
+                此协议也支持: {supportedCores.filter(c => c !== manualCore).join(', ')}
+              </p>
             )}
           </div>
         )}

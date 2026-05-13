@@ -37,6 +37,9 @@ type Profile struct {
 	ShortID   string `gorm:"size:128" json:"short_id"`   // Reality shortId
 	SiderSNI  string `gorm:"size:256" json:"sider_sni"`  // Reality serverName
 
+	// 内核设置
+	CoreType string `gorm:"size:64;default:''" json:"core_type"` // 内核类型: xray, sing-box, mihomo, ""(自动)
+
 	// 链式代理
 	DialerProxy string `gorm:"size:256" json:"dialer_proxy"` // 前置代理 tag（链式代理）
 
