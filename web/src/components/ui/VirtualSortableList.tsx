@@ -103,9 +103,10 @@ function SortableVirtualItem<T extends { uuid: string }>({
       <div
         ref={setNodeRef}
         style={{
-          transform: CSS.Transform.toString(transform),
+          // 【修复2】：从 Transform 换成 Translate，避免触发任何缩放/旋转相关的畸变
+          transform: CSS.Translate.toString(transform),
           transition,
-          opacity: isDragging ? 0.4 : 1,
+          opacity: isDragging ? 0.3 : 1, // 让原位置的占位符半透明，UI 更好看
           marginBottom: '8px',
         }}
       >
@@ -185,6 +186,13 @@ export function VirtualSortableList<T extends { uuid: string }>({
     [items, activeDragId]
   )
 
+  // 【修复1】：动态获取当前可见的虚拟节点，避免 SortableContext 试图去计算不可见（无 DOM）节点的位置
+  const virtualItems = virtualizer.getVirtualItems()
+  const activeSortableItems = useMemo(
+    () => virtualItems.map((v) => items[v.index]?.uuid).filter(Boolean) as string[],
+    [virtualItems, items]
+  )
+
   // 空状态
   if (items.length === 0 && emptyContent) {
     return <div className={className} style={style}>{emptyContent}</div>
@@ -205,26 +213,28 @@ export function VirtualSortableList<T extends { uuid: string }>({
           className="flex-1 overflow-y-auto pr-2 relative custom-scrollbar"
           style={{ minHeight: 0 }}
         >
-        {/* 占位层：撑开滚动条 */}
-        <div style={{ height: virtualizer.getTotalSize(), width: '100%', position: 'relative' }}>
-          <SortableContext items={items.map((g) => g.uuid)} strategy={verticalListSortingStrategy}>
-            {virtualizer.getVirtualItems().map((virtualItem) => {
-              const item = items[virtualItem.index]
-              return (
-                <SortableVirtualItem
-                  key={item.uuid}
-                  item={item}
-                  virtualItem={virtualItem}
-                  virtualizer={virtualizer}
-                  renderItem={renderItem}
-                  renderExtra={renderExtra}
-                  disableDrag={disableDrag}
-                />
-              )
-            })}
-          </SortableContext>
+          {/* 占位层：撑开滚动条 */}
+          <div style={{ height: virtualizer.getTotalSize(), width: '100%', position: 'relative' }}>
+            <SortableContext items={activeSortableItems} strategy={verticalListSortingStrategy}>
+              {virtualItems.map((virtualItem) => {
+                const item = items[virtualItem.index]
+                if (!item) return null
+
+                return (
+                  <SortableVirtualItem
+                    key={item.uuid}
+                    item={item}
+                    virtualItem={virtualItem}
+                    virtualizer={virtualizer}
+                    renderItem={renderItem}
+                    renderExtra={renderExtra}
+                    disableDrag={disableDrag}
+                  />
+                )
+              })}
+            </SortableContext>
+          </div>
         </div>
-      </div>
 
         {/* 悬浮层：拖拽时的替身 */}
         <DragOverlay
