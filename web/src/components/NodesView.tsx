@@ -537,6 +537,7 @@ export function NodesView() {
             renderItem={renderItem}
             renderExtra={renderExtra}
             isItemExpanded={isItemExpanded} // 【修复3】：展开面板时提升 zIndex
+            scrollElementRef={scrollRef}
             estimateSize={74}
             overscan={5}
             className="h-full flex flex-col"

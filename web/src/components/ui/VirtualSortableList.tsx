@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react'
+import React, { useState, useCallback, useRef, useMemo, useLayoutEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   DndContext,
@@ -54,6 +54,8 @@ export interface VirtualSortableListProps<T extends { uuid: string }> {
   onDragStart?: () => void
   /** 是否禁用拖拽 */
   disableDrag?: boolean
+  /** 外部传入的滚动容器 ref（用于从外部控制滚动位置） */
+  scrollElementRef?: React.RefObject<HTMLDivElement | null>
   /** 额外渲染在卡片下方的内容（展开面板等） */
   renderExtra?: (item: T) => React.ReactNode
   /** 判断某个 item 的额外内容是否处于展开/激活状态（用于提升 zIndex） */
@@ -90,6 +92,23 @@ function SortableVirtualItem<T extends { uuid: string }>({
 
   const extraContent = renderExtra?.(item)
 
+  const outerRef = useRef<HTMLDivElement>(null)
+
+  // 使用 ResizeObserver 持续监测高度变化（如 DeleteConfirmBanner 展开/收起），
+  // 确保虚拟列表在动态内容高度变化后及时重新测量，避免下一个节点压到展开内容上。
+  useLayoutEffect(() => {
+    const el = outerRef.current
+    if (!el) return
+    virtualizer.measureElement(el)
+    const ro = new ResizeObserver(() => {
+      if (outerRef.current) {
+        virtualizer.measureElement(outerRef.current)
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [virtualizer])
+
   // 修复方案：
   // 1. marginBottom 从内层移到外层，避免 transform 把 margin 也带跑
   // 2. 外层 overflow: visible 确保扩展内容不被裁切
@@ -97,14 +116,14 @@ function SortableVirtualItem<T extends { uuid: string }>({
   return (
     // 外层容器 - Virtual Layer: 负责高度测算、定位和间距
     <div
-      ref={virtualizer.measureElement}
+      ref={outerRef}
       data-index={virtualItem.index}
       style={{
         position: 'absolute',
         top: `${virtualItem.start}px`,
         left: 0,
         width: '100%',
-        marginBottom: '8px',
+        paddingBottom: 8,
         overflow: 'visible',
         zIndex: isDragging ? 50 : isExpanded ? 40 : 1,
       }}
@@ -150,9 +169,11 @@ export function VirtualSortableList<T extends { uuid: string }>({
   disableDrag = false,
   renderExtra,
   isItemExpanded,
+  scrollElementRef,
 }: VirtualSortableListProps<T>) {
   const [activeDragId, setActiveDragId] = useState<UniqueIdentifier | null>(null)
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const internalScrollRef = useRef<HTMLDivElement>(null)
+  const scrollRef = scrollElementRef ?? internalScrollRef
 
   // 用 ref 跟踪最新的 items，避免 handleDragEnd 闭包陷阱
   const itemsRef = useRef(items)
@@ -179,16 +200,10 @@ export function VirtualSortableList<T extends { uuid: string }>({
     getItemKey: (index) => items[index].uuid,
   })
 
-  // ===== 核心修复：拖拽期间使用完整 items 的 UUID 列表 =====
-  // 拖拽时 SortableContext 接收所有项目的 UUID（而非仅可见项快照），
-  // 这样新滚入的节点会动态注册到 dnd-kit 并立即成为有效 drop target。
-  // 非拖拽时保持可见项 UUID 列表，减少不必要的 SortableContext 重建。
+  // SortableContext 始终使用全量 UUID 列表，避免拖拽开始时切换集合导致闪烁和错位。
+  // 虚拟化只负责"渲染哪些 DOM"，不影响 SortableContext 的 id 集合。
   const allUuids = useMemo(() => items.map((i) => i.uuid), [items])
-  const visibleUuids = useMemo(
-    () => virtualizer.getVirtualItems().map((v) => items[v.index]?.uuid).filter(Boolean) as string[],
-    [virtualizer, items]
-  )
-  const sortableItems = activeDragId ? allUuids : visibleUuids
+  const sortableItems = allUuids
 
   // 拖拽事件处理
   const handleDragStart = useCallback(
