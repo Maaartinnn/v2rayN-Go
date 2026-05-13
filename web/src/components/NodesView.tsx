@@ -1,27 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Wifi, WifiOff, RefreshCw, Trash2, Search, Layers, FolderOpen, Link, Edit3, GripVertical } from 'lucide-react'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragOverlay,
-  defaultDropAnimationSideEffects,
-  type DragEndEvent,
-  type DragStartEvent,
-} from '@dnd-kit/core'
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
 
 import { useStore } from '../store'
 import type { Profile } from '../store'
@@ -30,6 +9,7 @@ import { useT } from '../lib/i18n'
 import { DeleteConfirmBanner } from './ui/DeleteConfirmBanner'
 import { NodeEditForm } from './NodeEditForm'
 import { RightDrawer } from './ui/RightDrawer'
+import { VirtualSortableList } from './ui/VirtualSortableList'
 
 // ==========================================
 // Types & Helpers
@@ -63,231 +43,6 @@ const getLatencyDot = (result?: string) => {
 }
 
 // ==========================================
-// UI: NodeCard (纯净展示层，用 React.memo 优化)
-// ==========================================
-
-const NodeCard = React.memo(({
-  profile,
-  isDragging,
-  dragListeners,
-  dragAttributes,
-  isActive,
-  isSelected,
-  disableDrag,
-  onRowClick,
-  onActivate,
-  onEdit,
-  onDeleteRequest,
-}: any) => {
-  const protoColor = getProtocolColor(profile.protocol)
-
-  return (
-    <div
-      onClick={(e) => onRowClick(profile, e)}
-      onDoubleClick={(e) => { e.stopPropagation(); onActivate(profile, e) }}
-      onMouseDown={(e) => { if (e.shiftKey) e.preventDefault() }}
-      className={`rounded-xl border px-4 py-3 cursor-pointer transition-colors select-none bg-white`}
-      style={{
-        backgroundColor: isActive
-          ? 'var(--color-accent-dim)'
-          : isSelected
-            ? 'color-mix(in srgb, var(--color-primary) 6%, var(--color-card))'
-            : 'var(--color-card)',
-        borderColor: isActive
-          ? 'var(--color-primary)'
-          : isDragging
-            ? 'var(--color-primary)'
-            : isSelected
-              ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)'
-              : 'var(--color-border)',
-        boxShadow: isDragging ? '0 8px 24px rgba(0,0,0,0.12)' : 'var(--shadow-card)',
-      }}
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          {/* 拖拽手柄 */}
-          {!disableDrag && (
-            <div
-              {...dragAttributes}
-              {...dragListeners}
-              className="cursor-grab active:cursor-grabbing p-1 rounded-md shrink-0 text-gray-400 hover:text-gray-700 hover:bg-gray-100"
-            >
-              <GripVertical size={14} />
-            </div>
-          )}
-          <div
-            className="w-2 h-2 rounded-full shrink-0"
-            style={{ backgroundColor: getLatencyDot(profile.test_result) }}
-          />
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span
-                className="text-sm font-medium truncate"
-                style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
-              >
-                {profile.name}
-              </span>
-              <span
-                className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
-                style={{
-                  backgroundColor: protoColor.bg,
-                  color: protoColor.text,
-                  fontFamily: 'var(--font-heading)',
-                }}
-              >
-                {profile.protocol}
-              </span>
-            </div>
-            <p
-              className="text-xs mt-0.5 truncate"
-              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
-            >
-              {profile.address}:{profile.port}
-              {profile.group_name && (
-                <span style={{ fontFamily: 'var(--font-heading)' }}> · {profile.group_name}</span>
-              )}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          {profile.test_result && (
-            <span
-              className="text-xs"
-              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
-            >
-              {profile.test_result}
-            </span>
-          )}
-          <motion.button
-            onClick={(e) => { e.stopPropagation(); onActivate(profile, e) }}
-            className="p-1 rounded-md transition-colors cursor-pointer"
-            style={{
-              color: isActive ? 'var(--color-success)' : 'var(--color-text-muted)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--color-success)'
-              e.currentTarget.style.backgroundColor = 'var(--color-success-dim)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = isActive ? 'var(--color-success)' : 'var(--color-text-muted)'
-              e.currentTarget.style.backgroundColor = 'transparent'
-            }}
-            whileHover={{ scale: 1.15 }}
-            whileTap={{ scale: 0.9 }}
-            title={isActive ? '当前激活' : '点击激活'}
-          >
-            {isActive ? <Wifi size={14} /> : <WifiOff size={14} />}
-          </motion.button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onEdit(profile, e) }}
-            className="p-1 rounded-md transition-colors cursor-pointer"
-            style={{ color: 'var(--color-text-muted)' }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--color-accent-warm)'
-              e.currentTarget.style.backgroundColor = 'var(--color-accent-dim)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--color-text-muted)'
-              e.currentTarget.style.backgroundColor = 'transparent'
-            }}
-          >
-            <Edit3 size={12} />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onDeleteRequest(profile.ID, e) }}
-            className="p-1 rounded-md transition-colors cursor-pointer"
-            style={{ color: 'var(--color-text-muted)' }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--color-error)'
-              e.currentTarget.style.backgroundColor = 'var(--color-error-dim)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--color-text-muted)'
-              e.currentTarget.style.backgroundColor = 'transparent'
-            }}
-          >
-            <Trash2 size={12} />
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-})
-
-// ==========================================
-// 虚拟列表双层容器: SortableVirtualNode
-// ==========================================
-
-function SortableVirtualNode({
-  profile,
-  virtualItem,
-  virtualizer,
-  isDeleting,
-  isActive,
-  isSelected,
-  disableDrag,
-  callbacks,
-  t
-}: any) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: profile.uuid,
-    disabled: disableDrag
-  })
-
-  return (
-    // 【外层容器 - Virtual Layer】: 负责高度测算和绝对定位
-    <div
-      ref={virtualizer.measureElement}
-      data-index={virtualItem.index}
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        transform: `translateY(${virtualItem.start}px)`, // 虚拟列表通过 translateY 控制卡片位置
-        zIndex: isDragging ? 50 : 1,
-        paddingBottom: '8px',
-      }}
-    >
-      {/* 【内层容器 - DND Layer】: 负责拖拽时的物理变形和占位 */}
-      <div
-        ref={setNodeRef}
-        style={{
-          transform: CSS.Transform.toString(transform),
-          transition,
-          opacity: isDragging ? 0.4 : 1
-        }}
-      >
-        <NodeCard
-          profile={profile}
-          isDragging={false}
-          dragListeners={listeners}
-          dragAttributes={attributes}
-          isActive={isActive}
-          isSelected={isSelected}
-          disableDrag={disableDrag}
-          onRowClick={callbacks.onRowClick}
-          onActivate={callbacks.onActivate}
-          onEdit={callbacks.onEdit}
-          onDeleteRequest={callbacks.onDeleteRequest}
-          t={t}
-        />
-
-        {/* 动态高度区：当展开时，外层的 virtualizer.measureElement 会自动捕获新高度 */}
-        <DeleteConfirmBanner
-          visible={isDeleting}
-          message={t('nodes.delete_confirm', { name: profile.name })}
-          onConfirm={() => callbacks.onDeleteConfirm(profile.ID)}
-          onCancel={callbacks.onDeleteCancel}
-        />
-      </div>
-    </div>
-  )
-}
-
-
-// ==========================================
 // 主视图组件: NodesView
 // ==========================================
 
@@ -302,18 +57,11 @@ export function NodesView() {
   const [editProfile, setEditProfile] = useState<Profile | null>(null)
 
   // 拖拽与多选状态
-  const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [lastClickedId, setLastClickedId] = useState<number | null>(null)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const t = useT()
-
-  // DND 传感器配置
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
 
   useEffect(() => {
     loadProfiles()
@@ -455,42 +203,8 @@ export function NodesView() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [filteredProfiles])
 
-  // ==========================================
-  // 拖拽与虚拟列表核心引擎
-  // ==========================================
-
-  const virtualizer = useVirtualizer({
-    count: filteredProfiles.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => 74, // 预估基础卡片高度
-    overscan: 5,
-  })
-
-  // 统一回调引用管理，避免内联传递引发无意义重渲染
-  const callbacks = useMemo(() => ({
-    onRowClick: handleRowClick,
-    onActivate: handleActivate,
-    onEdit: (profile: Profile) => setEditProfile(profile),
-    onDeleteRequest: (id: number) => setDeleteTargetId(prev => prev === id ? null : id),
-    onDeleteConfirm: handleDelete,
-    onDeleteCancel: () => setDeleteTargetId(null),
-  }), [handleRowClick, handleActivate, handleDelete])
-
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveDragId(event.active.id as string)
-    setDeleteTargetId(null)
-    setEditProfile(null)
-  }
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event
-    setActiveDragId(null)
-    if (!over || active.id === over.id) return
-
-    const oldIndex = filteredProfiles.findIndex((g) => g.uuid === active.id)
-    const newIndex = filteredProfiles.findIndex((g) => g.uuid === over.id)
-    const newFilteredItems = arrayMove(filteredProfiles, oldIndex, newIndex)
-
+  // 拖拽排序逻辑
+  const handleReorder = useCallback(async (newFilteredItems: Profile[]) => {
     // 将筛选列表中的新顺序合并回全局 profiles 列表
     const originalIndices = profiles
       .map((p, i) => filteredProfiles.find(fp => fp.ID === p.ID) ? i : -1)
@@ -512,7 +226,185 @@ export function NodesView() {
     } catch (err) {
       console.error('Failed to reorder profiles:', err)
     }
-  }
+  }, [profiles, filteredProfiles, setProfiles])
+
+  const handleDragStart = useCallback(() => {
+    setDeleteTargetId(null)
+    setEditProfile(null)
+  }, [])
+
+  // ==========================================
+  // Render Item / Render Extra (修复了 TypeScript 隐式 any 错误)
+  // ==========================================
+
+  const renderItem = useCallback(({ 
+    item: profile, 
+    isDragging, 
+    dragListeners, 
+    dragAttributes 
+  }: {
+    item: Profile
+    isDragging: boolean
+    isOverlay: boolean
+    dragListeners: Record<string, any>
+    dragAttributes: Record<string, any>
+  }) => {
+    const protoColor = getProtocolColor(profile.protocol)
+    const isActive = activeProfile?.ID === profile.ID
+    const isSelected = selectedIds.has(profile.ID)
+    const disableDrag = !!searchQuery
+
+    return (
+      <div
+        onClick={(e) => handleRowClick(profile, e)}
+        onDoubleClick={(e) => { e.stopPropagation(); handleActivate(profile, e) }}
+        onMouseDown={(e) => { if (e.shiftKey) e.preventDefault() }}
+        className={`rounded-xl border px-4 py-3 cursor-pointer transition-colors select-none bg-white`}
+        style={{
+          backgroundColor: isActive
+            ? 'var(--color-accent-dim)'
+            : isSelected
+              ? 'color-mix(in srgb, var(--color-primary) 6%, var(--color-card))'
+              : 'var(--color-card)',
+          borderColor: isActive
+            ? 'var(--color-primary)'
+            : isDragging
+              ? 'var(--color-primary)'
+              : isSelected
+                ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)'
+                : 'var(--color-border)',
+          boxShadow: isDragging ? '0 8px 24px rgba(0,0,0,0.12)' : 'var(--shadow-card)',
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            {/* 拖拽手柄 */}
+            {!disableDrag && (
+              <div
+                {...dragAttributes}
+                {...dragListeners}
+                className="cursor-grab active:cursor-grabbing p-1 rounded-md shrink-0 text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              >
+                <GripVertical size={14} />
+              </div>
+            )}
+            <div
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ backgroundColor: getLatencyDot(profile.test_result) }}
+            />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span
+                  className="text-sm font-medium truncate"
+                  style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+                >
+                  {profile.name}
+                </span>
+                <span
+                  className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                  style={{
+                    backgroundColor: protoColor.bg,
+                    color: protoColor.text,
+                    fontFamily: 'var(--font-heading)',
+                  }}
+                >
+                  {profile.protocol}
+                </span>
+              </div>
+              <p
+                className="text-xs mt-0.5 truncate"
+                style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
+              >
+                {profile.address}:{profile.port}
+                {profile.group_name && (
+                  <span style={{ fontFamily: 'var(--font-heading)' }}> · {profile.group_name}</span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {profile.test_result && (
+              <span
+                className="text-xs"
+                style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
+              >
+                {profile.test_result}
+              </span>
+            )}
+            <motion.button
+              onClick={(e) => { e.stopPropagation(); handleActivate(profile, e) }}
+              className="p-1 rounded-md transition-colors cursor-pointer"
+              style={{
+                color: isActive ? 'var(--color-success)' : 'var(--color-text-muted)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-success)'
+                e.currentTarget.style.backgroundColor = 'var(--color-success-dim)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = isActive ? 'var(--color-success)' : 'var(--color-text-muted)'
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
+              whileHover={{ scale: 1.15 }}
+              whileTap={{ scale: 0.9 }}
+              title={isActive ? '当前激活' : '点击激活'}
+            >
+              {isActive ? <Wifi size={14} /> : <WifiOff size={14} />}
+            </motion.button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setEditProfile(profile) }}
+              className="p-1 rounded-md transition-colors cursor-pointer"
+              style={{ color: 'var(--color-text-muted)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-accent-warm)'
+                e.currentTarget.style.backgroundColor = 'var(--color-accent-dim)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-muted)'
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
+            >
+              <Edit3 size={12} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setDeleteTargetId(deleteTargetId === profile.ID ? null : profile.ID) }}
+              className="p-1 rounded-md transition-colors cursor-pointer"
+              style={{ color: 'var(--color-text-muted)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-error)'
+                e.currentTarget.style.backgroundColor = 'var(--color-error-dim)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-muted)'
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }, [activeProfile, selectedIds, searchQuery, handleRowClick, handleActivate, deleteTargetId])
+
+  const renderExtra = useCallback((profile: Profile) => (
+    <DeleteConfirmBanner
+      visible={deleteTargetId === profile.ID}
+      message={t('nodes.delete_confirm', { name: profile.name })}
+      onConfirm={() => handleDelete(profile.ID)}
+      onCancel={() => setDeleteTargetId(null)}
+    />
+  ), [deleteTargetId, t, handleDelete])
+
+  const emptyContent = useMemo(() => (
+    <div className="text-center py-20">
+      <Layers size={32} className="mx-auto mb-3" style={{ color: 'var(--color-text-muted)' }} />
+      <p className="text-sm" style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}>
+        {searchQuery ? t('common.no_data') : t('nodes.no_nodes')}
+      </p>
+    </div>
+  ), [searchQuery, t])
 
   const displayName = (g: NodeGroupItem) => g.alias || t('groups.default_name')
 
@@ -607,74 +499,19 @@ export function NodesView() {
             if (e.target === e.currentTarget) setSelectedIds(new Set())
           }}
         >
-          {filteredProfiles.length === 0 ? (
-            <div className="text-center py-20">
-              <Layers size={32} className="mx-auto mb-3" style={{ color: 'var(--color-text-muted)' }} />
-              <p className="text-sm" style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}>
-                {searchQuery ? t('common.no_data') : t('nodes.no_nodes')}
-              </p>
-            </div>
-          ) : (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
-              onDragCancel={() => setActiveDragId(null)}
-            >
-              {/* 滚动视窗：提供给 useVirtualizer */}
-              <div ref={scrollRef} className="h-full overflow-y-auto pr-2 relative custom-scrollbar">
-                {/* 占位层：负责把高度撑开 */}
-                <div style={{ height: virtualizer.getTotalSize(), width: '100%', position: 'relative' }}>
-                  <SortableContext items={filteredProfiles.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
-                    {/* 只渲染处于可视区域内的节点 */}
-                    {virtualizer.getVirtualItems().map((virtualItem) => {
-                      const profile = filteredProfiles[virtualItem.index]
-                      if (!profile) return null
-                      return (
-                        <SortableVirtualNode
-                          key={profile.uuid}
-                          profile={profile}
-                          virtualItem={virtualItem}
-                          virtualizer={virtualizer}
-                          isDeleting={deleteTargetId === profile.ID}
-                          isActive={activeProfile?.ID === profile.ID}
-                          isSelected={selectedIds.has(profile.ID)}
-                          disableDrag={!!searchQuery} // 搜索状态下禁止拖拽
-                          callbacks={callbacks}
-                          t={t}
-                        />
-                      )
-                    })}
-                  </SortableContext>
-                </div>
-              </div>
-
-              {/* 悬浮层：只在拖拽发生时渲染，被拎在鼠标上的替身 */}
-              <DragOverlay dropAnimation={{ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.4' } } }) }}>
-                {activeDragId ? (() => {
-                  const activeProfileObj = profiles.find(p => p.uuid === activeDragId)
-                  if (!activeProfileObj) return null
-                  return (
-                    <NodeCard
-                      profile={activeProfileObj}
-                      isDragging={true}
-                      dragListeners={{}} // Overlay 不需要绑事件
-                      dragAttributes={{}}
-                      isActive={activeProfile?.ID === activeProfileObj.ID}
-                      isSelected={selectedIds.has(activeProfileObj.ID)}
-                      disableDrag={true}
-                      onRowClick={() => {}}
-                      onActivate={() => {}}
-                      onEdit={() => {}}
-                      onDeleteRequest={() => {}}
-                      t={t}
-                    />
-                  )
-                })() : null}
-              </DragOverlay>
-            </DndContext>
-          )}
+          <VirtualSortableList
+            key={selectedGroupId} // 当切换分组时强制重新实例化以重置滚动
+            items={filteredProfiles}
+            onItemsChange={handleReorder}
+            renderItem={renderItem}
+            renderExtra={renderExtra}
+            estimateSize={74}
+            overscan={5}
+            className="h-full flex flex-col"
+            disableDrag={!!searchQuery} // 仅在未搜索时允许拖拽
+            onDragStart={handleDragStart}
+            emptyContent={emptyContent}
+          />
         </div>
       </div>
 
