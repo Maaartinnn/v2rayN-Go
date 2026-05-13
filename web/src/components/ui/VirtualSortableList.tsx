@@ -93,13 +93,12 @@ function SortableVirtualItem<T extends { uuid: string }>({
   const extraContent = renderExtra?.(item)
 
   // 外层：文档流中、挂 measureElement ref 做自动测量（内部用 ResizeObserver）
-  // paddingBottom 与 virtualizer 的 gap 对齐，提供视觉间距
+  // 间距由 virtualizer 的 gap: 8 统一管理，无需在此设置 padding/margin
   return (
     <div
       ref={virtualizer.measureElement}
       data-index={virtualItem.index}
       style={{
-        paddingBottom: 8,
         overflow: 'visible',
         position: 'relative',
         zIndex: isDragging ? 50 : isExpanded ? 40 : 1,
@@ -169,7 +168,7 @@ export function VirtualSortableList<T extends { uuid: string }>({
   )
 
   // 初始化虚拟列表
-  // gap: 8 让虚拟器在 start/end 计算中包含项间距，与 paddingBottom 对齐
+  // gap: 8 让虚拟器在 start/end 计算中自动包含项间距，无需手动设 padding/margin
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef.current,
