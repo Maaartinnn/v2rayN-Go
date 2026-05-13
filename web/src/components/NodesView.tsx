@@ -1,6 +1,5 @@
-import { useEffect, useState, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Wifi, WifiOff, RefreshCw, Trash2, Search, Layers, FolderOpen, Link, Edit3 } from 'lucide-react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { Wifi, WifiOff, RefreshCw, Trash2, Search, Layers, FolderOpen, Link, Edit3, GripVertical } from 'lucide-react'
 import { useStore } from '../store'
 import type { Profile } from '../store'
 import { profileApi, profileEnhancedApi, groupsApi } from '../lib/api'
@@ -8,6 +7,7 @@ import { useT } from '../lib/i18n'
 import { DeleteConfirmBanner } from './ui/DeleteConfirmBanner'
 import { NodeEditForm } from './NodeEditForm'
 import { RightDrawer } from './ui/RightDrawer'
+import { VirtualSortableList } from './ui/VirtualSortableList'
 
 interface NodeGroupItem {
   ID: number
@@ -50,16 +50,14 @@ export function NodesView() {
   // 局部更新单个节点（编辑后替换对应条目，不全量刷新）
   const handleNodeSaved = (updatedProfile?: Profile) => {
     if (updatedProfile) {
-      // 编辑模式：用后端返回的数据局部替换
       setProfiles(profiles.map(p => p.ID === updatedProfile.ID ? updatedProfile : p))
     } else {
-      // 新建模式（从 NodeEditForm 创建后）：全量刷新
       loadProfiles()
     }
     setEditProfile(null)
   }
 
-  // Activate a node as proxy (clicking WiFi icon)
+  // Activate a node as proxy
   const handleActivate = async (profile: Profile, e: React.MouseEvent) => {
     e.stopPropagation()
     try {
@@ -132,7 +130,7 @@ export function NodesView() {
     }
   }
 
-  const filteredProfiles = profiles.filter((p) => {
+  const filteredProfiles = useMemo(() => profiles.filter((p) => {
     const matchesSearch = !searchQuery || (() => {
       const q = searchQuery.toLowerCase()
       return (
@@ -144,18 +142,16 @@ export function NodesView() {
     })()
     const matchesGroup = selectedGroupId === 0 || p.group_id === selectedGroupId
     return matchesSearch && matchesGroup
-  })
+  }), [profiles, searchQuery, selectedGroupId])
 
   // Row click: select node (Ctrl/Shift for multi-select)
   const handleRowClick = useCallback((profile: Profile, e: React.MouseEvent) => {
-    // Prevent text selection on Shift+click
     if (e.shiftKey) {
       e.preventDefault()
       window.getSelection()?.removeAllRanges()
     }
 
     if (e.ctrlKey || e.metaKey) {
-      // Ctrl+click: toggle selection
       setSelectedIds(prev => {
         const next = new Set(prev)
         if (next.has(profile.ID)) next.delete(profile.ID)
@@ -163,7 +159,6 @@ export function NodesView() {
         return next
       })
     } else if (e.shiftKey && lastClickedId !== null) {
-      // Shift+click: range selection
       const ids = filteredProfiles.map(p => p.ID)
       const from = ids.indexOf(lastClickedId)
       const to = ids.indexOf(profile.ID)
@@ -176,7 +171,6 @@ export function NodesView() {
         })
       }
     } else {
-      // Normal click: single select
       setSelectedIds(new Set([profile.ID]))
     }
     setLastClickedId(profile.ID)
@@ -186,7 +180,6 @@ export function NodesView() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-        // Only capture if not focused on an input
         const tag = (e.target as HTMLElement)?.tagName
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
         e.preventDefault()
@@ -199,12 +192,210 @@ export function NodesView() {
 
   const displayName = (g: NodeGroupItem) => g.alias || t('groups.default_name')
 
+  // 拖拽排序后的持久化
+  const handleReorder = useCallback(async (newProfiles: Profile[]) => {
+    setProfiles(newProfiles)
+    try {
+      await profileApi.reorder(newProfiles.map((p) => p.uuid))
+    } catch (err) {
+      console.error('Reorder failed:', err)
+      await loadProfiles()
+    }
+  }, [setProfiles])
+
+  // 拖拽开始时关闭编辑/删除状态
+  const handleDragStart = useCallback(() => {
+    setDeleteTargetId(null)
+  }, [])
+
+  // 渲染额外内容（删除确认）
+  const renderExtra = useCallback((profile: Profile) => {
+    return (
+      <DeleteConfirmBanner
+        visible={deleteTargetId === profile.ID}
+        message={t('nodes.delete_confirm', { name: profile.name })}
+        onConfirm={() => handleDelete(profile.ID)}
+        onCancel={() => setDeleteTargetId(null)}
+      />
+    )
+  }, [deleteTargetId, t, handleDelete])
+
+  // 渲染单个节点卡片
+  const renderItem = useCallback(({ item: profile, isDragging, dragListeners, dragAttributes }: {
+    item: Profile
+    isDragging: boolean
+    isOverlay: boolean
+    dragListeners: Record<string, any>
+    dragAttributes: Record<string, any>
+  }) => {
+    const protoColor = getProtocolColor(profile.protocol)
+
+    return (
+      <div
+        onClick={(e) => handleRowClick(profile, e)}
+        onDoubleClick={(e) => { e.stopPropagation(); handleActivate(profile, e) }}
+        onMouseDown={(e) => { if (e.shiftKey) e.preventDefault() }}
+        className="rounded-xl border px-4 py-3 cursor-pointer transition-colors select-none"
+        style={{
+          backgroundColor: isDragging
+            ? 'var(--color-card)'
+            : activeProfile?.ID === profile.ID
+              ? 'var(--color-accent-dim)'
+              : selectedIds.has(profile.ID)
+                ? 'color-mix(in srgb, var(--color-primary) 6%, var(--color-card))'
+                : 'var(--color-card)',
+          borderColor: isDragging
+            ? 'var(--color-primary)'
+            : activeProfile?.ID === profile.ID
+              ? 'var(--color-primary)'
+              : selectedIds.has(profile.ID)
+                ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)'
+                : 'var(--color-border)',
+          boxShadow: isDragging ? '0 8px 24px rgba(0,0,0,0.12)' : 'var(--shadow-card)',
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Drag Handle */}
+            <div
+              {...dragAttributes}
+              {...dragListeners}
+              className="cursor-grab active:cursor-grabbing p-1 rounded-md shrink-0"
+              style={{ color: 'var(--color-text-muted)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <GripVertical size={14} />
+            </div>
+
+            <div
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ backgroundColor: getLatencyDot(profile.test_result) }}
+            />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span
+                  className="text-sm font-medium truncate"
+                  style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+                >
+                  {profile.name}
+                </span>
+                <span
+                  className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                  style={{
+                    backgroundColor: protoColor.bg,
+                    color: protoColor.text,
+                    fontFamily: 'var(--font-heading)',
+                  }}
+                >
+                  {profile.protocol}
+                </span>
+              </div>
+              <p
+                className="text-xs mt-0.5 truncate"
+                style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
+              >
+                {profile.address}:{profile.port}
+                {profile.group_name && (
+                  <span style={{ fontFamily: 'var(--font-heading)' }}> · {profile.group_name}</span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {profile.test_result && (
+              <span
+                className="text-xs"
+                style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
+              >
+                {profile.test_result}
+              </span>
+            )}
+            <button
+              onClick={(e) => handleActivate(profile, e)}
+              className="p-1 rounded-md transition-colors cursor-pointer"
+              style={{
+                color: activeProfile?.ID === profile.ID
+                  ? 'var(--color-success)'
+                  : 'var(--color-text-muted)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-success)'
+                e.currentTarget.style.backgroundColor = 'var(--color-success-dim)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = activeProfile?.ID === profile.ID
+                  ? 'var(--color-success)'
+                  : 'var(--color-text-muted)'
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
+              title={activeProfile?.ID === profile.ID ? '当前激活' : '点击激活'}
+            >
+              {activeProfile?.ID === profile.ID ? (
+                <Wifi size={14} />
+              ) : (
+                <WifiOff size={14} />
+              )}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setEditProfile(profile) }}
+              className="p-1 rounded-md transition-colors cursor-pointer"
+              style={{ color: 'var(--color-text-muted)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-accent-warm)'
+                e.currentTarget.style.backgroundColor = 'var(--color-accent-dim)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-muted)'
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
+            >
+              <Edit3 size={12} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setDeleteTargetId(profile.ID) }}
+              className="p-1 rounded-md transition-colors cursor-pointer"
+              style={{ color: 'var(--color-text-muted)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-error)'
+                e.currentTarget.style.backgroundColor = 'var(--color-error-dim)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-muted)'
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }, [activeProfile, selectedIds, handleRowClick, handleActivate])
+
+  // 空状态
+  const emptyContent = useMemo(() => (
+    <div className="text-center py-20">
+      <Layers
+        size={32}
+        className="mx-auto mb-3"
+        style={{ color: 'var(--color-text-muted)' }}
+      />
+      <p
+        className="text-sm"
+        style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
+      >
+        {searchQuery ? t('common.no_data') : t('nodes.no_nodes')}
+      </p>
+    </div>
+  ), [searchQuery, t])
+
   return (
     <div className="flex gap-6 max-w-5xl mx-auto">
       {/* Left: Node List */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col" style={{ height: 'calc(100vh - 200px)' }}>
         {/* Header */}
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-5 shrink-0">
           <h1
             className="text-xl font-semibold"
             style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
@@ -212,23 +403,20 @@ export function NodesView() {
             {t('nodes.title')}
           </h1>
           <div className="flex gap-2">
-            <motion.button
-            onClick={handlePingAll}
+            <button
+              onClick={handlePingAll}
               disabled={loading}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer btn-ghost"
-              style={{
-                fontFamily: 'var(--font-heading)',
-              }}
-              whileTap={{ scale: 0.95 }}
+              style={{ fontFamily: 'var(--font-heading)' }}
             >
               <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
               {t('nodes.test_all')}
-            </motion.button>
+            </button>
           </div>
         </div>
 
         {/* Toolbar: search + dedup */}
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-4 shrink-0">
           <div className="relative flex-1">
             <Search
               size={14}
@@ -249,7 +437,7 @@ export function NodesView() {
               }}
             />
           </div>
-          <motion.button
+          <button
             onClick={handleDedup}
             className="flex items-center gap-1 px-2.5 py-2 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
             style={{
@@ -258,206 +446,39 @@ export function NodesView() {
               color: 'var(--color-muted-foreground)',
               fontFamily: 'var(--font-heading)',
             }}
-            whileTap={{ scale: 0.95 }}
             title={t('nodes.dedup')}
           >
             <Layers size={13} />
-          </motion.button>
+          </button>
         </div>
 
         {/* Dedup result toast */}
-        <AnimatePresence>
-          {dedupResult && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="mb-3 px-4 py-2 rounded-lg text-xs font-medium"
-              style={{
-                backgroundColor: 'var(--color-success-dim)',
-                color: 'var(--color-success)',
-                fontFamily: 'var(--font-heading)',
-              }}
-            >
-              {dedupResult}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {dedupResult && (
+          <div
+            className="mb-3 px-4 py-2 rounded-lg text-xs font-medium"
+            style={{
+              backgroundColor: 'var(--color-success-dim)',
+              color: 'var(--color-success)',
+              fontFamily: 'var(--font-heading)',
+            }}
+          >
+            {dedupResult}
+          </div>
+        )}
 
-        {/* Node list */}
-        <div className="space-y-1.5" key={selectedGroupId} onDoubleClick={(e) => {
-          // Double-click blank area to deselect all
-          if (e.target === e.currentTarget) setSelectedIds(new Set())
-        }}>
-          <AnimatePresence>
-            {filteredProfiles.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-center py-20"
-              >
-                <Layers
-                  size={32}
-                  className="mx-auto mb-3"
-                  style={{ color: 'var(--color-text-muted)' }}
-                />
-                <p
-                  className="text-sm"
-                  style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
-                >
-                  {searchQuery ? t('common.no_data') : t('nodes.no_nodes')}
-                </p>
-              </motion.div>
-            ) : (
-              filteredProfiles.map((profile) => {
-                const protoColor = getProtocolColor(profile.protocol)
-                return (
-                  <motion.div
-                    key={profile.ID}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  >
-                    <div
-                      onClick={(e) => handleRowClick(profile, e)}
-                      onDoubleClick={(e) => { e.stopPropagation(); handleActivate(profile, e) }}
-                      onMouseDown={(e) => { if (e.shiftKey) e.preventDefault() }}
-                      className="rounded-xl border px-4 py-3 cursor-pointer transition-colors select-none"
-                      style={{
-                        backgroundColor: activeProfile?.ID === profile.ID
-                          ? 'var(--color-accent-dim)'
-                          : selectedIds.has(profile.ID)
-                            ? 'color-mix(in srgb, var(--color-primary) 6%, var(--color-card))'
-                            : 'var(--color-card)',
-                        borderColor: activeProfile?.ID === profile.ID
-                          ? 'var(--color-primary)'
-                          : selectedIds.has(profile.ID)
-                            ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)'
-                            : 'var(--color-border)',
-                        boxShadow: 'var(--shadow-card)',
-                      }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className="w-2 h-2 rounded-full shrink-0"
-                            style={{ backgroundColor: getLatencyDot(profile.test_result) }}
-                          />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className="text-sm font-medium truncate"
-                                style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
-                              >
-                                {profile.name}
-                              </span>
-                              <span
-                                className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
-                                style={{
-                                  backgroundColor: protoColor.bg,
-                                  color: protoColor.text,
-                                  fontFamily: 'var(--font-heading)',
-                                }}
-                              >
-                                {profile.protocol}
-                              </span>
-                            </div>
-                            <p
-                              className="text-xs mt-0.5 truncate"
-                              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
-                            >
-                              {profile.address}:{profile.port}
-                              {profile.group_name && (
-                                <span style={{ fontFamily: 'var(--font-heading)' }}> · {profile.group_name}</span>
-                              )}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          {profile.test_result && (
-                            <span
-                              className="text-xs"
-                              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
-                            >
-                              {profile.test_result}
-                            </span>
-                          )}
-                          <motion.button
-                            onClick={(e) => handleActivate(profile, e)}
-                            className="p-1 rounded-md transition-colors cursor-pointer"
-                            style={{
-                              color: activeProfile?.ID === profile.ID
-                                ? 'var(--color-success)'
-                                : 'var(--color-text-muted)',
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.color = 'var(--color-success)'
-                              e.currentTarget.style.backgroundColor = 'var(--color-success-dim)'
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.color = activeProfile?.ID === profile.ID
-                                ? 'var(--color-success)'
-                                : 'var(--color-text-muted)'
-                              e.currentTarget.style.backgroundColor = 'transparent'
-                            }}
-                            whileHover={{ scale: 1.15 }}
-                            whileTap={{ scale: 0.9 }}
-                            title={activeProfile?.ID === profile.ID ? '当前激活' : '点击激活'}
-                          >
-                            {activeProfile?.ID === profile.ID ? (
-                              <Wifi size={14} />
-                            ) : (
-                              <WifiOff size={14} />
-                            )}
-                          </motion.button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setEditProfile(profile) }}
-                            className="p-1 rounded-md transition-colors cursor-pointer"
-                            style={{ color: 'var(--color-text-muted)' }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.color = 'var(--color-accent-warm)'
-                              e.currentTarget.style.backgroundColor = 'var(--color-accent-dim)'
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.color = 'var(--color-text-muted)'
-                              e.currentTarget.style.backgroundColor = 'transparent'
-                            }}
-                          >
-                            <Edit3 size={12} />
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setDeleteTargetId(profile.ID) }}
-                            className="p-1 rounded-md transition-colors cursor-pointer"
-                            style={{ color: 'var(--color-text-muted)' }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.color = 'var(--color-error)'
-                              e.currentTarget.style.backgroundColor = 'var(--color-error-dim)'
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.color = 'var(--color-text-muted)'
-                              e.currentTarget.style.backgroundColor = 'transparent'
-                            }}
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    {/* Delete confirm banner */}
-                    <DeleteConfirmBanner
-                      visible={deleteTargetId === profile.ID}
-                      message={t('nodes.delete_confirm', { name: profile.name })}
-                      onConfirm={() => handleDelete(profile.ID)}
-                      onCancel={() => setDeleteTargetId(null)}
-                    />
-                  </motion.div>
-                )
-              })
-            )}
-          </AnimatePresence>
-        </div>
+        {/* Virtual Sortable Node List */}
+        <VirtualSortableList
+          items={filteredProfiles}
+          onItemsChange={handleReorder}
+          renderItem={renderItem}
+          renderExtra={renderExtra}
+          estimateSize={72}
+          overscan={5}
+          className="flex-1 min-h-0"
+          onDragStart={handleDragStart}
+          emptyContent={emptyContent}
+          disableDrag={selectedGroupId !== 0} // 仅在"全部分组"视图下允许拖拽排序
+        />
       </div>
 
       {/* Right: Group Selection Panel */}
@@ -473,7 +494,7 @@ export function NodesView() {
           >
             <div className="p-2 space-y-1">
               {/* "All Groups" option */}
-              <motion.button
+              <button
                 onClick={() => setSelectedGroupId(0)}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-left cursor-pointer"
                 style={{
@@ -482,7 +503,6 @@ export function NodesView() {
                   borderWidth: selectedGroupId === 0 ? 1 : 0,
                   borderStyle: 'solid',
                 }}
-                whileTap={{ scale: 0.98 }}
               >
                 <div
                   className="w-5 h-5 rounded flex items-center justify-center shrink-0"
@@ -507,12 +527,12 @@ export function NodesView() {
                 >
                   {profiles.length}
                 </span>
-              </motion.button>
+              </button>
 
               {groups.map((group) => {
                 const isSelected = selectedGroupId === group.ID
                 return (
-                  <motion.button
+                  <button
                     key={group.ID}
                     onClick={() => setSelectedGroupId(group.ID)}
                     className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-left cursor-pointer"
@@ -522,7 +542,6 @@ export function NodesView() {
                       borderWidth: isSelected ? 1 : 0,
                       borderStyle: 'solid',
                     }}
-                    whileTap={{ scale: 0.98 }}
                   >
                     <div
                       className="w-5 h-5 rounded flex items-center justify-center shrink-0"
@@ -555,7 +574,7 @@ export function NodesView() {
                     >
                       {group.node_count}
                     </span>
-                  </motion.button>
+                  </button>
                 )
               })}
             </div>

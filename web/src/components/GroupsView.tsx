@@ -1,22 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core'
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
   Plus,
   Trash2,
@@ -36,6 +18,7 @@ import { SmoothCollapse } from './ui/SmoothCollapse'
 import { FormField } from './ui/FormField'
 import { FormActions } from './ui/FormActions'
 import { inputStyle, inputHeadingStyle, textareaStyle } from './ui/formStyles'
+import { VirtualSortableList } from './ui/VirtualSortableList'
 
 interface NodeGroup {
   ID: number
@@ -55,7 +38,7 @@ interface NodeGroup {
   color: string
 }
 
-// ========== Group Edit Form (独立悬浮卡片) ==========
+// ========== Group Edit Form ==========
 function GroupEditForm({
   group,
   onSave,
@@ -121,66 +104,66 @@ function GroupEditForm({
 
         {/* Subscription fields (conditional) */}
         <SmoothCollapse isOpen={formIsSub} className="space-y-3">
-              {/* URL */}
-              <FormField label={t('groups.url')}>
-                <input
-                  type="text"
-                  value={formUrl}
-                  onChange={(e) => setFormUrl(e.target.value)}
-                  placeholder={t('groups.url_placeholder')}
-                  className="w-full px-3 py-2 text-sm rounded-lg border"
-                  style={inputStyle}
-                />
-              </FormField>
+          {/* URL */}
+          <FormField label={t('groups.url')}>
+            <input
+              type="text"
+              value={formUrl}
+              onChange={(e) => setFormUrl(e.target.value)}
+              placeholder={t('groups.url_placeholder')}
+              className="w-full px-3 py-2 text-sm rounded-lg border"
+              style={inputStyle}
+            />
+          </FormField>
 
-              {/* Enable Update + Interval */}
-              <div className="grid grid-cols-2 gap-3">
-                <FormField label={t('groups.enable_update')} cols="1/2">
-                  <button
-                    onClick={() => setFormEnableUpdate(!formEnableUpdate)}
-                    className="w-full px-3 py-2 text-sm rounded-lg border text-left transition-colors cursor-pointer"
-                    style={{
-                      ...inputHeadingStyle,
-                      borderColor: formEnableUpdate ? 'var(--color-primary)' : 'var(--color-border)',
-                    }}
-                  >
-                    {formEnableUpdate ? t('common.enabled') : t('common.disabled')}
-                  </button>
-                </FormField>
-                <FormField label={t('groups.update_interval')} cols="1/2" hint={t('groups.update_interval_hint')}>
-                  <input
-                    type="number"
-                    value={formInterval}
-                    onChange={(e) => setFormInterval(e.target.value)}
-                    className="w-full px-3 py-2 text-sm rounded-lg border"
-                    style={inputStyle}
-                  />
-                </FormField>
-              </div>
+          {/* Enable Update + Interval */}
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label={t('groups.enable_update')} cols="1/2">
+              <button
+                onClick={() => setFormEnableUpdate(!formEnableUpdate)}
+                className="w-full px-3 py-2 text-sm rounded-lg border text-left transition-colors cursor-pointer"
+                style={{
+                  ...inputHeadingStyle,
+                  borderColor: formEnableUpdate ? 'var(--color-primary)' : 'var(--color-border)',
+                }}
+              >
+                {formEnableUpdate ? t('common.enabled') : t('common.disabled')}
+              </button>
+            </FormField>
+            <FormField label={t('groups.update_interval')} cols="1/2" hint={t('groups.update_interval_hint')}>
+              <input
+                type="number"
+                value={formInterval}
+                onChange={(e) => setFormInterval(e.target.value)}
+                className="w-full px-3 py-2 text-sm rounded-lg border"
+                style={inputStyle}
+              />
+            </FormField>
+          </div>
 
-              {/* Alias Regex + User Agent */}
-              <div className="grid grid-cols-2 gap-3">
-                <FormField label={t('groups.alias_regex')} cols="1/2">
-                  <input
-                    type="text"
-                    value={formAliasRegex}
-                    onChange={(e) => setFormAliasRegex(e.target.value)}
-                    placeholder={t('groups.alias_regex_placeholder')}
-                    className="w-full px-3 py-2 text-sm rounded-lg border"
-                    style={inputStyle}
-                  />
-                </FormField>
-                <FormField label={t('groups.user_agent')} cols="1/2">
-                  <input
-                    type="text"
-                    value={formUserAgent}
-                    onChange={(e) => setUserAgent(e.target.value)}
-                    placeholder={t('groups.user_agent_placeholder')}
-                    className="w-full px-3 py-2 text-sm rounded-lg border"
-                    style={inputStyle}
-                  />
-                </FormField>
-              </div>
+          {/* Alias Regex + User Agent */}
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label={t('groups.alias_regex')} cols="1/2">
+              <input
+                type="text"
+                value={formAliasRegex}
+                onChange={(e) => setFormAliasRegex(e.target.value)}
+                placeholder={t('groups.alias_regex_placeholder')}
+                className="w-full px-3 py-2 text-sm rounded-lg border"
+                style={inputStyle}
+              />
+            </FormField>
+            <FormField label={t('groups.user_agent')} cols="1/2">
+              <input
+                type="text"
+                value={formUserAgent}
+                onChange={(e) => setUserAgent(e.target.value)}
+                placeholder={t('groups.user_agent_placeholder')}
+                className="w-full px-3 py-2 text-sm rounded-lg border"
+                style={inputStyle}
+              />
+            </FormField>
+          </div>
         </SmoothCollapse>
 
         {/* Notes */}
@@ -206,203 +189,6 @@ function GroupEditForm({
   )
 }
 
-// ========== Sortable Group Card ==========
-function SortableGroupCard({
-  group,
-  onEdit,
-  onDelete,
-  onRefresh,
-  onRefreshProxy,
-  canDelete,
-  t,
-}: {
-  group: NodeGroup
-  onEdit: () => void
-  onDelete: () => void
-  onRefresh: () => void
-  onRefreshProxy: () => void
-  canDelete: boolean
-  t: (key: any, params?: Record<string, any>) => string
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: group.uuid })
-
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    transition,
-    zIndex: isDragging ? 50 : 'auto',
-    opacity: isDragging ? 0.8 : 1,
-  }
-
-  const displayName = group.alias || t('groups.default_name')
-
-  return (
-    <div ref={setNodeRef} style={style}>
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl border"
-        style={{
-          backgroundColor: 'var(--color-card)',
-          borderColor: isDragging ? 'var(--color-primary)' : 'var(--color-border)',
-          boxShadow: isDragging ? '0 8px 24px rgba(0,0,0,0.12)' : 'var(--shadow-card)',
-        }}
-      >
-        {/* Card Header */}
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            {/* Drag Handle */}
-            <div
-              {...attributes}
-              {...listeners}
-              className="cursor-grab active:cursor-grabbing p-1 rounded-md shrink-0"
-              style={{ color: 'var(--color-text-muted)' }}
-            >
-              <GripVertical size={14} />
-            </div>
-
-            {/* Group Icon */}
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-              style={{
-                backgroundColor: group.is_subscription
-                  ? 'rgba(217, 119, 87, 0.12)'
-                  : 'var(--color-accent-dim)',
-              }}
-            >
-              {group.is_subscription ? (
-                <Link size={14} style={{ color: '#D97757' }} />
-              ) : (
-                <FolderOpen size={14} style={{ color: 'var(--color-accent-warm)' }} />
-              )}
-            </div>
-
-            {/* Name & Info */}
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span
-                  className="text-sm font-medium truncate"
-                  style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
-                >
-                  {displayName}
-                </span>
-                {group.is_subscription && (
-                  <span
-                    className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
-                    style={{
-                      backgroundColor: 'rgba(217, 119, 87, 0.12)',
-                      color: '#D97757',
-                      fontFamily: 'var(--font-heading)',
-                    }}
-                  >
-                    {t('groups.is_subscription')}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-3 mt-0.5">
-                <span
-                  className="text-[10px]"
-                  style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-heading)' }}
-                >
-                  {t('groups.nodes_count', { count: group.node_count })}
-                </span>
-                {group.is_subscription && group.notes && (
-                  <span
-                    className="text-[10px] truncate max-w-50"
-                    style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-heading)' }}
-                  >
-                    {group.notes}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-1 shrink-0 ml-3">
-            {/* Refresh buttons (subscription only) */}
-            {group.is_subscription && (
-              <>
-                <button
-                  onClick={onRefresh}
-                  className="p-1.5 rounded-md transition-colors cursor-pointer"
-                  style={{ color: 'var(--color-text-muted)' }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.color = 'var(--color-accent-warm)'
-                    e.currentTarget.style.backgroundColor = 'var(--color-accent-dim)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.color = 'var(--color-text-muted)'
-                    e.currentTarget.style.backgroundColor = 'transparent'
-                  }}
-                  title={t('groups.update_no_proxy')}
-                >
-                  <RefreshCw size={13} />
-                </button>
-                <button
-                  onClick={onRefreshProxy}
-                  className="p-1.5 rounded-md transition-colors cursor-pointer"
-                  style={{ color: 'var(--color-text-muted)' }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.color = 'var(--color-accent-warm)'
-                    e.currentTarget.style.backgroundColor = 'var(--color-accent-dim)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.color = 'var(--color-text-muted)'
-                    e.currentTarget.style.backgroundColor = 'transparent'
-                  }}
-                  title={t('groups.update_with_proxy')}
-                >
-                  <Globe size={13} />
-                </button>
-              </>
-            )}
-            <button
-              onClick={onEdit}
-              className="p-1.5 rounded-md transition-colors cursor-pointer"
-              style={{ color: 'var(--color-text-muted)' }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = 'var(--color-accent-warm)'
-                e.currentTarget.style.backgroundColor = 'var(--color-accent-dim)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = 'var(--color-text-muted)'
-                e.currentTarget.style.backgroundColor = 'transparent'
-              }}
-            >
-              <Edit3 size={13} />
-            </button>
-            <button
-              onClick={onDelete}
-              disabled={!canDelete}
-              className="p-1.5 rounded-md transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-              style={{ color: 'var(--color-text-muted)' }}
-              onMouseEnter={(e) => {
-                if (canDelete) {
-                  e.currentTarget.style.color = 'var(--color-error)'
-                  e.currentTarget.style.backgroundColor = 'var(--color-error-dim)'
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = 'var(--color-text-muted)'
-                e.currentTarget.style.backgroundColor = 'transparent'
-              }}
-            >
-              <Trash2 size={13} />
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  )
-}
-
 // ========== Main GroupsView ==========
 export function GroupsView() {
   const [groups, setGroups] = useState<NodeGroup[]>([])
@@ -410,11 +196,6 @@ export function GroupsView() {
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
   const t = useT()
   const { addToast } = useStore()
-
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  )
 
   const loadGroups = useCallback(async () => {
     try {
@@ -491,122 +272,270 @@ export function GroupsView() {
     }
   }
 
-  // Drag-and-drop: optimistic reorder
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-
-    const oldIndex = groups.findIndex((g) => g.uuid === active.id)
-    const newIndex = groups.findIndex((g) => g.uuid === over.id)
-
-    // Optimistic update
-    const newGroups = arrayMove(groups, oldIndex, newIndex)
+  // 拖拽排序后的持久化
+  const handleReorder = useCallback(async (newGroups: NodeGroup[]) => {
     setGroups(newGroups)
-
-    // Save to backend
     try {
       await groupsApi.reorder(newGroups.map((g) => g.uuid))
     } catch (err) {
       console.error('Reorder failed:', err)
       addToast(t('groups.reorder_failed'), 'error')
-      // Revert
       await loadGroups()
     }
-  }
+  }, [addToast, t, loadGroups])
+
+  // 拖拽开始时关闭编辑/删除
+  const handleDragStart = useCallback(() => {
+    setEditId(null)
+    setDeleteTargetId(null)
+  }, [])
+
+  // 渲染额外内容（编辑表单 + 删除确认）
+  const renderExtra = useCallback((group: NodeGroup) => {
+    return (
+      <>
+        {editId === group.ID && (
+          <div className="pt-2">
+            <GroupEditForm
+              group={group}
+              onSave={(data) => handleSave(group.ID, data)}
+              onCancel={() => setEditId(null)}
+              t={t}
+            />
+          </div>
+        )}
+        <DeleteConfirmBanner
+          visible={deleteTargetId === group.ID}
+          message={t('groups.delete_confirm', { name: group.alias || t('groups.default_name') })}
+          onConfirm={() => handleDelete(group.ID)}
+          onCancel={() => setDeleteTargetId(null)}
+        />
+      </>
+    )
+  }, [editId, deleteTargetId, t, handleSave, handleDelete])
+
+  // 空状态
+  const emptyContent = useMemo(() => (
+    <div className="text-center py-20">
+      <FolderOpen
+        size={32}
+        className="mx-auto mb-3"
+        style={{ color: 'var(--color-text-muted)' }}
+      />
+      <p
+        className="text-sm"
+        style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
+      >
+        {t('common.no_data')}
+      </p>
+    </div>
+  ), [t])
+
+  // 渲染单个卡片
+  const renderItem = useCallback(({ item: group, isDragging, dragListeners, dragAttributes }: {
+    item: NodeGroup
+    isDragging: boolean
+    isOverlay: boolean
+    dragListeners: Record<string, any>
+    dragAttributes: Record<string, any>
+  }) => {
+    const displayName = group.alias || t('groups.default_name')
+
+    return (
+      <div
+        className="rounded-xl border"
+        style={{
+          backgroundColor: 'var(--color-card)',
+          borderColor: isDragging ? 'var(--color-primary)' : 'var(--color-border)',
+          boxShadow: isDragging ? '0 8px 24px rgba(0,0,0,0.12)' : 'var(--shadow-card)',
+        }}
+      >
+        {/* Card Header */}
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            {/* Drag Handle */}
+            <div
+              {...dragAttributes}
+              {...dragListeners}
+              className="cursor-grab active:cursor-grabbing p-1 rounded-md shrink-0"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              <GripVertical size={14} />
+            </div>
+
+            {/* Group Icon */}
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+              style={{
+                backgroundColor: group.is_subscription
+                  ? 'rgba(217, 119, 87, 0.12)'
+                  : 'var(--color-accent-dim)',
+              }}
+            >
+              {group.is_subscription ? (
+                <Link size={14} style={{ color: '#D97757' }} />
+              ) : (
+                <FolderOpen size={14} style={{ color: 'var(--color-accent-warm)' }} />
+              )}
+            </div>
+
+            {/* Name & Info */}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span
+                  className="text-sm font-medium truncate"
+                  style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+                >
+                  {displayName}
+                </span>
+                {group.is_subscription && (
+                  <span
+                    className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                    style={{
+                      backgroundColor: 'rgba(217, 119, 87, 0.12)',
+                      color: '#D97757',
+                      fontFamily: 'var(--font-heading)',
+                    }}
+                  >
+                    {t('groups.is_subscription')}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3 mt-0.5">
+                <span
+                  className="text-[10px]"
+                  style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-heading)' }}
+                >
+                  {t('groups.nodes_count', { count: group.node_count })}
+                </span>
+                {group.is_subscription && group.notes && (
+                  <span
+                    className="text-[10px] truncate max-w-50"
+                    style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-heading)' }}
+                  >
+                    {group.notes}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-1 shrink-0 ml-3">
+            {/* Refresh buttons (subscription only) */}
+            {group.is_subscription && (
+              <>
+                <button
+                  onClick={() => handleRefresh(group.ID)}
+                  className="p-1.5 rounded-md transition-colors cursor-pointer"
+                  style={{ color: 'var(--color-text-muted)' }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = 'var(--color-accent-warm)'
+                    e.currentTarget.style.backgroundColor = 'var(--color-accent-dim)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--color-text-muted)'
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                  }}
+                  title={t('groups.update_no_proxy')}
+                >
+                  <RefreshCw size={13} />
+                </button>
+                <button
+                  onClick={() => handleRefreshProxy(group.ID)}
+                  className="p-1.5 rounded-md transition-colors cursor-pointer"
+                  style={{ color: 'var(--color-text-muted)' }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = 'var(--color-accent-warm)'
+                    e.currentTarget.style.backgroundColor = 'var(--color-accent-dim)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--color-text-muted)'
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                  }}
+                  title={t('groups.update_with_proxy')}
+                >
+                  <Globe size={13} />
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => setEditId(editId === group.ID ? null : group.ID)}
+              className="p-1.5 rounded-md transition-colors cursor-pointer"
+              style={{ color: 'var(--color-text-muted)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-accent-warm)'
+                e.currentTarget.style.backgroundColor = 'var(--color-accent-dim)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-muted)'
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
+            >
+              <Edit3 size={13} />
+            </button>
+            <button
+              onClick={() => {
+                if (groups.length <= 1) {
+                  addToast(t('groups.cannot_delete'), 'error')
+                  return
+                }
+                setDeleteTargetId(deleteTargetId === group.ID ? null : group.ID)
+              }}
+              disabled={groups.length <= 1}
+              className="p-1.5 rounded-md transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              style={{ color: 'var(--color-text-muted)' }}
+              onMouseEnter={(e) => {
+                if (groups.length > 1) {
+                  e.currentTarget.style.color = 'var(--color-error)'
+                  e.currentTarget.style.backgroundColor = 'var(--color-error-dim)'
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-muted)'
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }, [t, editId, deleteTargetId, groups, addToast])
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto flex flex-col" style={{ height: 'calc(100vh - 200px)' }}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-5 shrink-0">
         <h1
           className="text-xl font-semibold"
           style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
         >
           {t('groups.title')}
         </h1>
-        <motion.button
+        <button
           onClick={handleAdd}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer btn-primary"
-          style={{
-            fontFamily: 'var(--font-heading)',
-          }}
-          whileTap={{ scale: 0.95 }}
+          style={{ fontFamily: 'var(--font-heading)' }}
         >
           <Plus size={13} />
           {t('groups.add')}
-        </motion.button>
+        </button>
       </div>
 
-      {/* Group List with Drag-and-Drop */}
-      <div className="space-y-2">
-        {groups.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-20"
-          >
-            <FolderOpen
-              size={32}
-              className="mx-auto mb-3"
-              style={{ color: 'var(--color-text-muted)' }}
-            />
-            <p
-              className="text-sm"
-              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
-            >
-              {t('common.no_data')}
-            </p>
-          </motion.div>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={groups.map((g) => g.uuid)}
-              strategy={verticalListSortingStrategy}
-            >
-              {groups.map((group) => (
-                <div key={group.uuid}>
-                  <SortableGroupCard
-                    group={group}
-                    onEdit={() => setEditId(editId === group.ID ? null : group.ID)}
-                    onDelete={() => {
-                      if (groups.length <= 1) {
-                        addToast(t('groups.cannot_delete'), 'error')
-                        return
-                      }
-                      setDeleteTargetId(deleteTargetId === group.ID ? null : group.ID)
-                    }}
-                    onRefresh={() => handleRefresh(group.ID)}
-                    onRefreshProxy={() => handleRefreshProxy(group.ID)}
-                    canDelete={groups.length > 1}
-                    t={t}
-                  />
-                  <AnimatePresence>
-                    {editId === group.ID && (
-                      <GroupEditForm
-                        key={`edit-${group.ID}`}
-                        group={group}
-                        onSave={(data) => handleSave(group.ID, data)}
-                        onCancel={() => setEditId(null)}
-                        t={t}
-                      />
-                    )}
-                  </AnimatePresence>
-                  <DeleteConfirmBanner
-                    visible={deleteTargetId === group.ID}
-                    message={t('groups.delete_confirm', { name: group.alias || t('groups.default_name') })}
-                    onConfirm={() => handleDelete(group.ID)}
-                    onCancel={() => setDeleteTargetId(null)}
-                  />
-                </div>
-              ))}
-            </SortableContext>
-          </DndContext>
-        )}
-      </div>
+      {/* Virtual Sortable List */}
+      <VirtualSortableList
+        items={groups}
+        onItemsChange={handleReorder}
+        renderItem={renderItem}
+        renderExtra={renderExtra}
+        estimateSize={72}
+        overscan={5}
+        className="flex-1 min-h-0"
+        onDragStart={handleDragStart}
+        emptyContent={emptyContent}
+      />
     </div>
   )
 }

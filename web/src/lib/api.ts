@@ -29,6 +29,7 @@ export const profileApi = {
     api.post('/profiles/import', { links, group_id: groupId || 0 }),
   importToGroup: (links: string, groupId: number) =>
     api.post('/profiles/import-to-group', { links, group_id: groupId }),
+  reorder: (uuids: string[]) => api.put('/profiles/reorder', { uuids }),
 }
 
 // ========== Groups API (unified: normal + subscription groups) ==========
