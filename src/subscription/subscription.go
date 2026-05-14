@@ -78,10 +78,11 @@ func (s *Service) UpdateGroupSubscription(group *database.NodeGroup, useProxy bo
 		return fmt.Errorf("failed to delete old profiles: %w", err)
 	}
 
-	// 插入新节点（步长 10 排序）
+	// 插入新节点（步长排序）
+	seq := database.SortSequence(len(profiles))
 	for i, profile := range profiles {
 		profile.GroupUUID = group.UUID
-		profile.SortOrder = (i + 1) * 10
+		profile.SortOrder = seq[i]
 		if err := tx.Create(profile).Error; err != nil {
 			tx.Rollback()
 			return fmt.Errorf("failed to create profile: %w", err)

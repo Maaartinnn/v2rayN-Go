@@ -265,6 +265,7 @@ func (s *Server) handleProfiles(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Group not found", http.StatusBadRequest)
 			return
 		}
+		profile.SortOrder = database.SortNewScoped(&database.Profile{}, "group_uuid = ?", profile.GroupUUID)
 		if err := database.DB.Create(&profile).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -306,11 +307,10 @@ func (s *Server) handleProfileImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var maxOrder int
-	database.DB.Model(&database.Profile{}).Where("group_uuid = ?", req.GroupUUID).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
+	seq := database.SortNewBatch(&database.Profile{}, "group_uuid = ?", len(profiles), req.GroupUUID)
 
 	for i, profile := range profiles {
-		profile.SortOrder = maxOrder + (i+1)*10
+		profile.SortOrder = seq[i]
 		profile.GroupUUID = req.GroupUUID
 		database.DB.Create(profile)
 	}
@@ -348,11 +348,10 @@ func (s *Server) handleProfileImportToGroup(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var maxOrder int
-	database.DB.Model(&database.Profile{}).Where("group_uuid = ?", req.GroupUUID).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
+	seq := database.SortNewBatch(&database.Profile{}, "group_uuid = ?", len(profiles), req.GroupUUID)
 
 	for i, profile := range profiles {
-		profile.SortOrder = maxOrder + (i+1)*10
+		profile.SortOrder = seq[i]
 		profile.GroupUUID = req.GroupUUID
 		database.DB.Create(profile)
 	}
@@ -392,9 +391,7 @@ func (s *Server) handleGroups(w http.ResponseWriter, r *http.Request) {
 		if group.UUID == "" {
 			group.UUID = database.GenerateUUID()
 		}
-		var maxOrder int
-		database.DB.Model(&database.NodeGroup{}).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
-		group.SortOrder = maxOrder + 10
+		group.SortOrder = database.SortNew(&database.NodeGroup{})
 		if err := database.DB.Create(&group).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -420,9 +417,10 @@ func (s *Server) handleGroupsReorder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	seq := database.SortSequence(len(req.UUIDs))
 	tx := database.DB.Begin()
 	for i, uuid := range req.UUIDs {
-		if err := tx.Model(&database.NodeGroup{}).Where("uuid = ?", uuid).Update("sort_order", (i+1)*10).Error; err != nil {
+		if err := tx.Model(&database.NodeGroup{}).Where("uuid = ?", uuid).Update("sort_order", seq[i]).Error; err != nil {
 			tx.Rollback()
 			jsonError(w, "Failed to reorder: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -698,11 +696,10 @@ func importParsedLinksWithGroup(w http.ResponseWriter, links []string, groupUUID
 		return
 	}
 
-	var maxOrder int
-	database.DB.Model(&database.Profile{}).Where("group_uuid = ?", groupUUID).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
+	seq := database.SortNewBatch(&database.Profile{}, "group_uuid = ?", len(profiles), groupUUID)
 
 	for i, profile := range profiles {
-		profile.SortOrder = maxOrder + (i+1)*10
+		profile.SortOrder = seq[i]
 		profile.GroupUUID = groupUUID
 		database.DB.Create(profile)
 	}
@@ -1037,10 +1034,7 @@ func (s *Server) handleRoutingRules(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		// 服务端计算 sort_order（步长 10）
-		var maxOrder int
-		database.DB.Model(&database.RoutingRule{}).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
-		rule.SortOrder = maxOrder + 10
+		rule.SortOrder = database.SortNew(&database.RoutingRule{})
 		if err := database.DB.Create(&rule).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -1172,10 +1166,7 @@ func (s *Server) handleStrategyGroups(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		// 服务端计算 sort_order（步长 10）
-		var maxOrder int
-		database.DB.Model(&database.StrategyGroup{}).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
-		group.SortOrder = maxOrder + 10
+		group.SortOrder = database.SortNew(&database.StrategyGroup{})
 		if err := database.DB.Create(&group).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return

@@ -50,6 +50,11 @@ func Init(cfg *config.AppConfig) error {
 
 	// 清理历史残留的软删除数据
 	purgeDeleted()
+	log.Println("[INFO] Purged soft-deleted records")
+
+	// 启动时全表重排排序值
+	RebalanceAll()
+	log.Println("[INFO] Startup sort_order rebalance completed")
 
 	// 如果分组为空，创建默认分组
 	var count int64
