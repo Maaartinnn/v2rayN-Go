@@ -9,6 +9,22 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// purgeDeleted 启动时物理删除所有软删除残留记录，防止历史数据堆积
+func purgeDeleted() {
+	models := []interface{}{
+		&Profile{},
+		&NodeGroup{},
+		&RoutingRule{},
+		&StrategyGroup{},
+		&AppSetting{},
+	}
+	for _, m := range models {
+		if err := DB.Unscoped().Where("deleted_at IS NOT NULL").Delete(m).Error; err != nil {
+			log.Printf("[WARN] purge deleted records for %T: %v", m, err)
+		}
+	}
+}
+
 var DB *gorm.DB
 
 // Init 初始化 SQLite 数据库连接并自动迁移表结构
@@ -31,6 +47,9 @@ func Init(cfg *config.AppConfig) error {
 	); err != nil {
 		return err
 	}
+
+	// 清理历史残留的软删除数据
+	purgeDeleted()
 
 	// 如果分组为空，创建默认分组
 	var count int64
