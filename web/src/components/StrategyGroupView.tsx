@@ -228,7 +228,6 @@ export function StrategyGroupView() {
       await strategyGroupsApi.create({
         ...data,
         enabled: true,
-        sort_order: groups.length,
       })
       setShowAdd(false)
       await loadGroups()

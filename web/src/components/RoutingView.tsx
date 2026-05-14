@@ -131,7 +131,6 @@ export function RoutingView() {
       await routingApi.create({
         ...data,
         enabled: true,
-        sort_order: rules.length,
       })
       setShowAdd(false)
       await loadRules()

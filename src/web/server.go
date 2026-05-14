@@ -128,15 +128,12 @@ func (s *Server) Start() error {
 
 	// 对于非 API 请求，返回前端页面
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// 尝试从嵌入的文件系统中提供文件
 		path := r.URL.Path
 		if path == "/" {
 			path = "/index.html"
 		}
-
 		f, err := staticFS.Open(strings.TrimPrefix(path, "/"))
 		if err != nil {
-			// SPA fallback: 返回 index.html
 			http.ServeFileFS(w, r, staticFS, "index.html")
 			return
 		}
@@ -144,10 +141,8 @@ func (s *Server) Start() error {
 		http.FileServerFS(staticFS).ServeHTTP(w, r)
 	})
 
-	// 启动日志广播器（将内核日志广播给所有 WebSocket 客户端）
 	go s.logBroadcaster()
 
-	// API 请求日志中间件
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			log.Printf("[API] %s %s", r.Method, r.URL.Path)
@@ -177,25 +172,18 @@ func (s *Server) handleCoreStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 如果没有指定配置路径，生成一个
 	if req.ConfigPath == "" {
-		// 获取当前激活的节点
 		var profile database.Profile
 		if err := database.DB.Where("is_active = ?", true).First(&profile).Error; err != nil {
 			jsonError(w, "No active profile selected", http.StatusBadRequest)
 			return
 		}
-
-		// 如果请求未指定内核类型，使用节点保存的 core_type
 		if req.CoreType == "" {
 			req.CoreType = profile.CoreType
 		}
-
-		// 获取路由规则
 		var rules []database.RoutingRule
 		database.DB.Order("sort_order ASC").Find(&rules)
 
-		// 生成配置
 		var configPath string
 		var configErr error
 		switch req.CoreType {
@@ -236,11 +224,9 @@ func (s *Server) handleCoreStop(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-
 	if req.CoreType == "" {
 		req.CoreType = "xray"
 	}
-
 	if err := s.coreMgr.StopCore(core.CoreType(req.CoreType)); err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -270,7 +256,6 @@ func (s *Server) handleProfiles(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		// 校验 GroupUUID 非空且分组存在
 		if profile.GroupUUID == "" {
 			jsonError(w, "group_uuid is required", http.StatusBadRequest)
 			return
@@ -305,13 +290,10 @@ func (s *Server) handleProfileImport(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-
 	if req.GroupUUID == "" {
 		jsonError(w, "group_uuid is required", http.StatusBadRequest)
 		return
 	}
-
-	// 校验分组存在
 	var group database.NodeGroup
 	if err := database.DB.Where("uuid = ?", req.GroupUUID).First(&group).Error; err != nil {
 		jsonError(w, "Group not found", http.StatusBadRequest)
@@ -324,7 +306,6 @@ func (s *Server) handleProfileImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 获取当前最大排序号
 	var maxOrder int
 	database.DB.Model(&database.Profile{}).Where("group_uuid = ?", req.GroupUUID).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
 
@@ -337,7 +318,6 @@ func (s *Server) handleProfileImport(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]int{"imported": len(profiles)})
 }
 
-// handleProfileImportToGroup 导入节点到指定分组
 func (s *Server) handleProfileImportToGroup(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -352,13 +332,10 @@ func (s *Server) handleProfileImportToGroup(w http.ResponseWriter, r *http.Reque
 		jsonError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-
 	if req.GroupUUID == "" {
 		jsonError(w, "group_uuid is required", http.StatusBadRequest)
 		return
 	}
-
-	// 校验分组存在
 	var group database.NodeGroup
 	if err := database.DB.Where("uuid = ?", req.GroupUUID).First(&group).Error; err != nil {
 		jsonError(w, "Group not found", http.StatusBadRequest)
@@ -371,7 +348,6 @@ func (s *Server) handleProfileImportToGroup(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// 获取当前最大排序号
 	var maxOrder int
 	database.DB.Model(&database.Profile{}).Where("group_uuid = ?", req.GroupUUID).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
 
@@ -389,7 +365,6 @@ func (s *Server) handlePingAll(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
 	go s.pingSvc.PingAllProfiles(r.Context(), 20)
 	jsonOK(w, map[string]string{"status": "pinging"})
 }
@@ -401,14 +376,11 @@ func (s *Server) handleGroups(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		var groups []database.NodeGroup
 		database.DB.Order("sort_order ASC").Find(&groups)
-
-		// 计算每个分组的节点数
 		for i := range groups {
 			var count int64
 			database.DB.Model(&database.Profile{}).Where("group_uuid = ?", groups[i].UUID).Count(&count)
 			groups[i].NodeCount = int(count)
 		}
-
 		jsonOK(w, groups)
 
 	case http.MethodPost:
@@ -417,17 +389,12 @@ func (s *Server) handleGroups(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-
-		// 自动生成 UUID
 		if group.UUID == "" {
 			group.UUID = database.GenerateUUID()
 		}
-
-		// 设置排序（步长 10）
 		var maxOrder int
 		database.DB.Model(&database.NodeGroup{}).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
 		group.SortOrder = maxOrder + 10
-
 		if err := database.DB.Create(&group).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -469,7 +436,6 @@ func (s *Server) handleGroupsReorder(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]string{"status": "reordered"})
 }
 
-// handleGroupByID handles /api/groups/{id} and /api/groups/{id}/refresh
 func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/groups/")
 	parts := strings.SplitN(path, "/", 2)
@@ -486,7 +452,6 @@ func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 检查子操作
 	if len(parts) > 1 {
 		switch parts[1] {
 		case "refresh":
@@ -531,7 +496,6 @@ func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		// 计算节点数
 		var count int64
 		database.DB.Model(&database.Profile{}).Where("group_uuid = ?", group.UUID).Count(&count)
 		group.NodeCount = int(count)
@@ -544,11 +508,9 @@ func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		updated.ID = group.ID
-		// 保留 UUID 不变
 		if updated.UUID == "" {
 			updated.UUID = group.UUID
 		}
-		// 保留原始 sort_order，编辑操作不改变排序
 		updated.SortOrder = group.SortOrder
 		if err := database.DB.Save(&updated).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
@@ -557,15 +519,45 @@ func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
 		jsonOK(w, updated)
 
 	case http.MethodDelete:
-		// 检查是否只剩一个分组
 		var count int64
 		database.DB.Model(&database.NodeGroup{}).Count(&count)
 		if count <= 1 {
 			jsonError(w, "Cannot delete the last group", http.StatusBadRequest)
 			return
 		}
+		// 先查出被删节点的 ID 列表，用于清理策略组脏引用
+		var deletedProfileIDs []uint
+		database.DB.Model(&database.Profile{}).Where("group_uuid = ?", group.UUID).Pluck("id", &deletedProfileIDs)
 		// 删除该分组下的所有节点
 		database.DB.Where("group_uuid = ?", group.UUID).Delete(&database.Profile{})
+		// 清理 StrategyGroup 中的脏引用
+		if len(deletedProfileIDs) > 0 {
+			deletedSet := make(map[uint]bool, len(deletedProfileIDs))
+			for _, id := range deletedProfileIDs {
+				deletedSet[id] = true
+			}
+			var strategyGroups []database.StrategyGroup
+			database.DB.Find(&strategyGroups)
+			for _, sg := range strategyGroups {
+				if sg.ProfileIDs == "" {
+					continue
+				}
+				var ids []uint
+				if err := json.Unmarshal([]byte(sg.ProfileIDs), &ids); err != nil {
+					continue
+				}
+				var cleaned []uint
+				for _, id := range ids {
+					if !deletedSet[id] {
+						cleaned = append(cleaned, id)
+					}
+				}
+				if len(cleaned) != len(ids) {
+					newJSON, _ := json.Marshal(cleaned)
+					database.DB.Model(&sg).Update("profile_ids", string(newJSON))
+				}
+			}
+		}
 		database.DB.Delete(&group)
 		jsonOK(w, map[string]string{"status": "deleted"})
 
@@ -582,7 +574,6 @@ func (s *Server) handleProfileDedup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 接收可选的 group_uuid 参数
 	var req struct {
 		GroupUUID string `json:"group_uuid"`
 	}
@@ -599,13 +590,11 @@ func (s *Server) handleProfileDedup(w http.ResponseWriter, r *http.Request) {
 	var duplicates []uint
 
 	for _, p := range profiles {
-		// 基于 raw_link 去重（去掉 #名称 部分，只比较配置）
 		key := p.RawLink
 		if idx := strings.LastIndex(key, "#"); idx != -1 {
 			key = key[:idx]
 		}
 		if key == "" {
-			// fallback: address + port + protocol + uuid
 			key = fmt.Sprintf("%s:%d:%s", p.Address, p.Port, p.Protocol)
 			if p.UUID != "" {
 				key += ":" + p.UUID
@@ -636,32 +625,25 @@ func (s *Server) handleProfileImportImage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Parse multipart form (max 10MB)
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		jsonError(w, "Failed to parse form: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	var imageURL string
-
-	// Get group_uuid from form
 	groupUUID := r.FormValue("group_uuid")
 	if groupUUID == "" {
 		jsonError(w, "group_uuid is required", http.StatusBadRequest)
 		return
 	}
 
-	// Check for uploaded file
 	file, _, err := r.FormFile("image")
 	if err == nil {
 		defer file.Close()
-		// Read file bytes
 		data, err := io.ReadAll(file)
 		if err != nil {
 			jsonError(w, "Failed to read file", http.StatusInternalServerError)
 			return
 		}
-		// Try to decode QR from image bytes
 		links, decodeErr := parser.DecodeQRFromBytes(data)
 		if decodeErr != nil {
 			jsonError(w, "No QR code found in image: "+decodeErr.Error(), http.StatusBadRequest)
@@ -671,14 +653,12 @@ func (s *Server) handleProfileImportImage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Check for image URL
-	imageURL = r.FormValue("url")
+	imageURL := r.FormValue("url")
 	if imageURL == "" {
 		jsonError(w, "No image file or URL provided", http.StatusBadRequest)
 		return
 	}
 
-	// Download image from URL
 	resp, err := http.Get(imageURL)
 	if err != nil {
 		jsonError(w, "Failed to download image: "+err.Error(), http.StatusBadRequest)
@@ -702,12 +682,10 @@ func (s *Server) handleProfileImportImage(w http.ResponseWriter, r *http.Request
 }
 
 func importParsedLinksWithGroup(w http.ResponseWriter, links []string, groupUUID string) {
-	// 校验 groupUUID 非空且分组存在
 	if groupUUID == "" {
 		jsonError(w, "group_uuid is required", http.StatusBadRequest)
 		return
 	}
-
 	var group database.NodeGroup
 	if err := database.DB.Where("uuid = ?", groupUUID).First(&group).Error; err != nil {
 		jsonError(w, "Group not found", http.StatusBadRequest)
@@ -739,8 +717,6 @@ func (s *Server) handleCores(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	// 只返回本地信息，不访问网络，毫秒级响应
 	cores := s.updater.GetLocalCores()
 	jsonOK(w, cores)
 }
@@ -750,20 +726,15 @@ func (s *Server) handleCoresCheckUpdates(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	// 检查所有内核的最新版本（访问 GitHub API，支持镜像降级）
 	cores := s.updater.CheckAllUpdates()
 	latestVersions := make(map[string]string)
 	for _, c := range cores {
 		if c.LatestVer != "" {
-			// 统一去掉 v 前缀，确保前端比较一致
 			ver := strings.TrimPrefix(c.LatestVer, "v")
 			latestVersions[c.Name] = ver
 		}
 	}
-	jsonOK(w, map[string]interface{}{
-		"latest_versions": latestVersions,
-	})
+	jsonOK(w, map[string]interface{}{"latest_versions": latestVersions})
 }
 
 func (s *Server) handleCoresDetectVersions(w http.ResponseWriter, r *http.Request) {
@@ -771,13 +742,10 @@ func (s *Server) handleCoresDetectVersions(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	// 触发异步版本检测，结果通过 WebSocket 推送
 	s.detectCoreVersions()
 	jsonOK(w, map[string]string{"status": "detecting"})
 }
 
-// detectCoreVersions 异步检测所有已安装内核的版本号并通过 WebSocket 推送
 func (s *Server) detectCoreVersions() {
 	go func() {
 		cores := s.updater.GetLocalCoresWithVersions()
@@ -787,10 +755,7 @@ func (s *Server) detectCoreVersions() {
 				versions[c.Name] = c.Version
 			}
 		}
-		s.broadcastToAll(map[string]interface{}{
-			"type":    "core_versions",
-			"payload": versions,
-		})
+		s.broadcastToAll(map[string]interface{}{"type": "core_versions", "payload": versions})
 	}()
 }
 
@@ -799,7 +764,6 @@ func (s *Server) handleCoreDownload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
 	var req struct {
 		CoreName string `json:"core_name"`
 	}
@@ -807,52 +771,37 @@ func (s *Server) handleCoreDownload(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-
 	if req.CoreName == "" {
 		jsonError(w, "Missing core_name", http.StatusBadRequest)
 		return
 	}
-
-	// 检查是否已在下载中
 	if _, exists := s.activeDownloads.Load(req.CoreName); exists {
 		jsonError(w, "Download already in progress", http.StatusConflict)
 		return
 	}
 
-	// 初始化下载状态
 	state := &downloadState{CoreName: req.CoreName, Status: "downloading"}
 	s.activeDownloads.Store(req.CoreName, state)
 
 	go func() {
 		defer s.activeDownloads.Delete(req.CoreName)
-
 		err := s.updater.DownloadCore(req.CoreName, func(downloaded, total int64) {
 			state.Downloaded = downloaded
 			state.Total = total
 			if total > 0 {
 				state.Percentage = int(downloaded * 100 / total)
 			}
-			s.broadcastToAll(map[string]interface{}{
-				"type":    "download_progress",
-				"payload": state,
-			})
+			s.broadcastToAll(map[string]interface{}{"type": "download_progress", "payload": state})
 		})
-
 		if err != nil {
 			state.Status = "error"
 			state.Error = err.Error()
 			log.Printf("Failed to download core %s: %v", req.CoreName, err)
-			s.broadcastToAll(map[string]interface{}{
-				"type":    "download_complete",
-				"payload": map[string]interface{}{"core_name": req.CoreName, "success": false, "error": err.Error()},
-			})
+			s.broadcastToAll(map[string]interface{}{"type": "download_complete", "payload": map[string]interface{}{"core_name": req.CoreName, "success": false, "error": err.Error()}})
 		} else {
 			state.Status = "complete"
 			state.Percentage = 100
-			s.broadcastToAll(map[string]interface{}{
-				"type":    "download_complete",
-				"payload": map[string]interface{}{"core_name": req.CoreName, "success": true},
-			})
+			s.broadcastToAll(map[string]interface{}{"type": "download_complete", "payload": map[string]interface{}{"core_name": req.CoreName, "success": true}})
 		}
 	}()
 
@@ -864,7 +813,6 @@ func (s *Server) handleCoreDownloadURL(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
 	var req struct {
 		CoreName    string `json:"core_name"`
 		DownloadURL string `json:"download_url"`
@@ -873,17 +821,10 @@ func (s *Server) handleCoreDownloadURL(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-
-	if req.CoreName == "" {
-		jsonError(w, "Missing core_name", http.StatusBadRequest)
+	if req.CoreName == "" || req.DownloadURL == "" {
+		jsonError(w, "Missing core_name or download_url", http.StatusBadRequest)
 		return
 	}
-	if req.DownloadURL == "" {
-		jsonError(w, "Missing download_url", http.StatusBadRequest)
-		return
-	}
-
-	// 检查是否已在下载中
 	if _, exists := s.activeDownloads.Load(req.CoreName); exists {
 		jsonError(w, "Download already in progress", http.StatusConflict)
 		return
@@ -894,34 +835,23 @@ func (s *Server) handleCoreDownloadURL(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		defer s.activeDownloads.Delete(req.CoreName)
-
 		err := s.updater.DownloadCoreFromURL(req.CoreName, req.DownloadURL, func(downloaded, total int64) {
 			state.Downloaded = downloaded
 			state.Total = total
 			if total > 0 {
 				state.Percentage = int(downloaded * 100 / total)
 			}
-			s.broadcastToAll(map[string]interface{}{
-				"type":    "download_progress",
-				"payload": state,
-			})
+			s.broadcastToAll(map[string]interface{}{"type": "download_progress", "payload": state})
 		})
-
 		if err != nil {
 			state.Status = "error"
 			state.Error = err.Error()
 			log.Printf("Failed to download core %s from URL: %v", req.CoreName, err)
-			s.broadcastToAll(map[string]interface{}{
-				"type":    "download_complete",
-				"payload": map[string]interface{}{"core_name": req.CoreName, "success": false, "error": err.Error()},
-			})
+			s.broadcastToAll(map[string]interface{}{"type": "download_complete", "payload": map[string]interface{}{"core_name": req.CoreName, "success": false, "error": err.Error()}})
 		} else {
 			state.Status = "complete"
 			state.Percentage = 100
-			s.broadcastToAll(map[string]interface{}{
-				"type":    "download_complete",
-				"payload": map[string]interface{}{"core_name": req.CoreName, "success": true},
-			})
+			s.broadcastToAll(map[string]interface{}{"type": "download_complete", "payload": map[string]interface{}{"core_name": req.CoreName, "success": true}})
 		}
 	}()
 
@@ -933,19 +863,15 @@ func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	// Parse multipart form (max 200MB)
 	if err := r.ParseMultipartForm(200 << 20); err != nil {
 		jsonError(w, "Failed to parse form: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-
 	coreName := r.FormValue("core_name")
 	if coreName == "" {
 		jsonError(w, "Missing core_name", http.StatusBadRequest)
 		return
 	}
-
 	file, header, err := r.FormFile("binary")
 	if err != nil {
 		jsonError(w, "Missing binary file", http.StatusBadRequest)
@@ -953,7 +879,6 @@ func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Map core name to sub-directory
 	subDir := coreName
 	switch coreName {
 	case "xray":
@@ -969,19 +894,16 @@ func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Determine binary name
 	binName := coreName
 	if runtime.GOOS == "windows" {
 		binName += ".exe"
 	}
 	destPath := filepath.Join(coreDir, binName)
 
-	// Check if uploaded file is an archive
 	fileName := strings.ToLower(header.Filename)
 	isArchive := strings.HasSuffix(fileName, ".zip") || strings.HasSuffix(fileName, ".tar.gz") || strings.HasSuffix(fileName, ".tgz")
 
 	if isArchive {
-		// Save archive to temp file first
 		tmpFile, err := os.CreateTemp("", "v2rayn-upload-*.tmp")
 		if err != nil {
 			jsonError(w, "Failed to create temp file: "+err.Error(), http.StatusInternalServerError)
@@ -989,35 +911,29 @@ func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
 		}
 		tmpPath := tmpFile.Name()
 		defer os.Remove(tmpPath)
-
 		if _, err := io.Copy(tmpFile, file); err != nil {
 			tmpFile.Close()
 			jsonError(w, "Failed to save temp file: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		tmpFile.Close()
-
-		// Extract binary from archive
 		if err := s.updater.ExtractBinary(tmpPath, header.Filename, destPath, binName); err != nil {
 			jsonError(w, "Failed to extract binary from archive: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 	} else {
-		// Save as raw binary
 		dst, err := os.Create(destPath)
 		if err != nil {
 			jsonError(w, "Failed to create file: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		defer dst.Close()
-
 		if _, err := io.Copy(dst, file); err != nil {
 			jsonError(w, "Failed to save file: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
 
-	// Set executable permission on non-Windows
 	if runtime.GOOS != "windows" {
 		os.Chmod(destPath, 0755)
 	}
@@ -1029,7 +945,6 @@ func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
 // ========== Profile by ID API ==========
 
 func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
-	// Extract ID from path: /api/profiles/{id} or /api/profiles/{id}/select or /api/profiles/{id}/ping
 	path := strings.TrimPrefix(r.URL.Path, "/api/profiles/")
 	parts := strings.SplitN(path, "/", 2)
 	id := strings.TrimSpace(parts[0])
@@ -1045,7 +960,6 @@ func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check for sub-action
 	if len(parts) > 1 {
 		switch parts[1] {
 		case "select":
@@ -1053,9 +967,7 @@ func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 				return
 			}
-			// Deactivate all profiles first
 			database.DB.Model(&database.Profile{}).Where("is_active = ?", true).Update("is_active", false)
-			// Activate selected profile
 			database.DB.Model(&profile).Update("is_active", true)
 			jsonOK(w, map[string]string{"status": "selected"})
 			return
@@ -1086,7 +998,6 @@ func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		updated.ID = profile.ID
-		// 校验 GroupUUID 非空且分组存在
 		if updated.GroupUUID == "" {
 			jsonError(w, "group_uuid is required", http.StatusBadRequest)
 			return
@@ -1126,6 +1037,10 @@ func (s *Server) handleRoutingRules(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
+		// 服务端计算 sort_order（步长 10）
+		var maxOrder int
+		database.DB.Model(&database.RoutingRule{}).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
+		rule.SortOrder = maxOrder + 10
 		if err := database.DB.Create(&rule).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -1138,7 +1053,6 @@ func (s *Server) handleRoutingRules(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRoutingRuleByID(w http.ResponseWriter, r *http.Request) {
-	// Extract ID from path: /api/routing-rules/{id}
 	path := strings.TrimPrefix(r.URL.Path, "/api/routing-rules/")
 	var rule database.RoutingRule
 	if err := database.DB.First(&rule, path).Error; err != nil {
@@ -1174,11 +1088,7 @@ func (s *Server) handleRoutingRuleByID(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSystemProxy(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		jsonOK(w, map[string]interface{}{
-			"enabled": false,
-			"port":    s.cfg.SocksPort,
-		})
-
+		jsonOK(w, map[string]interface{}{"enabled": false, "port": s.cfg.SocksPort})
 	case http.MethodPost:
 		var req struct {
 			Enabled bool `json:"enabled"`
@@ -1188,12 +1098,7 @@ func (s *Server) handleSystemProxy(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		// System proxy management is platform-specific and handled at OS level
-		jsonOK(w, map[string]interface{}{
-			"enabled": req.Enabled,
-			"port":    req.Port,
-		})
-
+		jsonOK(w, map[string]interface{}{"enabled": req.Enabled, "port": req.Port})
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -1204,7 +1109,6 @@ func (s *Server) handleSystemProxy(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		// 返回当前配置
 		settings := map[string]interface{}{
 			"listen_ip":     s.cfg.ListenIP,
 			"web_port":      s.cfg.WebPort,
@@ -1216,7 +1120,6 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		jsonOK(w, settings)
 
 	case http.MethodPost:
-		// 更新配置
 		var req struct {
 			ListenIP     *string `json:"listen_ip"`
 			SocksPort    *int    `json:"socks_port"`
@@ -1228,7 +1131,6 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-
 		if req.ListenIP != nil {
 			s.cfg.ListenIP = *req.ListenIP
 		}
@@ -1244,13 +1146,10 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		if req.GitHubMirror != nil {
 			s.cfg.GitHubMirror = *req.GitHubMirror
 		}
-
-		// 保存到 config.json
 		if err := s.cfg.SaveJSONConfig(); err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
 		jsonOK(w, map[string]string{"status": "saved"})
 
 	default:
@@ -1273,6 +1172,10 @@ func (s *Server) handleStrategyGroups(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
+		// 服务端计算 sort_order（步长 10）
+		var maxOrder int
+		database.DB.Model(&database.StrategyGroup{}).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
+		group.SortOrder = maxOrder + 10
 		if err := database.DB.Create(&group).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -1345,10 +1248,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	s.wsClients.Store(clientID, wc)
 	defer s.wsClients.Delete(clientID)
 
-	// 连接时立即发送当前内核状态
 	s.sendStatusToClient(wc)
 
-	// 保持连接
 	for {
 		_, _, err := wc.ReadMessage()
 		if err != nil {
@@ -1359,7 +1260,6 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 // ========== WebSocket Broadcasting ==========
 
-// broadcastToAll 向所有 WebSocket 客户端广播消息
 func (s *Server) broadcastToAll(msg interface{}) {
 	s.wsClients.Range(func(key, value interface{}) bool {
 		if wc, ok := value.(*wsConn); ok {
@@ -1371,32 +1271,20 @@ func (s *Server) broadcastToAll(msg interface{}) {
 	})
 }
 
-// broadcastStatus 广播当前所有内核状态给 WebSocket 客户端
 func (s *Server) broadcastStatus() {
 	statuses := s.coreMgr.GetAllStatus()
-	s.broadcastToAll(map[string]interface{}{
-		"type":    "status",
-		"payload": statuses,
-	})
+	s.broadcastToAll(map[string]interface{}{"type": "status", "payload": statuses})
 }
 
-// sendStatusToClient 向单个 WebSocket 客户端发送当前状态
 func (s *Server) sendStatusToClient(wc *wsConn) {
 	statuses := s.coreMgr.GetAllStatus()
-	wc.WriteJSON(map[string]interface{}{
-		"type":    "status",
-		"payload": statuses,
-	})
+	wc.WriteJSON(map[string]interface{}{"type": "status", "payload": statuses})
 }
 
-// logBroadcaster 从内核日志通道读取日志并广播给所有 WebSocket 客户端
 func (s *Server) logBroadcaster() {
 	logChan := s.coreMgr.LogChannel()
 	for entry := range logChan {
-		s.broadcastToAll(map[string]interface{}{
-			"type":    "log",
-			"payload": entry,
-		})
+		s.broadcastToAll(map[string]interface{}{"type": "log", "payload": entry})
 	}
 }
 
