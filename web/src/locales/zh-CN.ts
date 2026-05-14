@@ -30,7 +30,6 @@ const zhCN = {
   'nodes.save': '保存',
   'nodes.group': '分组',
   'nodes.all_groups': '全部分组',
-  'nodes.ungrouped': '未分组',
   'nodes.sort': '排序',
   'nodes.dedup': '去重',
   'nodes.dedup_result': '从 {total} 个节点中移除了 {removed} 个重复项',

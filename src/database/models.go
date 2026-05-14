@@ -53,8 +53,7 @@ type Profile struct {
 	IsActive     bool      `gorm:"default:false" json:"is_active"` // 是否为当前激活节点
 
 	// 分组信息
-	GroupID   uint   `json:"group_id"`                   // 所属分组 ID
-	GroupName string `gorm:"size:256" json:"group_name"` // 分组名称（冗余字段，便于查询）
+	GroupUUID string `gorm:"size:36;not null;index" json:"group_uuid"` // 所属分组 UUID
 }
 
 // NodeGroup 节点分组（统一管理：普通分组 + 订阅分组）

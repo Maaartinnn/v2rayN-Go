@@ -39,7 +39,7 @@ func Init(cfg *config.AppConfig) error {
 		DB.Create(&NodeGroup{
 			UUID:      GenerateUUID(),
 			Alias:     "",
-			SortOrder: 0,
+			SortOrder: 10,
 			Enabled:   true,
 		})
 		log.Println("Created default group")

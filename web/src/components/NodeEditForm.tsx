@@ -15,11 +15,11 @@ import { inputStyle, inputHeadingStyle } from './ui/formStyles'
 interface NodeEditFormProps {
   onClose: () => void
   onSaved: (updatedProfile?: Profile) => void
-  groupId?: number
+  groupUUID?: string
   editData?: Profile
 }
 
-export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFormProps) {
+export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEditFormProps) {
   const t = useT()
   const isEditing = !!editData
 
@@ -48,8 +48,8 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
   const [flow, setFlow] = useState('')
 
   // Group selection
-  const [selectedGroupId, setSelectedGroupId] = useState<number>(groupId || 0)
-  const [groups, setGroups] = useState<Array<{ ID: number; alias: string; is_subscription: boolean }>>([])
+  const [selectedGroupUUID, setSelectedGroupUUID] = useState<string>(groupUUID || '')
+  const [groups, setGroups] = useState<Array<{ ID: number; uuid: string; alias: string; is_subscription: boolean }>>([])
 
   // Smart core selection
   const [recommendedCore, setRecommendedCore] = useState<string | null>(null)
@@ -68,7 +68,7 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
   useEffect(() => {
     if (editData) {
       setName(editData.name || '')
-      setSelectedGroupId(editData.group_id || 0)
+      setSelectedGroupUUID(editData.group_uuid || '')
       setProtocol(editData.protocol || 'vmess')
       setAddress(editData.address || '')
       setPort(String(editData.port || 443))
@@ -120,7 +120,7 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
     if (!name.trim() || !address.trim() || !port) return
 
     const payload = {
-      group_id: selectedGroupId,
+      group_uuid: selectedGroupUUID,
       name: name.trim(),
       address: address.trim(),
       port: parseInt(port) || 443,
@@ -201,14 +201,13 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
           {isEditing && (
             <FormField label={t('nodes.group')} cols="1/2">
               <select
-                value={selectedGroupId}
-                onChange={(e) => setSelectedGroupId(Number(e.target.value))}
+                value={selectedGroupUUID}
+                onChange={(e) => setSelectedGroupUUID(e.target.value)}
                 className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
                 style={inputStyle}
               >
-                <option value={0}>{t('nodes.ungrouped') || 'Ungrouped'}</option>
                 {groups.map((g) => (
-                  <option key={g.ID} value={g.ID}>{g.alias || t('groups.default_name')}</option>
+                  <option key={g.uuid} value={g.uuid}>{g.alias || t('groups.default_name')}</option>
                 ))}
               </select>
             </FormField>
@@ -512,7 +511,7 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
         onSubmit={handleSubmit}
         cancelLabel={t('nodes.cancel')}
         submitLabel={isEditing ? t('nodes.save') : t('nodes.confirm')}
-        submitDisabled={!name.trim() || !address.trim() || !port}
+        submitDisabled={!name.trim() || !address.trim() || !port || !selectedGroupUUID}
       />
     </EditFormCard>
   )

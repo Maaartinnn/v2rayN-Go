@@ -73,16 +73,15 @@ func (s *Service) UpdateGroupSubscription(group *database.NodeGroup, useProxy bo
 	}
 
 	// 删除该分组下的旧节点
-	if err := tx.Where("group_id = ?", group.ID).Delete(&database.Profile{}).Error; err != nil {
+	if err := tx.Where("group_uuid = ?", group.UUID).Delete(&database.Profile{}).Error; err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to delete old profiles: %w", err)
 	}
 
-	// 插入新节点
+	// 插入新节点（步长 10 排序）
 	for i, profile := range profiles {
-		profile.GroupID = group.ID
-		profile.GroupName = group.Alias
-		profile.SortOrder = i
+		profile.GroupUUID = group.UUID
+		profile.SortOrder = (i + 1) * 10
 		if err := tx.Create(profile).Error; err != nil {
 			tx.Rollback()
 			return fmt.Errorf("failed to create profile: %w", err)

@@ -270,6 +270,16 @@ func (s *Server) handleProfiles(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
+		// 校验 GroupUUID 非空且分组存在
+		if profile.GroupUUID == "" {
+			jsonError(w, "group_uuid is required", http.StatusBadRequest)
+			return
+		}
+		var group database.NodeGroup
+		if err := database.DB.Where("uuid = ?", profile.GroupUUID).First(&group).Error; err != nil {
+			jsonError(w, "Group not found", http.StatusBadRequest)
+			return
+		}
 		if err := database.DB.Create(&profile).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -288,11 +298,23 @@ func (s *Server) handleProfileImport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Links   string `json:"links"`
-		GroupID uint   `json:"group_id"`
+		Links     string `json:"links"`
+		GroupUUID string `json:"group_uuid"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if req.GroupUUID == "" {
+		jsonError(w, "group_uuid is required", http.StatusBadRequest)
+		return
+	}
+
+	// 校验分组存在
+	var group database.NodeGroup
+	if err := database.DB.Where("uuid = ?", req.GroupUUID).First(&group).Error; err != nil {
+		jsonError(w, "Group not found", http.StatusBadRequest)
 		return
 	}
 
@@ -302,23 +324,13 @@ func (s *Server) handleProfileImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 获取分组信息
-	var groupName string
-	if req.GroupID > 0 {
-		var group database.NodeGroup
-		if err := database.DB.First(&group, req.GroupID).Error; err == nil {
-			groupName = group.Alias
-		}
-	}
-
 	// 获取当前最大排序号
 	var maxOrder int
-	database.DB.Model(&database.Profile{}).Where("group_id = ?", req.GroupID).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
+	database.DB.Model(&database.Profile{}).Where("group_uuid = ?", req.GroupUUID).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
 
 	for i, profile := range profiles {
-		profile.SortOrder = maxOrder + i + 1
-		profile.GroupID = req.GroupID
-		profile.GroupName = groupName
+		profile.SortOrder = maxOrder + (i+1)*10
+		profile.GroupUUID = req.GroupUUID
 		database.DB.Create(profile)
 	}
 
@@ -333,11 +345,23 @@ func (s *Server) handleProfileImportToGroup(w http.ResponseWriter, r *http.Reque
 	}
 
 	var req struct {
-		Links   string `json:"links"`
-		GroupID uint   `json:"group_id"`
+		Links     string `json:"links"`
+		GroupUUID string `json:"group_uuid"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if req.GroupUUID == "" {
+		jsonError(w, "group_uuid is required", http.StatusBadRequest)
+		return
+	}
+
+	// 校验分组存在
+	var group database.NodeGroup
+	if err := database.DB.Where("uuid = ?", req.GroupUUID).First(&group).Error; err != nil {
+		jsonError(w, "Group not found", http.StatusBadRequest)
 		return
 	}
 
@@ -347,23 +371,13 @@ func (s *Server) handleProfileImportToGroup(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// 获取分组信息
-	var groupName string
-	if req.GroupID > 0 {
-		var group database.NodeGroup
-		if err := database.DB.First(&group, req.GroupID).Error; err == nil {
-			groupName = group.Alias
-		}
-	}
-
 	// 获取当前最大排序号
 	var maxOrder int
-	database.DB.Model(&database.Profile{}).Where("group_id = ?", req.GroupID).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
+	database.DB.Model(&database.Profile{}).Where("group_uuid = ?", req.GroupUUID).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
 
 	for i, profile := range profiles {
-		profile.SortOrder = maxOrder + i + 1
-		profile.GroupID = req.GroupID
-		profile.GroupName = groupName
+		profile.SortOrder = maxOrder + (i+1)*10
+		profile.GroupUUID = req.GroupUUID
 		database.DB.Create(profile)
 	}
 
@@ -391,7 +405,7 @@ func (s *Server) handleGroups(w http.ResponseWriter, r *http.Request) {
 		// 计算每个分组的节点数
 		for i := range groups {
 			var count int64
-			database.DB.Model(&database.Profile{}).Where("group_id = ?", groups[i].ID).Count(&count)
+			database.DB.Model(&database.Profile{}).Where("group_uuid = ?", groups[i].UUID).Count(&count)
 			groups[i].NodeCount = int(count)
 		}
 
@@ -409,10 +423,10 @@ func (s *Server) handleGroups(w http.ResponseWriter, r *http.Request) {
 			group.UUID = database.GenerateUUID()
 		}
 
-		// 设置排序
+		// 设置排序（步长 10）
 		var maxOrder int
 		database.DB.Model(&database.NodeGroup{}).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
-		group.SortOrder = maxOrder + 1
+		group.SortOrder = maxOrder + 10
 
 		if err := database.DB.Create(&group).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
@@ -441,7 +455,7 @@ func (s *Server) handleGroupsReorder(w http.ResponseWriter, r *http.Request) {
 
 	tx := database.DB.Begin()
 	for i, uuid := range req.UUIDs {
-		if err := tx.Model(&database.NodeGroup{}).Where("uuid = ?", uuid).Update("sort_order", i).Error; err != nil {
+		if err := tx.Model(&database.NodeGroup{}).Where("uuid = ?", uuid).Update("sort_order", (i+1)*10).Error; err != nil {
 			tx.Rollback()
 			jsonError(w, "Failed to reorder: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -519,7 +533,7 @@ func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		// 计算节点数
 		var count int64
-		database.DB.Model(&database.Profile{}).Where("group_id = ?", group.ID).Count(&count)
+		database.DB.Model(&database.Profile{}).Where("group_uuid = ?", group.UUID).Count(&count)
 		group.NodeCount = int(count)
 		jsonOK(w, group)
 
@@ -550,8 +564,8 @@ func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Cannot delete the last group", http.StatusBadRequest)
 			return
 		}
-		// 清除该分组下节点的分组引用
-		database.DB.Model(&database.Profile{}).Where("group_id = ?", group.ID).Updates(map[string]interface{}{"group_id": 0, "group_name": ""})
+		// 删除该分组下的所有节点
+		database.DB.Where("group_uuid = ?", group.UUID).Delete(&database.Profile{})
 		database.DB.Delete(&group)
 		jsonOK(w, map[string]string{"status": "deleted"})
 
@@ -568,16 +582,16 @@ func (s *Server) handleProfileDedup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 接收可选的 group_id 参数
+	// 接收可选的 group_uuid 参数
 	var req struct {
-		GroupID uint `json:"group_id"`
+		GroupUUID string `json:"group_uuid"`
 	}
 	json.NewDecoder(r.Body).Decode(&req)
 
 	var profiles []database.Profile
 	query := database.DB.Order("sort_order ASC")
-	if req.GroupID > 0 {
-		query = query.Where("group_id = ?", req.GroupID)
+	if req.GroupUUID != "" {
+		query = query.Where("group_uuid = ?", req.GroupUUID)
 	}
 	query.Find(&profiles)
 
@@ -630,10 +644,12 @@ func (s *Server) handleProfileImportImage(w http.ResponseWriter, r *http.Request
 
 	var imageURL string
 
-	// Get group_id from form
-	groupIDStr := r.FormValue("group_id")
-	var groupID uint
-	fmt.Sscanf(groupIDStr, "%d", &groupID)
+	// Get group_uuid from form
+	groupUUID := r.FormValue("group_uuid")
+	if groupUUID == "" {
+		jsonError(w, "group_uuid is required", http.StatusBadRequest)
+		return
+	}
 
 	// Check for uploaded file
 	file, _, err := r.FormFile("image")
@@ -651,7 +667,7 @@ func (s *Server) handleProfileImportImage(w http.ResponseWriter, r *http.Request
 			jsonError(w, "No QR code found in image: "+decodeErr.Error(), http.StatusBadRequest)
 			return
 		}
-		importParsedLinksWithGroup(w, links, groupID)
+		importParsedLinksWithGroup(w, links, groupUUID)
 		return
 	}
 
@@ -682,35 +698,34 @@ func (s *Server) handleProfileImportImage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	importParsedLinksWithGroup(w, links, groupID)
+	importParsedLinksWithGroup(w, links, groupUUID)
 }
 
-func importParsedLinks(w http.ResponseWriter, links []string) {
-	importParsedLinksWithGroup(w, links, 0)
-}
+func importParsedLinksWithGroup(w http.ResponseWriter, links []string, groupUUID string) {
+	// 校验 groupUUID 非空且分组存在
+	if groupUUID == "" {
+		jsonError(w, "group_uuid is required", http.StatusBadRequest)
+		return
+	}
 
-func importParsedLinksWithGroup(w http.ResponseWriter, links []string, groupID uint) {
+	var group database.NodeGroup
+	if err := database.DB.Where("uuid = ?", groupUUID).First(&group).Error; err != nil {
+		jsonError(w, "Group not found", http.StatusBadRequest)
+		return
+	}
+
 	profiles, err := parser.ParseLinks(links)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	var groupName string
-	if groupID > 0 {
-		var group database.NodeGroup
-		if err := database.DB.First(&group, groupID).Error; err == nil {
-			groupName = group.Alias
-		}
-	}
-
 	var maxOrder int
-	database.DB.Model(&database.Profile{}).Where("group_id = ?", groupID).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
+	database.DB.Model(&database.Profile{}).Where("group_uuid = ?", groupUUID).Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder)
 
 	for i, profile := range profiles {
-		profile.SortOrder = maxOrder + i + 1
-		profile.GroupID = groupID
-		profile.GroupName = groupName
+		profile.SortOrder = maxOrder + (i+1)*10
+		profile.GroupUUID = groupUUID
 		database.DB.Create(profile)
 	}
 
@@ -1071,6 +1086,16 @@ func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		updated.ID = profile.ID
+		// 校验 GroupUUID 非空且分组存在
+		if updated.GroupUUID == "" {
+			jsonError(w, "group_uuid is required", http.StatusBadRequest)
+			return
+		}
+		var group database.NodeGroup
+		if err := database.DB.Where("uuid = ?", updated.GroupUUID).First(&group).Error; err != nil {
+			jsonError(w, "Group not found", http.StatusBadRequest)
+			return
+		}
 		if err := database.DB.Save(&updated).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return

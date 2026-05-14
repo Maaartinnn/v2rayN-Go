@@ -30,7 +30,6 @@ const enUS = {
   'nodes.save': 'Save',
   'nodes.group': 'Group',
   'nodes.all_groups': 'All Groups',
-  'nodes.ungrouped': 'Ungrouped',
   'nodes.sort': 'Sort',
   'nodes.dedup': 'Deduplicate',
   'nodes.dedup_result': 'Removed {removed} duplicates from {total} nodes',

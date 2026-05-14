@@ -23,7 +23,7 @@ interface NodeGroup {
 
 export function ImportView() {
   const [groups, setGroups] = useState<NodeGroup[]>([])
-  const [selectedGroupId, setSelectedGroupId] = useState<number>(0)
+  const [selectedGroupUUID, setSelectedGroupUUID] = useState<string>('')
   const [importText, setImportText] = useState('')
   const [showManualAdd, setShowManualAdd] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -36,13 +36,13 @@ export function ImportView() {
       const data = res.data || []
       setGroups(data)
       // Auto-select first group if none selected
-      if (selectedGroupId === 0 && data.length > 0) {
-        setSelectedGroupId(data[0].ID)
+      if (!selectedGroupUUID && data.length > 0) {
+        setSelectedGroupUUID(data[0].uuid)
       }
     } catch {
       setGroups([])
     }
-  }, [selectedGroupId])
+  }, [selectedGroupUUID])
 
   useEffect(() => {
     loadGroups()
@@ -55,7 +55,7 @@ export function ImportView() {
     }
     setImporting(true)
     try {
-      const res = await profileApi.importToGroup(importText, selectedGroupId)
+      const res = await profileApi.importToGroup(importText, selectedGroupUUID)
       const count = res.data?.imported || 0
       addToast(t('import.import_success', { count }), 'success')
       setImportText('')
@@ -72,8 +72,8 @@ export function ImportView() {
     if (!file) return
     const formData = new FormData()
     formData.append('image', file)
-    if (selectedGroupId > 0) {
-      formData.append('group_id', String(selectedGroupId))
+    if (selectedGroupUUID) {
+      formData.append('group_uuid', selectedGroupUUID)
     }
     try {
       const res = await profileEnhancedApi.importImage(formData)
@@ -190,7 +190,7 @@ export function ImportView() {
             <NodeEditForm
               onClose={() => setShowManualAdd(false)}
               onSaved={loadGroups}
-              groupId={selectedGroupId || undefined}
+              groupUUID={selectedGroupUUID || undefined}
             />
           )}
         </AnimatePresence>
@@ -224,11 +224,11 @@ export function ImportView() {
                 </div>
               ) : (
                 groups.map((group) => {
-                  const isSelected = selectedGroupId === group.ID
+                  const isSelected = selectedGroupUUID === group.uuid
                   return (
                     <motion.button
                       key={group.ID}
-                      onClick={() => setSelectedGroupId(group.ID)}
+                      onClick={() => setSelectedGroupUUID(group.uuid)}
                       className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-left cursor-pointer"
                       style={{
                         backgroundColor: isSelected ? 'var(--color-accent-dim)' : 'transparent',

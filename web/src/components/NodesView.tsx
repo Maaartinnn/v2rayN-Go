@@ -21,7 +21,7 @@ export function NodesView() {
   const { profiles, setProfiles, activeProfile, setActiveProfile } = useStore()
   const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedGroupId, setSelectedGroupId] = useState<number>(0)
+  const [selectedGroupUUID, setSelectedGroupUUID] = useState<string>('')
   const [groups, setGroups] = useState<NodeGroupItem[]>([])
   const [dedupResult, setDedupResult] = useState<string>('')
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
@@ -121,7 +121,7 @@ export function NodesView() {
 
   const handleDedup = async () => {
     try {
-      const res = await profileEnhancedApi.dedup(selectedGroupId || undefined)
+      const res = await profileEnhancedApi.dedup(selectedGroupUUID || undefined)
       const data = res.data
       setDedupResult(t('nodes.dedup_result', { removed: data.removed, total: data.total }))
       setTimeout(() => setDedupResult(''), 5000)
@@ -139,10 +139,10 @@ export function NodesView() {
         p.name.toLowerCase().includes(q) ||
         p.address.toLowerCase().includes(q) ||
         p.protocol.toLowerCase().includes(q) ||
-        p.group_name.toLowerCase().includes(q)
+        (groups.find(gr => gr.uuid === p.group_uuid)?.alias || '').toLowerCase().includes(q)
       )
     })()
-    const matchesGroup = selectedGroupId === 0 || p.group_id === selectedGroupId
+    const matchesGroup = !selectedGroupUUID || p.group_uuid === selectedGroupUUID
     return matchesSearch && matchesGroup
   })
 
@@ -285,7 +285,7 @@ export function NodesView() {
         </AnimatePresence>
 
         {/* Node list */}
-        <div className="space-y-1.5" key={selectedGroupId} onDoubleClick={(e) => {
+        <div className="space-y-1.5" key={selectedGroupUUID} onDoubleClick={(e) => {
           // Double-click blank area to deselect all
           if (e.target === e.currentTarget) setSelectedIds(new Set())
         }}>
@@ -368,9 +368,10 @@ export function NodesView() {
                               style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
                             >
                               {profile.address}:{profile.port}
-                              {profile.group_name && (
-                                <span style={{ fontFamily: 'var(--font-heading)' }}> · {profile.group_name}</span>
-                              )}
+                              {profile.group_uuid && (() => {
+                                const g = groups.find(gr => gr.uuid === profile.group_uuid)
+                                return g ? <span style={{ fontFamily: 'var(--font-heading)' }}> · {g.alias}</span> : null
+                              })()}
                             </p>
                           </div>
                         </div>
@@ -474,12 +475,12 @@ export function NodesView() {
             <div className="p-2 space-y-1">
               {/* "All Groups" option */}
               <motion.button
-                onClick={() => setSelectedGroupId(0)}
+                onClick={() => setSelectedGroupUUID('')}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-left cursor-pointer"
                 style={{
-                  backgroundColor: selectedGroupId === 0 ? 'var(--color-accent-dim)' : 'transparent',
-                  borderColor: selectedGroupId === 0 ? 'var(--color-primary)' : 'transparent',
-                  borderWidth: selectedGroupId === 0 ? 1 : 0,
+                  backgroundColor: !selectedGroupUUID ? 'var(--color-accent-dim)' : 'transparent',
+                  borderColor: !selectedGroupUUID ? 'var(--color-primary)' : 'transparent',
+                  borderWidth: !selectedGroupUUID ? 1 : 0,
                   borderStyle: 'solid',
                 }}
                 whileTap={{ scale: 0.98 }}
@@ -494,7 +495,7 @@ export function NodesView() {
                   <span
                     className="text-xs font-medium truncate block"
                     style={{
-                      color: selectedGroupId === 0 ? 'var(--color-accent-warm)' : 'var(--color-foreground)',
+                      color: !selectedGroupUUID ? 'var(--color-accent-warm)' : 'var(--color-foreground)',
                       fontFamily: 'var(--font-heading)',
                     }}
                   >
@@ -510,11 +511,11 @@ export function NodesView() {
               </motion.button>
 
               {groups.map((group) => {
-                const isSelected = selectedGroupId === group.ID
+                const isSelected = selectedGroupUUID === group.uuid
                 return (
                   <motion.button
                     key={group.ID}
-                    onClick={() => setSelectedGroupId(group.ID)}
+                    onClick={() => setSelectedGroupUUID(group.uuid)}
                     className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-left cursor-pointer"
                     style={{
                       backgroundColor: isSelected ? 'var(--color-accent-dim)' : 'transparent',
@@ -573,7 +574,7 @@ export function NodesView() {
         {editProfile && (
           <NodeEditForm
             editData={editProfile}
-            groupId={editProfile.group_id}
+              groupUUID={editProfile.group_uuid}
             onClose={() => setEditProfile(null)}
             onSaved={handleNodeSaved}
           />

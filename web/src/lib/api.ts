@@ -25,10 +25,10 @@ export const profileApi = {
   select: (id: number) => api.post(`/profiles/${id}/select`),
   ping: (id: number) => api.post(`/profiles/${id}/ping`),
   pingAll: () => api.post('/profiles/ping-all'),
-  importLinks: (links: string, groupId?: number) =>
-    api.post('/profiles/import', { links, group_id: groupId || 0 }),
-  importToGroup: (links: string, groupId: number) =>
-    api.post('/profiles/import-to-group', { links, group_id: groupId }),
+  importLinks: (links: string, groupUuid?: string) =>
+    api.post('/profiles/import', { links, group_uuid: groupUuid || '' }),
+  importToGroup: (links: string, groupUuid: string) =>
+    api.post('/profiles/import-to-group', { links, group_uuid: groupUuid }),
 }
 
 // ========== Groups API (unified: normal + subscription groups) ==========
@@ -45,7 +45,7 @@ export const groupsApi = {
 
 // ========== Profile Enhancements ==========
 export const profileEnhancedApi = {
-  dedup: (groupId?: number) => api.post('/profiles/dedup', { group_id: groupId || 0 }),
+  dedup: (groupUuid?: string) => api.post('/profiles/dedup', { group_uuid: groupUuid || '' }),
   importImage: (formData: FormData) =>
     api.post('/profiles/import-image', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

@@ -28,8 +28,7 @@ export interface Profile {
   is_active: boolean
   sort_order: number
   core_type: string
-  group_id: number
-  group_name: string
+  group_uuid: string
 }
 
 export interface CoreStatus {
