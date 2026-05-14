@@ -491,7 +491,7 @@ export function GroupsView() {
     }
   }
 
-  // Drag-and-drop: optimistic reorder
+  // Drag-and-drop: optimistic reorder using SortBetween
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -503,9 +503,14 @@ export function GroupsView() {
     const newGroups = arrayMove(groups, oldIndex, newIndex)
     setGroups(newGroups)
 
-    // Save to backend
+    // Calculate before/after neighbor UUIDs
+    const draggedUuid = active.id as string
+    const beforeUuid = newIndex > 0 ? newGroups[newIndex - 1].uuid : null
+    const afterUuid = newIndex < newGroups.length - 1 ? newGroups[newIndex + 1].uuid : null
+
+    // Save to backend (single UPDATE, no full-table rewrite)
     try {
-      await groupsApi.reorder(newGroups.map((g) => g.uuid))
+      await groupsApi.reorder(draggedUuid, beforeUuid, afterUuid)
     } catch (err) {
       console.error('Reorder failed:', err)
       addToast(t('groups.reorder_failed'), 'error')

@@ -410,28 +410,44 @@ func (s *Server) handleGroupsReorder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		UUIDs []string `json:"uuids"`
+		UUID       string `json:"uuid"`
+		BeforeUUID string `json:"before_uuid"`
+		AfterUUID  string `json:"after_uuid"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-
-	seq := database.SortSequence(len(req.UUIDs))
-	tx := database.DB.Begin()
-	for i, uuid := range req.UUIDs {
-		if err := tx.Model(&database.NodeGroup{}).Where("uuid = ?", uuid).Update("sort_order", seq[i]).Error; err != nil {
-			tx.Rollback()
-			jsonError(w, "Failed to reorder: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
-	if err := tx.Commit().Error; err != nil {
-		jsonError(w, "Failed to commit reorder: "+err.Error(), http.StatusInternalServerError)
+	if req.UUID == "" {
+		jsonError(w, "uuid is required", http.StatusBadRequest)
 		return
 	}
 
-	jsonOK(w, map[string]string{"status": "reordered"})
+	var beforeOrder, afterOrder *int
+
+	if req.BeforeUUID != "" {
+		var group database.NodeGroup
+		if err := database.DB.Where("uuid = ?", req.BeforeUUID).First(&group).Error; err == nil {
+			v := group.SortOrder
+			beforeOrder = &v
+		}
+	}
+	if req.AfterUUID != "" {
+		var group database.NodeGroup
+		if err := database.DB.Where("uuid = ?", req.AfterUUID).First(&group).Error; err == nil {
+			v := group.SortOrder
+			afterOrder = &v
+		}
+	}
+
+	newOrder := database.SortInsert(beforeOrder, afterOrder)
+
+	if err := database.DB.Model(&database.NodeGroup{}).Where("uuid = ?", req.UUID).Update("sort_order", newOrder).Error; err != nil {
+		jsonError(w, "Failed to reorder: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	jsonOK(w, map[string]interface{}{"status": "reordered", "sort_order": newOrder})
 }
 
 func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {

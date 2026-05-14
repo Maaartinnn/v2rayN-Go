@@ -38,7 +38,8 @@ export const groupsApi = {
   create: (data: any) => api.post('/groups', data),
   update: (id: number, data: any) => api.put(`/groups/${id}`, data),
   delete: (id: number) => api.delete(`/groups/${id}`),
-  reorder: (uuids: string[]) => api.put('/groups/reorder', { uuids }),
+  reorder: (uuid: string, beforeUuid: string | null, afterUuid: string | null) =>
+    api.put('/groups/reorder', { uuid, before_uuid: beforeUuid || '', after_uuid: afterUuid || '' }),
   refresh: (id: number) => api.post(`/groups/${id}/refresh`),
   refreshProxy: (id: number) => api.post(`/groups/${id}/refresh-proxy`),
 }

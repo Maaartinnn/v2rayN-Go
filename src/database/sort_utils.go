@@ -148,6 +148,21 @@ func toSnakeCase(s string) string {
 	return string(result)
 }
 
+// SortInsert 根据前后元素的排序值计算插入位置
+// before == nil 表示拖到第一个位置：after - SortStep
+// after == nil 表示拖到最后一个位置：before + SortStep
+// 都非 nil 表示插入中间：(before + after) / 2
+func SortInsert(before, after *int) int {
+	if before == nil && after == nil {
+		return SortStep // 只有一个元素，给默认值
+	} else if before == nil {
+		return *after - SortStep
+	} else if after == nil {
+		return *before + SortStep
+	}
+	return SortBetween(*before, *after)
+}
+
 // SortNewBatch 批量追加：为 count 个新记录生成排序值，起始值 = max + SortStep
 func SortNewBatch(model interface{}, query string, count int, args ...interface{}) []int {
 	var maxOrder int
