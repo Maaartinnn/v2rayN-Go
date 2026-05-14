@@ -184,9 +184,9 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
           />
         </FormField>
 
-        {/* Row 1: Protocol + Group */}
-        <div className="grid grid-cols-2 gap-3">
-          <FormField label={t('routing.type')} cols="1/2">
+        {/* Row 1: Protocol + Group (group selector only shown when editing) */}
+        <div className={isEditing ? "grid grid-cols-2 gap-3" : ""}>
+          <FormField label={t('routing.type')} cols={isEditing ? "1/2" : "full"}>
             <select
               value={protocol}
               onChange={(e) => setProtocol(e.target.value)}
@@ -198,19 +198,21 @@ export function NodeEditForm({ onClose, onSaved, groupId, editData }: NodeEditFo
               ))}
             </select>
           </FormField>
-          <FormField label={t('nodes.group')} cols="1/2">
-            <select
-              value={selectedGroupId}
-              onChange={(e) => setSelectedGroupId(Number(e.target.value))}
-              className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
-              style={inputStyle}
-            >
-              <option value={0}>{t('nodes.ungrouped') || 'Ungrouped'}</option>
-              {groups.map((g) => (
-                <option key={g.ID} value={g.ID}>{g.alias || t('groups.default_name')}</option>
-              ))}
-            </select>
-          </FormField>
+          {isEditing && (
+            <FormField label={t('nodes.group')} cols="1/2">
+              <select
+                value={selectedGroupId}
+                onChange={(e) => setSelectedGroupId(Number(e.target.value))}
+                className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
+                style={inputStyle}
+              >
+                <option value={0}>{t('nodes.ungrouped') || 'Ungrouped'}</option>
+                {groups.map((g) => (
+                  <option key={g.ID} value={g.ID}>{g.alias || t('groups.default_name')}</option>
+                ))}
+              </select>
+            </FormField>
+          )}
         </div>
 
         {/* Row 2: Address + Port */}
