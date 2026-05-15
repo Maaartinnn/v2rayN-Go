@@ -7,26 +7,13 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"sync"
 
 	"v2rayn-go/config"
 	"v2rayn-go/core"
 	"v2rayn-go/service"
-
-	"github.com/gorilla/websocket"
 )
 
-// downloadState 下载状态
-type downloadState struct {
-	CoreName   string `json:"core_name"`
-	Downloaded int64  `json:"downloaded"`
-	Total      int64  `json:"total"`
-	Percentage int    `json:"percentage"`
-	Status     string `json:"status"` // "downloading", "complete", "error"
-	Error      string `json:"error,omitempty"`
-}
-
-// Server Web 服务器
+// Server Web 服务器 — 纯 DI 容器与路由总线
 type Server struct {
 	cfg *config.AppConfig
 
@@ -41,10 +28,6 @@ type Server struct {
 	// 保留的直接依赖
 	coreMgr *core.CoreAdminManager
 	pingSvc service.PingServiceInterface
-
-	upgrader        websocket.Upgrader
-	wsClients       sync.Map
-	activeDownloads sync.Map // map[string]*downloadState
 }
 
 // PingServiceInterface 是 ping 服务的接口（由 subscription 包实现）
@@ -63,9 +46,6 @@ func NewServer(cfg *config.AppConfig, coreMgr *core.CoreAdminManager) *Server {
 		settingsSvc: service.NewSettingsService(cfg),
 		coreMgr:     coreMgr,
 		pingSvc:     service.NewPingService(),
-		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool { return true },
-		},
 	}
 }
 
@@ -73,22 +53,32 @@ func NewServer(cfg *config.AppConfig, coreMgr *core.CoreAdminManager) *Server {
 func (s *Server) Start() error {
 	mux := http.NewServeMux()
 
-	// 按业务域注册路由
-	s.RegisterCoreRoutes(mux)
-	s.RegisterProfileRoutes(mux)
-	s.RegisterGroupRoutes(mux)
-	s.RegisterStrategyGroupRoutes(mux)
-	s.RegisterRoutingRuleRoutes(mux)
-	s.RegisterSettingsRoutes(mux)
-	s.RegisterWebSocketRoutes(mux)
+	// 1. 创建 WSHandler（它同时实现 StatusBroadcaster 接口）
+	wsHandler := NewWSHandler(s.coreSvc, s.coreMgr)
 
-	// 静态文件服务 (go:embed)
+	// 2. 实例化各业务 Handler 并显式注入依赖
+	coreHandler := NewCoreHandler(s.coreSvc, wsHandler)
+	profileHandler := NewProfileHandler(s.profileSvc, s.pingSvc)
+	groupHandler := NewGroupHandler(s.groupSvc)
+	strategyHandler := NewStrategyGroupHandler(s.strategySvc)
+	routingHandler := NewRoutingRuleHandler(s.routingSvc)
+	settingsHandler := NewSettingsHandler(s.settingsSvc, s.cfg)
+
+	// 3. 注册路由
+	coreHandler.Register(mux)
+	profileHandler.Register(mux)
+	groupHandler.Register(mux)
+	strategyHandler.Register(mux)
+	routingHandler.Register(mux)
+	settingsHandler.Register(mux)
+	wsHandler.Register(mux)
+
+	// 4. 静态文件服务 (go:embed)
 	staticFS, err := fs.Sub(StaticFiles, "dist")
 	if err != nil {
 		return fmt.Errorf("failed to load embedded files: %w", err)
 	}
 
-	// 对于非 API 请求，返回前端页面
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		if path == "/" {
@@ -103,7 +93,8 @@ func (s *Server) Start() error {
 		http.FileServerFS(staticFS).ServeHTTP(w, r)
 	})
 
-	go s.logBroadcaster()
+	// 5. 启动日志广播
+	go wsHandler.LogBroadcaster()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") {

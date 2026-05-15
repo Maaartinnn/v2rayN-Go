@@ -4,41 +4,56 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"v2rayn-go/config"
 	"v2rayn-go/service"
 )
 
-// RegisterSettingsRoutes 注册设置和系统代理相关路由
-func (s *Server) RegisterSettingsRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET  /api/settings{$}", s.handleGetSettings)
-	mux.HandleFunc("POST /api/settings{$}", s.handleSaveSettings)
-
-	mux.HandleFunc("GET  /api/proxy/system", s.handleGetSystemProxy)
-	mux.HandleFunc("POST /api/proxy/system", s.handleSetSystemProxy)
+// SettingsHandler 设置管理独立处理器
+type SettingsHandler struct {
+	settingsSvc *service.SettingsService
+	cfg         *config.AppConfig
 }
 
-func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
-	settings := s.settingsSvc.GetSettings()
+// NewSettingsHandler 创建设置管理处理器
+func NewSettingsHandler(settingsSvc *service.SettingsService, cfg *config.AppConfig) *SettingsHandler {
+	return &SettingsHandler{
+		settingsSvc: settingsSvc,
+		cfg:         cfg,
+	}
+}
+
+// Register 挂载设置管理路由
+func (h *SettingsHandler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("GET  /api/settings{$}", h.handleGetSettings)
+	mux.HandleFunc("POST /api/settings{$}", h.handleSaveSettings)
+
+	mux.HandleFunc("GET  /api/proxy/system", h.handleGetSystemProxy)
+	mux.HandleFunc("POST /api/proxy/system", h.handleSetSystemProxy)
+}
+
+func (h *SettingsHandler) handleGetSettings(w http.ResponseWriter, r *http.Request) {
+	settings := h.settingsSvc.GetSettings()
 	jsonOK(w, settings)
 }
 
-func (s *Server) handleSaveSettings(w http.ResponseWriter, r *http.Request) {
+func (h *SettingsHandler) handleSaveSettings(w http.ResponseWriter, r *http.Request) {
 	var req service.UpdateSettingsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	if err := s.settingsSvc.UpdateSettings(&req); err != nil {
+	if err := h.settingsSvc.UpdateSettings(&req); err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	jsonOK(w, map[string]string{"status": "saved"})
 }
 
-func (s *Server) handleGetSystemProxy(w http.ResponseWriter, r *http.Request) {
-	jsonOK(w, map[string]interface{}{"enabled": false, "port": s.cfg.SocksPort})
+func (h *SettingsHandler) handleGetSystemProxy(w http.ResponseWriter, r *http.Request) {
+	jsonOK(w, map[string]interface{}{"enabled": false, "port": h.cfg.SocksPort})
 }
 
-func (s *Server) handleSetSystemProxy(w http.ResponseWriter, r *http.Request) {
+func (h *SettingsHandler) handleSetSystemProxy(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Enabled bool `json:"enabled"`
 		Port    int  `json:"port"`

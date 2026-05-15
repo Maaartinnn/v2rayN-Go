@@ -4,23 +4,42 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"sync"
+
+	"v2rayn-go/service"
 )
 
-// RegisterCoreRoutes 注册核心管理相关路由
-func (s *Server) RegisterCoreRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/core/start", s.handleCoreStart)
-	mux.HandleFunc("POST /api/core/stop", s.handleCoreStop)
-	mux.HandleFunc("GET  /api/core/status", s.handleCoreStatus)
-
-	mux.HandleFunc("GET  /api/cores/{$}", s.handleCores)
-	mux.HandleFunc("GET  /api/cores/check-updates", s.handleCoresCheckUpdates)
-	mux.HandleFunc("GET  /api/cores/detect-versions", s.handleCoresDetectVersions)
-	mux.HandleFunc("POST /api/cores/download{$}", s.handleCoreDownload)
-	mux.HandleFunc("POST /api/cores/download-url", s.handleCoreDownloadURL)
-	mux.HandleFunc("POST /api/cores/upload", s.handleCoreUpload)
+// CoreHandler 核心管理独立处理器
+type CoreHandler struct {
+	coreSvc     *service.CoreService
+	broadcaster StatusBroadcaster
+	downloads   *downloadTracker
 }
 
-func (s *Server) handleCoreStart(w http.ResponseWriter, r *http.Request) {
+// NewCoreHandler 创建核心管理处理器
+func NewCoreHandler(coreSvc *service.CoreService, broadcaster StatusBroadcaster) *CoreHandler {
+	return &CoreHandler{
+		coreSvc:     coreSvc,
+		broadcaster: broadcaster,
+		downloads:   newDownloadTracker(),
+	}
+}
+
+// Register 挂载核心管理路由
+func (h *CoreHandler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("POST /api/core/start", h.handleCoreStart)
+	mux.HandleFunc("POST /api/core/stop", h.handleCoreStop)
+	mux.HandleFunc("GET  /api/core/status", h.handleCoreStatus)
+
+	mux.HandleFunc("GET  /api/cores/{$}", h.handleCores)
+	mux.HandleFunc("GET  /api/cores/check-updates", h.handleCoresCheckUpdates)
+	mux.HandleFunc("GET  /api/cores/detect-versions", h.handleCoresDetectVersions)
+	mux.HandleFunc("POST /api/cores/download{$}", h.handleCoreDownload)
+	mux.HandleFunc("POST /api/cores/download-url", h.handleCoreDownloadURL)
+	mux.HandleFunc("POST /api/cores/upload", h.handleCoreUpload)
+}
+
+func (h *CoreHandler) handleCoreStart(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CoreType   string `json:"core_type"`
 		ConfigPath string `json:"config_path"`
@@ -30,16 +49,16 @@ func (s *Server) handleCoreStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.coreSvc.Start(req.CoreType, req.ConfigPath); err != nil {
+	if err := h.coreSvc.Start(req.CoreType, req.ConfigPath); err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	jsonOK(w, map[string]string{"status": "started"})
-	go s.broadcastStatus()
+	go h.broadcaster.BroadcastStatus()
 }
 
-func (s *Server) handleCoreStop(w http.ResponseWriter, r *http.Request) {
+func (h *CoreHandler) handleCoreStop(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CoreType string `json:"core_type"`
 	}
@@ -48,38 +67,38 @@ func (s *Server) handleCoreStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.coreSvc.Stop(req.CoreType); err != nil {
+	if err := h.coreSvc.Stop(req.CoreType); err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	jsonOK(w, map[string]string{"status": "stopped"})
-	go s.broadcastStatus()
+	go h.broadcaster.BroadcastStatus()
 }
 
-func (s *Server) handleCoreStatus(w http.ResponseWriter, r *http.Request) {
-	statuses := s.coreSvc.GetAllStatus()
+func (h *CoreHandler) handleCoreStatus(w http.ResponseWriter, r *http.Request) {
+	statuses := h.coreSvc.GetAllStatus()
 	jsonOK(w, statuses)
 }
 
-func (s *Server) handleCores(w http.ResponseWriter, r *http.Request) {
-	cores := s.coreSvc.GetLocalCores()
+func (h *CoreHandler) handleCores(w http.ResponseWriter, r *http.Request) {
+	cores := h.coreSvc.GetLocalCores()
 	jsonOK(w, cores)
 }
 
-func (s *Server) handleCoresCheckUpdates(w http.ResponseWriter, r *http.Request) {
-	latestVersions := s.coreSvc.CheckUpdates()
+func (h *CoreHandler) handleCoresCheckUpdates(w http.ResponseWriter, r *http.Request) {
+	latestVersions := h.coreSvc.CheckUpdates()
 	jsonOK(w, map[string]interface{}{"latest_versions": latestVersions})
 }
 
-func (s *Server) handleCoresDetectVersions(w http.ResponseWriter, r *http.Request) {
-	s.coreSvc.DetectVersions(func(versions map[string]string) {
-		s.broadcastToAll(map[string]interface{}{"type": "core_versions", "payload": versions})
+func (h *CoreHandler) handleCoresDetectVersions(w http.ResponseWriter, r *http.Request) {
+	h.coreSvc.DetectVersions(func(versions map[string]string) {
+		h.broadcaster.Broadcast(map[string]interface{}{"type": "core_versions", "payload": versions})
 	})
 	jsonOK(w, map[string]string{"status": "detecting"})
 }
 
-func (s *Server) handleCoreDownload(w http.ResponseWriter, r *http.Request) {
+func (h *CoreHandler) handleCoreDownload(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CoreName string `json:"core_name"`
 	}
@@ -91,40 +110,33 @@ func (s *Server) handleCoreDownload(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Missing core_name", http.StatusBadRequest)
 		return
 	}
-	if _, exists := s.activeDownloads.Load(req.CoreName); exists {
+	if h.downloads.Exists(req.CoreName) {
 		jsonError(w, "Download already in progress", http.StatusConflict)
 		return
 	}
 
-	state := &downloadState{CoreName: req.CoreName, Status: "downloading"}
-	s.activeDownloads.Store(req.CoreName, state)
+	state := h.downloads.Start(req.CoreName)
 
 	go func() {
-		defer s.activeDownloads.Delete(req.CoreName)
-		err := s.coreSvc.Download(req.CoreName, func(downloaded, total int64) {
-			state.Downloaded = downloaded
-			state.Total = total
-			if total > 0 {
-				state.Percentage = int(downloaded * 100 / total)
-			}
-			s.broadcastToAll(map[string]interface{}{"type": "download_progress", "payload": state})
+		defer h.downloads.Delete(req.CoreName)
+		err := h.coreSvc.Download(req.CoreName, func(downloaded, total int64) {
+			state.Update(downloaded, total)
+			h.broadcaster.Broadcast(map[string]interface{}{"type": "download_progress", "payload": state})
 		})
 		if err != nil {
-			state.Status = "error"
-			state.Error = err.Error()
+			state.SetError(err.Error())
 			log.Printf("Failed to download core %s: %v", req.CoreName, err)
-			s.broadcastToAll(map[string]interface{}{"type": "download_complete", "payload": map[string]interface{}{"core_name": req.CoreName, "success": false, "error": err.Error()}})
+			h.broadcaster.Broadcast(map[string]interface{}{"type": "download_complete", "payload": map[string]interface{}{"core_name": req.CoreName, "success": false, "error": err.Error()}})
 		} else {
-			state.Status = "complete"
-			state.Percentage = 100
-			s.broadcastToAll(map[string]interface{}{"type": "download_complete", "payload": map[string]interface{}{"core_name": req.CoreName, "success": true}})
+			state.SetComplete()
+			h.broadcaster.Broadcast(map[string]interface{}{"type": "download_complete", "payload": map[string]interface{}{"core_name": req.CoreName, "success": true}})
 		}
 	}()
 
 	jsonOK(w, map[string]string{"status": "downloading", "core": req.CoreName})
 }
 
-func (s *Server) handleCoreDownloadURL(w http.ResponseWriter, r *http.Request) {
+func (h *CoreHandler) handleCoreDownloadURL(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CoreName    string `json:"core_name"`
 		DownloadURL string `json:"download_url"`
@@ -137,40 +149,33 @@ func (s *Server) handleCoreDownloadURL(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Missing core_name or download_url", http.StatusBadRequest)
 		return
 	}
-	if _, exists := s.activeDownloads.Load(req.CoreName); exists {
+	if h.downloads.Exists(req.CoreName) {
 		jsonError(w, "Download already in progress", http.StatusConflict)
 		return
 	}
 
-	state := &downloadState{CoreName: req.CoreName, Status: "downloading"}
-	s.activeDownloads.Store(req.CoreName, state)
+	state := h.downloads.Start(req.CoreName)
 
 	go func() {
-		defer s.activeDownloads.Delete(req.CoreName)
-		err := s.coreSvc.DownloadFromURL(req.CoreName, req.DownloadURL, func(downloaded, total int64) {
-			state.Downloaded = downloaded
-			state.Total = total
-			if total > 0 {
-				state.Percentage = int(downloaded * 100 / total)
-			}
-			s.broadcastToAll(map[string]interface{}{"type": "download_progress", "payload": state})
+		defer h.downloads.Delete(req.CoreName)
+		err := h.coreSvc.DownloadFromURL(req.CoreName, req.DownloadURL, func(downloaded, total int64) {
+			state.Update(downloaded, total)
+			h.broadcaster.Broadcast(map[string]interface{}{"type": "download_progress", "payload": state})
 		})
 		if err != nil {
-			state.Status = "error"
-			state.Error = err.Error()
+			state.SetError(err.Error())
 			log.Printf("Failed to download core %s from URL: %v", req.CoreName, err)
-			s.broadcastToAll(map[string]interface{}{"type": "download_complete", "payload": map[string]interface{}{"core_name": req.CoreName, "success": false, "error": err.Error()}})
+			h.broadcaster.Broadcast(map[string]interface{}{"type": "download_complete", "payload": map[string]interface{}{"core_name": req.CoreName, "success": false, "error": err.Error()}})
 		} else {
-			state.Status = "complete"
-			state.Percentage = 100
-			s.broadcastToAll(map[string]interface{}{"type": "download_complete", "payload": map[string]interface{}{"core_name": req.CoreName, "success": true}})
+			state.SetComplete()
+			h.broadcaster.Broadcast(map[string]interface{}{"type": "download_complete", "payload": map[string]interface{}{"core_name": req.CoreName, "success": true}})
 		}
 	}()
 
 	jsonOK(w, map[string]string{"status": "downloading", "core": req.CoreName, "url": req.DownloadURL})
 }
 
-func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
+func (h *CoreHandler) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(200 << 20); err != nil {
 		jsonError(w, "Failed to parse form: "+err.Error(), http.StatusBadRequest)
 		return
@@ -187,11 +192,65 @@ func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	destPath, err := s.coreSvc.Upload(coreName, header.Filename, file)
+	destPath, err := h.coreSvc.Upload(coreName, header.Filename, file)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	jsonOK(w, map[string]string{"status": "uploaded", "core": coreName, "path": destPath})
+}
+
+// ========== Download Tracker ==========
+
+// downloadTracker 并发安全的下载状态跟踪器
+type downloadTracker struct {
+	syncMap sync.Map // map[string]*downloadState
+}
+
+func newDownloadTracker() *downloadTracker {
+	return &downloadTracker{}
+}
+
+func (t *downloadTracker) Exists(name string) bool {
+	_, ok := t.syncMap.Load(name)
+	return ok
+}
+
+func (t *downloadTracker) Start(name string) *downloadState {
+	state := &downloadState{CoreName: name, Status: "downloading"}
+	t.syncMap.Store(name, state)
+	return state
+}
+
+func (t *downloadTracker) Delete(name string) {
+	t.syncMap.Delete(name)
+}
+
+// downloadState 下载状态
+type downloadState struct {
+	CoreName   string `json:"core_name"`
+	Downloaded int64  `json:"downloaded"`
+	Total      int64  `json:"total"`
+	Percentage int    `json:"percentage"`
+	Status     string `json:"status"`
+	Error      string `json:"error,omitempty"`
+}
+
+func (s *downloadState) Update(downloaded, total int64) {
+	s.Downloaded = downloaded
+	s.Total = total
+	if total > 0 {
+		s.Percentage = int(downloaded * 100 / total)
+	}
+}
+
+func (s *downloadState) SetError(err string) {
+	s.Status = "error"
+	s.Error = err
+}
+
+func (s *downloadState) SetComplete() {
+	s.Status = "complete"
+	s.Percentage = 100
 }

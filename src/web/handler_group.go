@@ -7,24 +7,35 @@ import (
 	"strings"
 
 	"v2rayn-go/database"
+	"v2rayn-go/service"
 	"v2rayn-go/subscription"
 )
 
-// RegisterGroupRoutes 注册分组管理相关路由
-func (s *Server) RegisterGroupRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET    /api/groups/{$}", s.handleGroups)
-	mux.HandleFunc("POST   /api/groups/{$}", s.handleGroupsCreate)
-	mux.HandleFunc("PUT    /api/groups/reorder", s.handleGroupsReorder)
-
-	mux.HandleFunc("GET    /api/groups/{uuid}", s.handleGetGroup)
-	mux.HandleFunc("PUT    /api/groups/{uuid}", s.handleUpdateGroup)
-	mux.HandleFunc("DELETE /api/groups/{uuid}", s.handleDeleteGroup)
-	mux.HandleFunc("POST   /api/groups/{uuid}/refresh", s.handleRefreshGroup)
-	mux.HandleFunc("POST   /api/groups/{uuid}/refresh-proxy", s.handleRefreshGroupProxy)
+// GroupHandler 分组管理独立处理器
+type GroupHandler struct {
+	groupSvc *service.GroupService
 }
 
-func (s *Server) handleGroups(w http.ResponseWriter, r *http.Request) {
-	groups, err := s.groupSvc.List()
+// NewGroupHandler 创建分组管理处理器
+func NewGroupHandler(groupSvc *service.GroupService) *GroupHandler {
+	return &GroupHandler{groupSvc: groupSvc}
+}
+
+// Register 挂载分组管理路由
+func (h *GroupHandler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("GET    /api/groups/{$}", h.handleList)
+	mux.HandleFunc("POST   /api/groups/{$}", h.handleCreate)
+	mux.HandleFunc("PUT    /api/groups/reorder", h.handleReorder)
+
+	mux.HandleFunc("GET    /api/groups/{uuid}", h.handleGet)
+	mux.HandleFunc("PUT    /api/groups/{uuid}", h.handleUpdate)
+	mux.HandleFunc("DELETE /api/groups/{uuid}", h.handleDelete)
+	mux.HandleFunc("POST   /api/groups/{uuid}/refresh", h.handleRefresh)
+	mux.HandleFunc("POST   /api/groups/{uuid}/refresh-proxy", h.handleRefreshProxy)
+}
+
+func (h *GroupHandler) handleList(w http.ResponseWriter, r *http.Request) {
+	groups, err := h.groupSvc.List()
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -32,20 +43,20 @@ func (s *Server) handleGroups(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, groups)
 }
 
-func (s *Server) handleGroupsCreate(w http.ResponseWriter, r *http.Request) {
+func (h *GroupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	var group database.NodeGroup
 	if err := json.NewDecoder(r.Body).Decode(&group); err != nil {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	if err := s.groupSvc.Create(&group); err != nil {
+	if err := h.groupSvc.Create(&group); err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	jsonOK(w, group)
 }
 
-func (s *Server) handleGroupsReorder(w http.ResponseWriter, r *http.Request) {
+func (h *GroupHandler) handleReorder(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		UUID       string `json:"uuid"`
 		BeforeUUID string `json:"before_uuid"`
@@ -56,7 +67,7 @@ func (s *Server) handleGroupsReorder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newOrder, err := s.groupSvc.Reorder(req.UUID, req.BeforeUUID, req.AfterUUID)
+	newOrder, err := h.groupSvc.Reorder(req.UUID, req.BeforeUUID, req.AfterUUID)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -65,9 +76,9 @@ func (s *Server) handleGroupsReorder(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]interface{}{"status": "reordered", "sort_order": newOrder})
 }
 
-func (s *Server) handleGetGroup(w http.ResponseWriter, r *http.Request) {
+func (h *GroupHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
-	group, err := s.groupSvc.Get(uuid)
+	group, err := h.groupSvc.Get(uuid)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusNotFound)
 		return
@@ -75,14 +86,14 @@ func (s *Server) handleGetGroup(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, group)
 }
 
-func (s *Server) handleUpdateGroup(w http.ResponseWriter, r *http.Request) {
+func (h *GroupHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	var updated database.NodeGroup
 	if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	result, err := s.groupSvc.Update(uuid, &updated)
+	result, err := h.groupSvc.Update(uuid, &updated)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -90,9 +101,9 @@ func (s *Server) handleUpdateGroup(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, result)
 }
 
-func (s *Server) handleDeleteGroup(w http.ResponseWriter, r *http.Request) {
+func (h *GroupHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
-	if err := s.groupSvc.Delete(uuid); err != nil {
+	if err := h.groupSvc.Delete(uuid); err != nil {
 		if strings.Contains(err.Error(), "last group") || strings.Contains(err.Error(), "not found") {
 			jsonError(w, err.Error(), http.StatusBadRequest)
 		} else {
@@ -103,9 +114,9 @@ func (s *Server) handleDeleteGroup(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]string{"status": "deleted"})
 }
 
-func (s *Server) handleRefreshGroup(w http.ResponseWriter, r *http.Request) {
+func (h *GroupHandler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
-	group, err := s.groupSvc.Get(uuid)
+	group, err := h.groupSvc.Get(uuid)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusNotFound)
 		return
@@ -123,9 +134,9 @@ func (s *Server) handleRefreshGroup(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]string{"status": "refreshing"})
 }
 
-func (s *Server) handleRefreshGroupProxy(w http.ResponseWriter, r *http.Request) {
+func (h *GroupHandler) handleRefreshProxy(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
-	group, err := s.groupSvc.Get(uuid)
+	group, err := h.groupSvc.Get(uuid)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusNotFound)
 		return

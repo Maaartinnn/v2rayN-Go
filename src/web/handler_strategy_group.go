@@ -5,20 +5,31 @@ import (
 	"net/http"
 
 	"v2rayn-go/database"
+	"v2rayn-go/service"
 )
 
-// RegisterStrategyGroupRoutes 注册策略组管理相关路由
-func (s *Server) RegisterStrategyGroupRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET    /api/strategy-groups/{$}", s.handleStrategyGroups)
-	mux.HandleFunc("POST   /api/strategy-groups/{$}", s.handleStrategyGroupsCreate)
-
-	mux.HandleFunc("GET    /api/strategy-groups/{uuid}", s.handleGetStrategyGroup)
-	mux.HandleFunc("PUT    /api/strategy-groups/{uuid}", s.handleUpdateStrategyGroup)
-	mux.HandleFunc("DELETE /api/strategy-groups/{uuid}", s.handleDeleteStrategyGroup)
+// StrategyGroupHandler 策略组管理独立处理器
+type StrategyGroupHandler struct {
+	strategySvc *service.StrategyGroupService
 }
 
-func (s *Server) handleStrategyGroups(w http.ResponseWriter, r *http.Request) {
-	groups, err := s.strategySvc.List()
+// NewStrategyGroupHandler 创建策略组管理处理器
+func NewStrategyGroupHandler(strategySvc *service.StrategyGroupService) *StrategyGroupHandler {
+	return &StrategyGroupHandler{strategySvc: strategySvc}
+}
+
+// Register 挂载策略组管理路由
+func (h *StrategyGroupHandler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("GET    /api/strategy-groups/{$}", h.handleList)
+	mux.HandleFunc("POST   /api/strategy-groups/{$}", h.handleCreate)
+
+	mux.HandleFunc("GET    /api/strategy-groups/{uuid}", h.handleGet)
+	mux.HandleFunc("PUT    /api/strategy-groups/{uuid}", h.handleUpdate)
+	mux.HandleFunc("DELETE /api/strategy-groups/{uuid}", h.handleDelete)
+}
+
+func (h *StrategyGroupHandler) handleList(w http.ResponseWriter, r *http.Request) {
+	groups, err := h.strategySvc.List()
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -26,22 +37,22 @@ func (s *Server) handleStrategyGroups(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, groups)
 }
 
-func (s *Server) handleStrategyGroupsCreate(w http.ResponseWriter, r *http.Request) {
+func (h *StrategyGroupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	var group database.StrategyGroup
 	if err := json.NewDecoder(r.Body).Decode(&group); err != nil {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	if err := s.strategySvc.Create(&group); err != nil {
+	if err := h.strategySvc.Create(&group); err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	jsonOK(w, group)
 }
 
-func (s *Server) handleGetStrategyGroup(w http.ResponseWriter, r *http.Request) {
+func (h *StrategyGroupHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
-	group, err := s.strategySvc.Get(uuid)
+	group, err := h.strategySvc.Get(uuid)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusNotFound)
 		return
@@ -49,14 +60,14 @@ func (s *Server) handleGetStrategyGroup(w http.ResponseWriter, r *http.Request) 
 	jsonOK(w, group)
 }
 
-func (s *Server) handleUpdateStrategyGroup(w http.ResponseWriter, r *http.Request) {
+func (h *StrategyGroupHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	var updated database.StrategyGroup
 	if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	result, err := s.strategySvc.Update(uuid, &updated)
+	result, err := h.strategySvc.Update(uuid, &updated)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusNotFound)
 		return
@@ -64,9 +75,9 @@ func (s *Server) handleUpdateStrategyGroup(w http.ResponseWriter, r *http.Reques
 	jsonOK(w, result)
 }
 
-func (s *Server) handleDeleteStrategyGroup(w http.ResponseWriter, r *http.Request) {
+func (h *StrategyGroupHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
-	if err := s.strategySvc.Delete(uuid); err != nil {
+	if err := h.strategySvc.Delete(uuid); err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

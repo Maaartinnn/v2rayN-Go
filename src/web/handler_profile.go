@@ -8,26 +8,41 @@ import (
 
 	"v2rayn-go/database"
 	"v2rayn-go/parser"
+	"v2rayn-go/service"
 )
 
-// RegisterProfileRoutes 注册节点管理相关路由
-func (s *Server) RegisterProfileRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET    /api/profiles/{$}", s.handleProfiles)
-	mux.HandleFunc("POST   /api/profiles/{$}", s.handleProfilesCreate)
-	mux.HandleFunc("POST   /api/profiles/import{$}", s.handleProfileImport)
-	mux.HandleFunc("POST   /api/profiles/import-image", s.handleProfileImportImage)
-	mux.HandleFunc("POST   /api/profiles/dedup", s.handleProfileDedup)
-	mux.HandleFunc("POST   /api/profiles/ping-all", s.handlePingAll)
-
-	mux.HandleFunc("GET    /api/profiles/{uuid}", s.handleGetProfile)
-	mux.HandleFunc("PUT    /api/profiles/{uuid}", s.handleUpdateProfile)
-	mux.HandleFunc("DELETE /api/profiles/{uuid}", s.handleDeleteProfile)
-	mux.HandleFunc("POST   /api/profiles/{uuid}/select", s.handleSelectProfile)
-	mux.HandleFunc("POST   /api/profiles/{uuid}/ping", s.handlePingProfile)
+// ProfileHandler 节点管理独立处理器
+type ProfileHandler struct {
+	profileSvc *service.ProfileService
+	pingSvc    service.PingServiceInterface
 }
 
-func (s *Server) handleProfiles(w http.ResponseWriter, r *http.Request) {
-	profiles, err := s.profileSvc.List()
+// NewProfileHandler 创建节点管理处理器
+func NewProfileHandler(profileSvc *service.ProfileService, pingSvc service.PingServiceInterface) *ProfileHandler {
+	return &ProfileHandler{
+		profileSvc: profileSvc,
+		pingSvc:    pingSvc,
+	}
+}
+
+// Register 挂载节点管理路由
+func (h *ProfileHandler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("GET    /api/profiles/{$}", h.handleList)
+	mux.HandleFunc("POST   /api/profiles/{$}", h.handleCreate)
+	mux.HandleFunc("POST   /api/profiles/import{$}", h.handleImport)
+	mux.HandleFunc("POST   /api/profiles/import-image", h.handleImportImage)
+	mux.HandleFunc("POST   /api/profiles/dedup", h.handleDedup)
+	mux.HandleFunc("POST   /api/profiles/ping-all", h.handlePingAll)
+
+	mux.HandleFunc("GET    /api/profiles/{uuid}", h.handleGet)
+	mux.HandleFunc("PUT    /api/profiles/{uuid}", h.handleUpdate)
+	mux.HandleFunc("DELETE /api/profiles/{uuid}", h.handleDelete)
+	mux.HandleFunc("POST   /api/profiles/{uuid}/select", h.handleSelect)
+	mux.HandleFunc("POST   /api/profiles/{uuid}/ping", h.handlePing)
+}
+
+func (h *ProfileHandler) handleList(w http.ResponseWriter, r *http.Request) {
+	profiles, err := h.profileSvc.List()
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -35,13 +50,13 @@ func (s *Server) handleProfiles(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, profiles)
 }
 
-func (s *Server) handleProfilesCreate(w http.ResponseWriter, r *http.Request) {
+func (h *ProfileHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	var profile database.Profile
 	if err := json.NewDecoder(r.Body).Decode(&profile); err != nil {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	if err := s.profileSvc.Create(&profile); err != nil {
+	if err := h.profileSvc.Create(&profile); err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			jsonError(w, err.Error(), http.StatusBadRequest)
 		} else {
@@ -52,7 +67,7 @@ func (s *Server) handleProfilesCreate(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, profile)
 }
 
-func (s *Server) handleProfileImport(w http.ResponseWriter, r *http.Request) {
+func (h *ProfileHandler) handleImport(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Links     string `json:"links"`
 		GroupUUID string `json:"group_uuid"`
@@ -62,7 +77,7 @@ func (s *Server) handleProfileImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	count, err := s.profileSvc.ImportLinks(req.Links, req.GroupUUID)
+	count, err := h.profileSvc.ImportLinks(req.Links, req.GroupUUID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "required") {
 			jsonError(w, err.Error(), http.StatusBadRequest)
@@ -75,7 +90,7 @@ func (s *Server) handleProfileImport(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]int{"imported": count})
 }
 
-func (s *Server) handleProfileImportImage(w http.ResponseWriter, r *http.Request) {
+func (h *ProfileHandler) handleImportImage(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		jsonError(w, "Failed to parse form: "+err.Error(), http.StatusBadRequest)
 		return
@@ -100,7 +115,7 @@ func (s *Server) handleProfileImportImage(w http.ResponseWriter, r *http.Request
 			jsonError(w, "No QR code found in image: "+decodeErr.Error(), http.StatusBadRequest)
 			return
 		}
-		s.importParsedLinks(w, links, groupUUID)
+		h.importParsedLinks(w, links, groupUUID)
 		return
 	}
 
@@ -129,12 +144,11 @@ func (s *Server) handleProfileImportImage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	s.importParsedLinks(w, links, groupUUID)
+	h.importParsedLinks(w, links, groupUUID)
 }
 
-// importParsedLinks 将已解析的链接导入到指定分组
-func (s *Server) importParsedLinks(w http.ResponseWriter, links []string, groupUUID string) {
-	count, err := s.profileSvc.ImportParsedLinks(links, groupUUID)
+func (h *ProfileHandler) importParsedLinks(w http.ResponseWriter, links []string, groupUUID string) {
+	count, err := h.profileSvc.ImportParsedLinks(links, groupUUID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "required") {
 			jsonError(w, err.Error(), http.StatusBadRequest)
@@ -147,7 +161,7 @@ func (s *Server) importParsedLinks(w http.ResponseWriter, links []string, groupU
 	jsonOK(w, map[string]int{"imported": count})
 }
 
-func (s *Server) handleProfileDedup(w http.ResponseWriter, r *http.Request) {
+func (h *ProfileHandler) handleDedup(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		GroupUUID string `json:"group_uuid"`
 	}
@@ -156,7 +170,7 @@ func (s *Server) handleProfileDedup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := s.profileSvc.Dedup(req.GroupUUID)
+	result, err := h.profileSvc.Dedup(req.GroupUUID)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -168,14 +182,14 @@ func (s *Server) handleProfileDedup(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) handlePingAll(w http.ResponseWriter, r *http.Request) {
-	go s.pingSvc.PingAllProfiles(r.Context(), 20)
+func (h *ProfileHandler) handlePingAll(w http.ResponseWriter, r *http.Request) {
+	go h.pingSvc.PingAllProfiles(r.Context(), 20)
 	jsonOK(w, map[string]string{"status": "pinging"})
 }
 
-func (s *Server) handleGetProfile(w http.ResponseWriter, r *http.Request) {
+func (h *ProfileHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
-	profile, err := s.profileSvc.Get(uuid)
+	profile, err := h.profileSvc.Get(uuid)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusNotFound)
 		return
@@ -183,14 +197,14 @@ func (s *Server) handleGetProfile(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, profile)
 }
 
-func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
+func (h *ProfileHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	var req map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	profile, err := s.profileSvc.Update(uuid, req)
+	profile, err := h.profileSvc.Update(uuid, req)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "required") {
 			jsonError(w, err.Error(), http.StatusBadRequest)
@@ -202,31 +216,31 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, profile)
 }
 
-func (s *Server) handleDeleteProfile(w http.ResponseWriter, r *http.Request) {
+func (h *ProfileHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
-	if err := s.profileSvc.Delete(uuid); err != nil {
+	if err := h.profileSvc.Delete(uuid); err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	jsonOK(w, map[string]string{"status": "deleted"})
 }
 
-func (s *Server) handleSelectProfile(w http.ResponseWriter, r *http.Request) {
+func (h *ProfileHandler) handleSelect(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
-	if err := s.profileSvc.Select(uuid); err != nil {
+	if err := h.profileSvc.Select(uuid); err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	jsonOK(w, map[string]string{"status": "selected"})
 }
 
-func (s *Server) handlePingProfile(w http.ResponseWriter, r *http.Request) {
+func (h *ProfileHandler) handlePing(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
-	profile, err := s.profileSvc.Get(uuid)
+	profile, err := h.profileSvc.Get(uuid)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	go s.pingSvc.PingSingleProfile(profile)
+	go h.pingSvc.PingSingleProfile(profile)
 	jsonOK(w, map[string]string{"status": "pinging"})
 }
