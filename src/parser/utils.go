@@ -7,30 +7,6 @@ import (
 	"strings"
 )
 
-// tryBase64Decode 尝试 base64 解码，失败返回空字符串
-func tryBase64Decode(s string) string {
-	// 尝试标准 base64
-	decoded, err := base64.StdEncoding.DecodeString(s)
-	if err == nil {
-		return string(decoded)
-	}
-	// 尝试 URL-safe base64
-	decoded, err = base64.URLEncoding.DecodeString(s)
-	if err == nil {
-		return string(decoded)
-	}
-	// 尝试无 padding 的 base64
-	decoded, err = base64.RawStdEncoding.DecodeString(s)
-	if err == nil {
-		return string(decoded)
-	}
-	decoded, err = base64.RawURLEncoding.DecodeString(s)
-	if err == nil {
-		return string(decoded)
-	}
-	return ""
-}
-
 // base64Decode base64 解码
 func base64Decode(s string) (string, error) {
 	decoded, err := base64.StdEncoding.DecodeString(s)

@@ -71,8 +71,8 @@ func ParseSubscriptionContent(content string) ([]*database.Profile, error) {
 	content = strings.TrimSpace(content)
 
 	// 尝试 base64 解码
-	decoded := tryBase64Decode(content)
-	if decoded != "" {
+	decoded, err := base64Decode(content)
+	if err == nil {
 		content = decoded
 	}
 
