@@ -68,14 +68,18 @@ func (s *CoreService) buildConfig(coreType string) (configPath string, resolvedC
 		return "", "", fmt.Errorf("failed to load routing rules: %w", err)
 	}
 
-	switch coreType {
-	case "xray":
-		configPath, err = configbuilder.SaveXrayConfig(&profile, rules, s.cfg.AppDir, s.cfg.SocksPort, s.cfg.HTTPPort)
-	case "sing-box":
-		configPath, err = configbuilder.SaveSingboxConfig(&profile, rules, s.cfg.AppDir, s.cfg.SocksPort)
-	default:
+	builder, ok := configbuilder.GetBuilder(coreType)
+	if !ok {
 		return "", "", fmt.Errorf("unsupported core type: %s", coreType)
 	}
+
+	configPath, err = builder.Build(&configbuilder.BuildConfigParams{
+		Profile:   &profile,
+		Rules:     rules,
+		ConfigDir: s.cfg.AppDir,
+		SocksPort: s.cfg.SocksPort,
+		HTTPPort:  s.cfg.HTTPPort,
+	})
 
 	if err != nil {
 		return "", "", fmt.Errorf("failed to build config: %w", err)

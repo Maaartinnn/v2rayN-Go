@@ -568,9 +568,10 @@ func buildXrayBalancers(groups []database.StrategyGroup) []interface{} {
 			}
 		case "loadbalance":
 			strategyType := "random"
-			if g.Strategy == "round-robin" {
+			switch g.Strategy {
+			case "round-robin":
 				strategyType = "roundRobin"
-			} else if g.Strategy == "least-load" {
+			case "least-load":
 				strategyType = "leastLoad"
 			}
 			balancer["strategy"] = map[string]interface{}{
