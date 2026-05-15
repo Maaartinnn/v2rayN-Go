@@ -11,6 +11,7 @@ import { inputStyle, inputHeadingStyle } from './ui/formStyles'
 
 interface StrategyGroup {
   ID: number
+  uuid: string
   name: string
   type: string
   description: string
@@ -49,7 +50,7 @@ function StrategyGroupEditForm({
   const [formTestURL, setFormTestURL] = useState(group?.test_url || 'https://www.gstatic.com/generate_204')
   const [formTestInterval, setFormTestInterval] = useState(String(group?.test_interval || 300))
   const [formStrategy, setFormStrategy] = useState(group?.strategy || 'round-robin')
-  const [formProfileIDs, setFormProfileIDs] = useState<number[]>(() => {
+  const [formProfileUUIDs, setFormProfileUUIDs] = useState<string[]>(() => {
     if (!group) return []
     try {
       return JSON.parse(group.profile_uuids || '[]')
@@ -58,9 +59,9 @@ function StrategyGroupEditForm({
     }
   })
 
-  const toggleProfileID = (id: number) => {
-    setFormProfileIDs(prev =>
-      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+  const toggleProfileUUID = (uuid: string) => {
+    setFormProfileUUIDs(prev =>
+      prev.includes(uuid) ? prev.filter(p => p !== uuid) : [...prev, uuid]
     )
   }
 
@@ -73,7 +74,7 @@ function StrategyGroupEditForm({
       test_url: formTestURL,
       test_interval: parseInt(formTestInterval) || 300,
       strategy: formStrategy,
-      profile_uuids: JSON.stringify(formProfileIDs),
+      profile_uuids: JSON.stringify(formProfileUUIDs),
     })
   }
 
@@ -147,7 +148,7 @@ function StrategyGroupEditForm({
         )}
 
         {/* Member nodes selection */}
-        <FormField label={`${t('strategy.members')} (${t('strategy.members_selected', { count: formProfileIDs.length })})`}>
+        <FormField label={`${t('strategy.members')} (${t('strategy.members_selected', { count: formProfileUUIDs.length })})`}>
           <div
             className="max-h-40 overflow-y-auto rounded-lg border p-2 space-y-1"
             style={{ backgroundColor: 'var(--color-overlay)', borderColor: 'var(--color-border)' }}
@@ -159,13 +160,13 @@ function StrategyGroupEditForm({
             ) : (
               profiles.map(p => (
                 <label
-                  key={p.ID}
+                  key={p.uuid}
                   className="flex items-center gap-2 px-2 py-1 rounded cursor-pointer hover:bg-(--color-muted) transition-colors"
                 >
                   <input
                     type="checkbox"
-                    checked={formProfileIDs.includes(p.ID)}
-                    onChange={() => toggleProfileID(p.ID)}
+                    checked={formProfileUUIDs.includes(p.uuid)}
+                    onChange={() => toggleProfileUUID(p.uuid)}
                     className="rounded"
                   />
                   <span className="text-xs truncate" style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}>
@@ -197,7 +198,7 @@ export function StrategyGroupView() {
   const [groups, setGroups] = useState<StrategyGroup[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [showAdd, setShowAdd] = useState(false)
-  const [editId, setEditId] = useState<number | null>(null)
+  const [editId, setEditId] = useState<string | null>(null)
   const t = useT()
 
   useEffect(() => {
@@ -236,9 +237,9 @@ export function StrategyGroupView() {
     }
   }
 
-  const handleUpdate = async (id: number, data: Partial<StrategyGroup>) => {
+  const handleUpdate = async (uuid: string, data: Partial<StrategyGroup>) => {
     try {
-      await strategyGroupsApi.update(id, { ID: id, ...data })
+      await strategyGroupsApi.update(uuid, data)
       setEditId(null)
       await loadGroups()
     } catch (err) {
@@ -246,9 +247,9 @@ export function StrategyGroupView() {
     }
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (uuid: string) => {
     try {
-      await strategyGroupsApi.delete(id)
+      await strategyGroupsApi.delete(uuid)
       await loadGroups()
     } catch (err) {
       console.error('Delete strategy group failed:', err)
@@ -260,12 +261,12 @@ export function StrategyGroupView() {
     return info || GROUP_TYPES[0]
   }
 
-  const getProfileNames = (idsStr: string) => {
+  const getProfileNames = (uuidsStr: string) => {
     try {
-      const ids: number[] = JSON.parse(idsStr || '[]')
-      return ids.map(id => {
-        const p = profiles.find(pr => pr.ID === id)
-        return p ? p.name : `#${id}`
+      const uuids: string[] = JSON.parse(uuidsStr || '[]')
+      return uuids.map(uuid => {
+        const p = profiles.find(pr => pr.uuid === uuid)
+        return p ? p.name : `#${uuid.slice(0, 8)}`
       })
     } catch {
       return []
@@ -365,7 +366,7 @@ export function StrategyGroupView() {
                       <button
                         onClick={() => {
                           setShowAdd(false)
-                          setEditId(editId === group.ID ? null : group.ID)
+                          setEditId(editId === group.uuid ? null : group.uuid)
                         }}
                         className="p-1.5 rounded-md transition-colors cursor-pointer"
                         style={{ color: 'var(--color-text-muted)' }}
@@ -375,7 +376,7 @@ export function StrategyGroupView() {
                         <Edit3 size={13} />
                       </button>
                       <button
-                        onClick={() => handleDelete(group.ID)}
+                        onClick={() => handleDelete(group.uuid)}
                         className="p-1.5 rounded-md transition-colors cursor-pointer"
                         style={{ color: 'var(--color-text-muted)' }}
                         onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-error)'; e.currentTarget.style.backgroundColor = 'var(--color-error-dim)' }}
@@ -389,12 +390,12 @@ export function StrategyGroupView() {
 
                 {/* Edit form below the group card */}
                 <AnimatePresence>
-                  {editId === group.ID && (
+                  {editId === group.uuid && (
                     <StrategyGroupEditForm
-                      key={`edit-${group.ID}`}
+                      key={`edit-${group.uuid}`}
                       group={group}
                       profiles={profiles}
-                      onSave={(data) => handleUpdate(group.ID, data)}
+                      onSave={(data) => handleUpdate(group.uuid, data)}
                       onCancel={() => setEditId(null)}
                       t={t}
                     />

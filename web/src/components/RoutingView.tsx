@@ -10,6 +10,7 @@ import { inputStyle } from './ui/formStyles'
 
 interface RoutingRule {
   ID: number
+  uuid: string
   name: string
   type: string
   domain: string
@@ -110,7 +111,7 @@ function RoutingEditForm({
 export function RoutingView() {
   const [rules, setRules] = useState<RoutingRule[]>([])
   const [showAdd, setShowAdd] = useState(false)
-  const [editId, setEditId] = useState<number | null>(null)
+  const [editId, setEditId] = useState<string | null>(null)
   const t = useT()
 
   useEffect(() => {
@@ -139,9 +140,9 @@ export function RoutingView() {
     }
   }
 
-  const handleUpdate = async (id: number, data: Partial<RoutingRule>) => {
+  const handleUpdate = async (uuid: string, data: Partial<RoutingRule>) => {
     try {
-      await routingApi.update(id, { ID: id, ...data })
+      await routingApi.update(uuid, data)
       setEditId(null)
       await loadRules()
     } catch (err) {
@@ -149,9 +150,9 @@ export function RoutingView() {
     }
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (uuid: string) => {
     try {
-      await routingApi.delete(id)
+      await routingApi.delete(uuid)
       await loadRules()
     } catch (err) {
       console.error('Delete rule failed:', err)
@@ -226,7 +227,7 @@ export function RoutingView() {
             const typeInfo = getTypeColor(rule.type)
             const TypeIcon = typeInfo.icon
             return (
-              <div key={rule.ID}>
+              <div key={rule.uuid}>
                 <motion.div
                   layout
                   initial={{ opacity: 0, y: 8 }}
@@ -281,7 +282,7 @@ export function RoutingView() {
                       <button
                         onClick={() => {
                           setShowAdd(false)
-                          setEditId(editId === rule.ID ? null : rule.ID)
+                          setEditId(editId === rule.uuid ? null : rule.uuid)
                         }}
                         className="p-1.5 rounded-md transition-colors cursor-pointer"
                         style={{ color: 'var(--color-text-muted)' }}
@@ -297,7 +298,7 @@ export function RoutingView() {
                         <Edit3 size={13} />
                       </button>
                       <button
-                        onClick={() => handleDelete(rule.ID)}
+                        onClick={() => handleDelete(rule.uuid)}
                         className="p-1.5 rounded-md transition-colors cursor-pointer"
                         style={{ color: 'var(--color-text-muted)' }}
                         onMouseEnter={(e) => {
@@ -317,11 +318,11 @@ export function RoutingView() {
 
                 {/* Edit form below the rule card */}
                 <AnimatePresence>
-                  {editId === rule.ID && (
+                  {editId === rule.uuid && (
                     <RoutingEditForm
-                      key={`edit-${rule.ID}`}
+                      key={`edit-${rule.uuid}`}
                       rule={rule}
-                      onSave={(data) => handleUpdate(rule.ID, data)}
+                      onSave={(data) => handleUpdate(rule.uuid, data)}
                       onCancel={() => setEditId(null)}
                       t={t}
                     />

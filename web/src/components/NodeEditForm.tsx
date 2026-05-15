@@ -142,7 +142,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
 
     try {
       if (isEditing && editData) {
-        const res = await profileApi.update(editData.ID, payload)
+        const res = await profileApi.update(editData.uuid, payload)
         onSaved(res.data)
       } else {
         await profileApi.create({

@@ -454,15 +454,15 @@ func (s *Server) handleGroupsReorder(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/groups/")
 	parts := strings.SplitN(path, "/", 2)
-	id := strings.TrimSpace(parts[0])
+	uuid := strings.TrimSpace(parts[0])
 
-	if id == "" {
-		jsonError(w, "Missing group ID", http.StatusBadRequest)
+	if uuid == "" {
+		jsonError(w, "Missing group UUID", http.StatusBadRequest)
 		return
 	}
 
 	var group database.NodeGroup
-	if err := database.DB.First(&group, id).Error; err != nil {
+	if err := database.DB.Where("uuid = ?", uuid).First(&group).Error; err != nil {
 		jsonError(w, "Group not found", http.StatusNotFound)
 		return
 	}
@@ -956,20 +956,20 @@ func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]string{"status": "uploaded", "core": coreName, "path": destPath})
 }
 
-// ========== Profile by ID API ==========
+// ========== Profile by UUID API ==========
 
 func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/profiles/")
 	parts := strings.SplitN(path, "/", 2)
-	id := strings.TrimSpace(parts[0])
+	uuid := strings.TrimSpace(parts[0])
 
-	if id == "" {
-		jsonError(w, "Missing profile ID", http.StatusBadRequest)
+	if uuid == "" {
+		jsonError(w, "Missing profile UUID", http.StatusBadRequest)
 		return
 	}
 
 	var profile database.Profile
-	if err := database.DB.First(&profile, id).Error; err != nil {
+	if err := database.DB.Where("uuid = ?", uuid).First(&profile).Error; err != nil {
 		jsonError(w, "Profile not found", http.StatusNotFound)
 		return
 	}
@@ -1006,26 +1006,31 @@ func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
 		jsonOK(w, profile)
 
 	case http.MethodPut:
-		var updated database.Profile
-		if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
+		var req map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		updated.ID = profile.ID
-		if updated.GroupUUID == "" {
+		groupUUID, _ := req["group_uuid"].(string)
+		if groupUUID == "" {
 			jsonError(w, "group_uuid is required", http.StatusBadRequest)
 			return
 		}
 		var group database.NodeGroup
-		if err := database.DB.Where("uuid = ?", updated.GroupUUID).First(&group).Error; err != nil {
+		if err := database.DB.Where("uuid = ?", groupUUID).First(&group).Error; err != nil {
 			jsonError(w, "Group not found", http.StatusBadRequest)
 			return
 		}
-		if err := database.DB.Save(&updated).Error; err != nil {
+		delete(req, "uuid")
+		delete(req, "sort_order")
+		delete(req, "ID")
+		delete(req, "id")
+		if err := database.DB.Model(&profile).Updates(req).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		jsonOK(w, updated)
+		database.DB.First(&profile, profile.ID)
+		jsonOK(w, profile)
 
 	case http.MethodDelete:
 		database.DB.Delete(&profile)
@@ -1066,8 +1071,9 @@ func (s *Server) handleRoutingRules(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleRoutingRuleByID(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/routing-rules/")
+	uuid := strings.TrimSpace(path)
 	var rule database.RoutingRule
-	if err := database.DB.First(&rule, path).Error; err != nil {
+	if err := database.DB.Where("uuid = ?", uuid).First(&rule).Error; err != nil {
 		jsonError(w, "Rule not found", http.StatusNotFound)
 		return
 	}
@@ -1199,15 +1205,15 @@ func (s *Server) handleStrategyGroups(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleStrategyGroupByID(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/strategy-groups/")
-	id := strings.TrimSpace(path)
+	uuid := strings.TrimSpace(path)
 
-	if id == "" {
-		jsonError(w, "Missing strategy group ID", http.StatusBadRequest)
+	if uuid == "" {
+		jsonError(w, "Missing strategy group UUID", http.StatusBadRequest)
 		return
 	}
 
 	var group database.StrategyGroup
-	if err := database.DB.First(&group, id).Error; err != nil {
+	if err := database.DB.Where("uuid = ?", uuid).First(&group).Error; err != nil {
 		jsonError(w, "Strategy group not found", http.StatusNotFound)
 		return
 	}

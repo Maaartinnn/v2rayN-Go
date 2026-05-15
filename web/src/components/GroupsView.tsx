@@ -406,8 +406,8 @@ function SortableGroupCard({
 // ========== Main GroupsView ==========
 export function GroupsView() {
   const [groups, setGroups] = useState<NodeGroup[]>([])
-  const [editId, setEditId] = useState<number | null>(null)
-  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const t = useT()
   const { addToast } = useStore()
 
@@ -444,9 +444,9 @@ export function GroupsView() {
     }
   }
 
-  const handleSave = async (id: number, data: Partial<NodeGroup>) => {
+  const handleSave = async (uuid: string, data: Partial<NodeGroup>) => {
     try {
-      await groupsApi.update(id, data)
+      await groupsApi.update(uuid, data)
       setEditId(null)
       await loadGroups()
     } catch (err) {
@@ -455,15 +455,15 @@ export function GroupsView() {
     }
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (uuid: string) => {
     if (groups.length <= 1) {
       addToast(t('groups.cannot_delete'), 'error')
       return
     }
     try {
-      await groupsApi.delete(id)
+      await groupsApi.delete(uuid)
       setDeleteTargetId(null)
-      if (editId === id) setEditId(null)
+      if (editId === uuid) setEditId(null)
       await loadGroups()
     } catch (err) {
       console.error('Delete group failed:', err)
@@ -471,9 +471,9 @@ export function GroupsView() {
     }
   }
 
-  const handleRefresh = async (id: number) => {
+  const handleRefresh = async (uuid: string) => {
     try {
-      await groupsApi.refresh(id)
+      await groupsApi.refresh(uuid)
       addToast(t('groups.update_success'), 'success')
     } catch (err) {
       console.error('Refresh failed:', err)
@@ -481,9 +481,9 @@ export function GroupsView() {
     }
   }
 
-  const handleRefreshProxy = async (id: number) => {
+  const handleRefreshProxy = async (uuid: string) => {
     try {
-      await groupsApi.refreshProxy(id)
+      await groupsApi.refreshProxy(uuid)
       addToast(t('groups.update_success'), 'success')
     } catch (err) {
       console.error('Refresh via proxy failed:', err)
@@ -576,34 +576,34 @@ export function GroupsView() {
                 <div key={group.uuid}>
                   <SortableGroupCard
                     group={group}
-                    onEdit={() => setEditId(editId === group.ID ? null : group.ID)}
+                    onEdit={() => setEditId(editId === group.uuid ? null : group.uuid)}
                     onDelete={() => {
                       if (groups.length <= 1) {
                         addToast(t('groups.cannot_delete'), 'error')
                         return
                       }
-                      setDeleteTargetId(deleteTargetId === group.ID ? null : group.ID)
+                      setDeleteTargetId(deleteTargetId === group.uuid ? null : group.uuid)
                     }}
-                    onRefresh={() => handleRefresh(group.ID)}
-                    onRefreshProxy={() => handleRefreshProxy(group.ID)}
+                    onRefresh={() => handleRefresh(group.uuid)}
+                    onRefreshProxy={() => handleRefreshProxy(group.uuid)}
                     canDelete={groups.length > 1}
                     t={t}
                   />
                   <AnimatePresence>
-                    {editId === group.ID && (
+                    {editId === group.uuid && (
                       <GroupEditForm
-                        key={`edit-${group.ID}`}
+                        key={`edit-${group.uuid}`}
                         group={group}
-                        onSave={(data) => handleSave(group.ID, data)}
+                        onSave={(data) => handleSave(group.uuid, data)}
                         onCancel={() => setEditId(null)}
                         t={t}
                       />
                     )}
                   </AnimatePresence>
                   <DeleteConfirmBanner
-                    visible={deleteTargetId === group.ID}
+                    visible={deleteTargetId === group.uuid}
                     message={t('groups.delete_confirm', { name: group.alias || t('groups.default_name') })}
-                    onConfirm={() => handleDelete(group.ID)}
+                    onConfirm={() => handleDelete(group.uuid)}
                     onCancel={() => setDeleteTargetId(null)}
                   />
                 </div>

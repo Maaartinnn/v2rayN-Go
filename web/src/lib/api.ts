@@ -18,12 +18,12 @@ export const coreApi = {
 // ========== Profile API ==========
 export const profileApi = {
   list: () => api.get('/profiles'),
-  get: (id: number) => api.get(`/profiles/${id}`),
+  get: (uuid: string) => api.get(`/profiles/${uuid}`),
   create: (data: any) => api.post('/profiles', data),
-  update: (id: number, data: any) => api.put(`/profiles/${id}`, data),
-  delete: (id: number) => api.delete(`/profiles/${id}`),
-  select: (id: number) => api.post(`/profiles/${id}/select`),
-  ping: (id: number) => api.post(`/profiles/${id}/ping`),
+  update: (uuid: string, data: any) => api.put(`/profiles/${uuid}`, data),
+  delete: (uuid: string) => api.delete(`/profiles/${uuid}`),
+  select: (uuid: string) => api.post(`/profiles/${uuid}/select`),
+  ping: (uuid: string) => api.post(`/profiles/${uuid}/ping`),
   pingAll: () => api.post('/profiles/ping-all'),
   importLinks: (links: string, groupUuid?: string) =>
     api.post('/profiles/import', { links, group_uuid: groupUuid || '' }),
@@ -34,14 +34,14 @@ export const profileApi = {
 // ========== Groups API (unified: normal + subscription groups) ==========
 export const groupsApi = {
   list: () => api.get('/groups'),
-  get: (id: number) => api.get(`/groups/${id}`),
+  get: (uuid: string) => api.get(`/groups/${uuid}`),
   create: (data: any) => api.post('/groups', data),
-  update: (id: number, data: any) => api.put(`/groups/${id}`, data),
-  delete: (id: number) => api.delete(`/groups/${id}`),
+  update: (uuid: string, data: any) => api.put(`/groups/${uuid}`, data),
+  delete: (uuid: string) => api.delete(`/groups/${uuid}`),
   reorder: (uuid: string, beforeUuid: string | null, afterUuid: string | null) =>
     api.put('/groups/reorder', { uuid, before_uuid: beforeUuid || '', after_uuid: afterUuid || '' }),
-  refresh: (id: number) => api.post(`/groups/${id}/refresh`),
-  refreshProxy: (id: number) => api.post(`/groups/${id}/refresh-proxy`),
+  refresh: (uuid: string) => api.post(`/groups/${uuid}/refresh`),
+  refreshProxy: (uuid: string) => api.post(`/groups/${uuid}/refresh-proxy`),
 }
 
 // ========== Profile Enhancements ==========
@@ -57,18 +57,18 @@ export const profileEnhancedApi = {
 // ========== Strategy Groups API ==========
 export const strategyGroupsApi = {
   list: () => api.get('/strategy-groups'),
-  get: (id: number) => api.get(`/strategy-groups/${id}`),
+  get: (uuid: string) => api.get(`/strategy-groups/${uuid}`),
   create: (data: any) => api.post('/strategy-groups', data),
-  update: (id: number, data: any) => api.put(`/strategy-groups/${id}`, data),
-  delete: (id: number) => api.delete(`/strategy-groups/${id}`),
+  update: (uuid: string, data: any) => api.put(`/strategy-groups/${uuid}`, data),
+  delete: (uuid: string) => api.delete(`/strategy-groups/${uuid}`),
 }
 
 // ========== Routing API ==========
 export const routingApi = {
   list: () => api.get('/routing-rules'),
   create: (data: any) => api.post('/routing-rules', data),
-  update: (id: number, data: any) => api.put(`/routing-rules/${id}`, data),
-  delete: (id: number) => api.delete(`/routing-rules/${id}`),
+  update: (uuid: string, data: any) => api.put(`/routing-rules/${uuid}`, data),
+  delete: (uuid: string) => api.delete(`/routing-rules/${uuid}`),
 }
 
 // ========== Core Hub API ==========

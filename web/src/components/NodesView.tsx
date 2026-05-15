@@ -24,7 +24,7 @@ export function NodesView() {
   const [selectedGroupUUID, setSelectedGroupUUID] = useState<string>('')
   const [groups, setGroups] = useState<NodeGroupItem[]>([])
   const [dedupResult, setDedupResult] = useState<string>('')
-  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [editProfile, setEditProfile] = useState<Profile | null>(null)
 
   // Multi-selection state
@@ -63,7 +63,7 @@ export function NodesView() {
   const handleActivate = async (profile: Profile, e: React.MouseEvent) => {
     e.stopPropagation()
     try {
-      await profileApi.select(profile.ID)
+      await profileApi.select(profile.uuid)
       setActiveProfile(profile)
     } catch (err) {
       console.error('Activate failed:', err)
@@ -81,9 +81,9 @@ export function NodesView() {
     setLoading(false)
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (uuid: string) => {
     try {
-      await profileApi.delete(id)
+      await profileApi.delete(uuid)
       setDeleteTargetId(null)
       await loadProfiles()
     } catch (err) {
@@ -429,7 +429,7 @@ export function NodesView() {
                             <Edit3 size={12} />
                           </button>
                           <button
-                            onClick={(e) => { e.stopPropagation(); setDeleteTargetId(profile.ID) }}
+                            onClick={(e) => { e.stopPropagation(); setDeleteTargetId(profile.uuid) }}
                             className="p-1 rounded-md transition-colors cursor-pointer"
                             style={{ color: 'var(--color-text-muted)' }}
                             onMouseEnter={(e) => {
@@ -448,9 +448,9 @@ export function NodesView() {
                     </div>
                     {/* Delete confirm banner */}
                     <DeleteConfirmBanner
-                      visible={deleteTargetId === profile.ID}
+                      visible={deleteTargetId === profile.uuid}
                       message={t('nodes.delete_confirm', { name: profile.name })}
-                      onConfirm={() => handleDelete(profile.ID)}
+                      onConfirm={() => handleDelete(profile.uuid)}
                       onCancel={() => setDeleteTargetId(null)}
                     />
                   </motion.div>
