@@ -224,11 +224,11 @@ export function ImportView() {
                 </div>
               ) : (
                 groups.map((group) => {
-                  const isSelected = selectedGroupUUID === group.proxy_credential
+                  const isSelected = selectedGroupUUID === group.uuid
                   return (
                     <motion.button
                       key={group.ID}
-                      onClick={() => setSelectedGroupUUID(group.proxy_credential)}
+                      onClick={() => setSelectedGroupUUID(group.uuid)}
                       className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-left cursor-pointer"
                       style={{
                         backgroundColor: isSelected ? 'var(--color-accent-dim)' : 'transparent',

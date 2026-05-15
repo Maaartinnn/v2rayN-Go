@@ -92,7 +92,7 @@ export function HomeView() {
               className="text-sm mt-1"
               style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
             >
-              {activeProfile.protocol.toUpperCase()} · {activeProfile.address}:{activeProfile.port}
+              {activeProfile.proxy_protocol.toUpperCase()} · {activeProfile.proxy_address}:{activeProfile.proxy_port}
             </p>
           )}
         </div>

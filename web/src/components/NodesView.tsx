@@ -511,11 +511,11 @@ export function NodesView() {
               </motion.button>
 
               {groups.map((group) => {
-                const isSelected = selectedGroupUUID === group.proxy_credential
+                const isSelected = selectedGroupUUID === group.uuid
                 return (
                   <motion.button
                     key={group.ID}
-                    onClick={() => setSelectedGroupUUID(group.proxy_credential)}
+                    onClick={() => setSelectedGroupUUID(group.uuid)}
                     className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-left cursor-pointer"
                     style={{
                       backgroundColor: isSelected ? 'var(--color-accent-dim)' : 'transparent',
@@ -569,7 +569,7 @@ export function NodesView() {
         isOpen={editProfile !== null}
         onClose={() => setEditProfile(null)}
         title={editProfile ? `${t('nodes.edit') || '编辑'}: ${editProfile.name}` : ''}
-        subtitle={editProfile ? `${editProfile.protocol.toUpperCase()} · ${editProfile.address}:${editProfile.port}` : ''}
+        subtitle={editProfile ? `${editProfile.proxy_protocol.toUpperCase()} · ${editProfile.proxy_address}:${editProfile.proxy_port}` : ''}
       >
         {editProfile && (
           <NodeEditForm

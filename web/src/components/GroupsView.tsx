@@ -231,7 +231,7 @@ function SortableGroupCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: group.proxy_credential })
+  } = useSortable({ id: group.uuid })
 
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -573,7 +573,7 @@ export function GroupsView() {
               strategy={verticalListSortingStrategy}
             >
               {groups.map((group) => (
-                <div key={group.proxy_credential}>
+                <div key={group.uuid}>
                   <SortableGroupCard
                     group={group}
                     onEdit={() => setEditId(editId === group.ID ? null : group.ID)}
