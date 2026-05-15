@@ -25,22 +25,22 @@ func parseAnytls(link string) (*database.Profile, error) {
 
 	profile := &database.Profile{
 		Name:          name,
-		Address:       host,
-		Port:          port,
-		Protocol:      "anytls",
-		UUID:          password,
-		TLS:           "tls",
-		SNI:           q.Get("sni"),
-		Fingerprint:   q.Get("fp"),
-		AllowInsecure: q.Get("allowInsecure") == "1" || q.Get("allowInsecure") == "true",
+		ProxyAddress:       host,
+		ProxyPort:          port,
+		ProxyProtocol:      "anytls",
+		ProxyCredential:          password,
+		ProxyTLS:           "tls",
+		ProxySNI:           q.Get("sni"),
+		ProxyFingerprint:   q.Get("fp"),
+		ProxyAllowInsecure: q.Get("allowInsecure") == "1" || q.Get("allowInsecure") == "true",
 		RawLink:       link,
 	}
 
-	if profile.SNI == "" {
-		profile.SNI = host
+	if profile.ProxySNI == "" {
+		profile.ProxySNI = host
 	}
 	if profile.Name == "" {
-		profile.Name = fmt.Sprintf("anytls-%s:%d", profile.Address, profile.Port)
+		profile.Name = fmt.Sprintf("anytls-%s:%d", profile.ProxyAddress, profile.ProxyPort)
 	}
 
 	return profile, nil

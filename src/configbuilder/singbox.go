@@ -9,7 +9,7 @@ import (
 	"v2rayn-go/database"
 )
 
-// ========== Sing-box 配置结构体 ==========
+// ========== Sing-box 配置结构�?==========
 
 // SingboxConfig Sing-box 完整配置
 type SingboxConfig struct {
@@ -171,89 +171,89 @@ func buildSingboxOutbound(p *database.Profile) (*SingboxOutbound, error) {
 		Tag: "proxy",
 	}
 
-	switch p.Protocol {
+	switch p.ProxyProtocol {
 	case "vmess":
 		outbound.Type = "vmess"
-		outbound.Server = p.Address
-		outbound.ServerPort = p.Port
-		outbound.UUID = p.UUID
-		outbound.AlterID = p.AlterID
-		outbound.Security = p.Security
+		outbound.Server = p.ProxyAddress
+		outbound.ServerPort = p.ProxyPort
+		outbound.UUID = p.ProxyCredential
+		outbound.AlterID = p.ProxyAlterID
+		outbound.Security = p.ProxySecurity
 		if outbound.Security == "" {
 			outbound.Security = "auto"
 		}
 
 	case "vless":
 		outbound.Type = "vless"
-		outbound.Server = p.Address
-		outbound.ServerPort = p.Port
-		outbound.UUID = p.UUID
-		outbound.Flow = p.Flow
+		outbound.Server = p.ProxyAddress
+		outbound.ServerPort = p.ProxyPort
+		outbound.UUID = p.ProxyCredential
+		outbound.Flow = p.ProxyFlow
 
 	case "trojan":
 		outbound.Type = "trojan"
-		outbound.Server = p.Address
-		outbound.ServerPort = p.Port
-		outbound.Password = p.UUID
+		outbound.Server = p.ProxyAddress
+		outbound.ServerPort = p.ProxyPort
+		outbound.Password = p.ProxyCredential
 
 	case "shadowsocks":
 		outbound.Type = "shadowsocks"
-		outbound.Server = p.Address
-		outbound.ServerPort = p.Port
-		outbound.Method = p.Security
-		outbound.Password = p.UUID
+		outbound.Server = p.ProxyAddress
+		outbound.ServerPort = p.ProxyPort
+		outbound.Method = p.ProxySecurity
+		outbound.Password = p.ProxyCredential
 
 	case "hysteria2":
 		outbound.Type = "hysteria2"
-		outbound.Server = p.Address
-		outbound.ServerPort = p.Port
-		outbound.Password = p.UUID
+		outbound.Server = p.ProxyAddress
+		outbound.ServerPort = p.ProxyPort
+		outbound.Password = p.ProxyCredential
 
 	case "hysteria":
 		outbound.Type = "hysteria"
-		outbound.Server = p.Address
-		outbound.ServerPort = p.Port
-		outbound.Password = p.UUID
+		outbound.Server = p.ProxyAddress
+		outbound.ServerPort = p.ProxyPort
+		outbound.Password = p.ProxyCredential
 
 	case "tuic":
 		outbound.Type = "tuic"
-		outbound.Server = p.Address
-		outbound.ServerPort = p.Port
-		outbound.UUID = p.UUID
-		outbound.Password = p.Security
+		outbound.Server = p.ProxyAddress
+		outbound.ServerPort = p.ProxyPort
+		outbound.UUID = p.ProxyCredential
+		outbound.Password = p.ProxySecurity
 
 	case "wireguard":
 		outbound.Type = "wireguard"
-		outbound.Server = p.Address
-		outbound.ServerPort = p.Port
-		outbound.UUID = p.UUID     // Private key
-		outbound.Password = p.Host // Interface address (e.g. 10.0.0.2/32)
+		outbound.Server = p.ProxyAddress
+		outbound.ServerPort = p.ProxyPort
+		outbound.UUID = p.ProxyCredential     // Private key
+		outbound.Password = p.ProxyHost // Interface address (e.g. 10.0.0.2/32)
 		// PublicKey and Reserved stored in extra fields
-		outbound.Security = p.PublicKey // Reuse Security field for public_key
-		outbound.Network = p.Path       // Reuse Network field for reserved bytes
+		outbound.Security = p.ProxyPublicKey // Reuse Security field for public_key
+		outbound.Network = p.ProxyPath       // Reuse Network field for reserved bytes
 
 	case "anytls":
 		outbound.Type = "anytls"
-		outbound.Server = p.Address
-		outbound.ServerPort = p.Port
-		outbound.Password = p.UUID
+		outbound.Server = p.ProxyAddress
+		outbound.ServerPort = p.ProxyPort
+		outbound.Password = p.ProxyCredential
 
 	case "socks":
 		outbound.Type = "socks"
-		outbound.Server = p.Address
-		outbound.ServerPort = p.Port
-		outbound.UUID = p.UUID         // Username
-		outbound.Password = p.Security // Password (reuse Security field)
+		outbound.Server = p.ProxyAddress
+		outbound.ServerPort = p.ProxyPort
+		outbound.UUID = p.ProxyCredential         // Username
+		outbound.Password = p.ProxySecurity // Password (reuse Security field)
 
 	case "http":
 		outbound.Type = "http"
-		outbound.Server = p.Address
-		outbound.ServerPort = p.Port
-		outbound.UUID = p.UUID         // Username
-		outbound.Password = p.Security // Password (reuse Security field)
+		outbound.Server = p.ProxyAddress
+		outbound.ServerPort = p.ProxyPort
+		outbound.UUID = p.ProxyCredential         // Username
+		outbound.Password = p.ProxySecurity // Password (reuse Security field)
 
 	default:
-		return nil, fmt.Errorf("unsupported protocol for sing-box: %s", p.Protocol)
+		return nil, fmt.Errorf("unsupported protocol for sing-box: %s", p.ProxyProtocol)
 	}
 
 	// TLS 设置
@@ -262,7 +262,7 @@ func buildSingboxOutbound(p *database.Profile) (*SingboxOutbound, error) {
 		outbound.TLS = tls
 	}
 
-	// 传输层设置
+	// 传输层设�?
 	transport := buildSingboxTransport(p)
 	if transport != nil {
 		outbound.Transport = transport
@@ -273,17 +273,17 @@ func buildSingboxOutbound(p *database.Profile) (*SingboxOutbound, error) {
 
 // buildSingboxTLS 构建 Sing-box TLS 设置
 func buildSingboxTLS(p *database.Profile) *SingboxTLS {
-	switch p.TLS {
+	switch p.ProxyTLS {
 	case "tls":
 		tls := &SingboxTLS{
 			Enabled:    true,
-			ServerName: p.SNI,
-			Insecure:   p.AllowInsecure,
+			ServerName: p.ProxySNI,
+			Insecure:   p.ProxyAllowInsecure,
 		}
-		if p.Fingerprint != "" {
+		if p.ProxyFingerprint != "" {
 			tls.UTLS = &SingboxUTLS{
 				Enabled:     true,
-				Fingerprint: p.Fingerprint,
+				Fingerprint: p.ProxyFingerprint,
 			}
 		}
 		return tls
@@ -291,27 +291,27 @@ func buildSingboxTLS(p *database.Profile) *SingboxTLS {
 	case "reality":
 		tls := &SingboxTLS{
 			Enabled:    true,
-			ServerName: p.SNI,
+			ServerName: p.ProxySNI,
 		}
-		if p.Fingerprint != "" {
+		if p.ProxyFingerprint != "" {
 			tls.UTLS = &SingboxUTLS{
 				Enabled:     true,
-				Fingerprint: p.Fingerprint,
+				Fingerprint: p.ProxyFingerprint,
 			}
 		}
 		tls.Reality = &SingboxReality{
 			Enabled:   true,
-			PublicKey: p.PublicKey,
-			ShortID:   p.ShortID,
+			PublicKey: p.ProxyPublicKey,
+			ShortID:   p.ProxyShortID,
 		}
 		return tls
 
 	default:
-		if p.Protocol == "trojan" || p.Protocol == "hysteria" || p.Protocol == "hysteria2" || p.Protocol == "tuic" {
+		if p.ProxyProtocol == "trojan" || p.ProxyProtocol == "hysteria" || p.ProxyProtocol == "hysteria2" || p.ProxyProtocol == "tuic" {
 			return &SingboxTLS{
 				Enabled:    true,
-				ServerName: p.SNI,
-				Insecure:   p.AllowInsecure,
+				ServerName: p.ProxySNI,
+				Insecure:   p.ProxyAllowInsecure,
 			}
 		}
 	}
@@ -319,17 +319,17 @@ func buildSingboxTLS(p *database.Profile) *SingboxTLS {
 	return nil
 }
 
-// buildSingboxTransport 构建 Sing-box 传输层设置
+// buildSingboxTransport 构建 Sing-box 传输层设�?
 func buildSingboxTransport(p *database.Profile) *SingboxTransport {
-	switch p.Network {
+	switch p.ProxyNetwork {
 	case "ws":
 		transport := &SingboxTransport{
 			Type: "ws",
-			Path: p.Path,
+			Path: p.ProxyPath,
 		}
-		if p.Host != "" {
+		if p.ProxyHost != "" {
 			transport.Headers = map[string]string{
-				"Host": p.Host,
+				"Host": p.ProxyHost,
 			}
 		}
 		return transport
@@ -337,22 +337,22 @@ func buildSingboxTransport(p *database.Profile) *SingboxTransport {
 	case "h2":
 		return &SingboxTransport{
 			Type: "http",
-			Path: p.Path,
-			Host: p.Host,
+			Path: p.ProxyPath,
+			Host: p.ProxyHost,
 		}
 
 	case "grpc":
 		return &SingboxTransport{
 			Type:        "grpc",
-			ServiceName: p.Path,
+			ServiceName: p.ProxyPath,
 		}
 
 	case "tcp":
-		if p.Host != "" {
+		if p.ProxyHost != "" {
 			return &SingboxTransport{
 				Type: "http",
-				Path: p.Path,
-				Host: p.Host,
+				Path: p.ProxyPath,
+				Host: p.ProxyHost,
 			}
 		}
 	}
@@ -374,7 +374,7 @@ func buildSingboxRoute(rules []database.RoutingRule, configDir string) *SingboxR
 		},
 	}
 
-	// 仅在 dat 文件存在时添加 geo 规则
+	// 仅在 dat 文件存在时添�?geo 规则
 	hasGeoIP, hasGeoSite := hasGeoDatFiles(configDir)
 	if hasGeoSite {
 		route.Rules = append(route.Rules, SingboxRule{
@@ -389,7 +389,7 @@ func buildSingboxRoute(rules []database.RoutingRule, configDir string) *SingboxR
 		})
 	}
 
-	// 添加用户自定义规则
+	// 添加用户自定义规�?
 	for _, rule := range rules {
 		if !rule.Enabled {
 			continue
@@ -412,7 +412,7 @@ func buildSingboxRoute(rules []database.RoutingRule, configDir string) *SingboxR
 	return route
 }
 
-// SaveSingboxConfig 生成并保存 Sing-box 配置文件
+// SaveSingboxConfig 生成并保�?Sing-box 配置文件
 func SaveSingboxConfig(profile *database.Profile, rules []database.RoutingRule, configDir string, mixedPort int) (string, error) {
 	cfg, err := BuildSingboxConfig(profile, rules, configDir, mixedPort)
 	if err != nil {

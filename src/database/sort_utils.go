@@ -163,6 +163,20 @@ func SortInsert(before, after *int) int {
 	return SortBetween(*before, *after)
 }
 
+// SortInsertSafe 带冲突检测的插入排序
+// 返回 (计算结果, 是否冲突)。冲突 = 结果与邻居值相同（整数除法坍缩）
+// 调用方检测到冲突时应触发 Rebalance 后重新查询邻居值再重算
+func SortInsertSafe(before, after *int) (int, bool) {
+	result := SortInsert(before, after)
+	if before != nil && result == *before {
+		return result, true
+	}
+	if after != nil && result == *after {
+		return result, true
+	}
+	return result, false
+}
+
 // SortNewBatch 批量追加：为 count 个新记录生成排序值，起始值 = max + SortStep
 func SortNewBatch(model interface{}, query string, count int, args ...interface{}) []int {
 	var maxOrder int

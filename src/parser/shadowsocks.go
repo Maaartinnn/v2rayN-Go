@@ -70,11 +70,11 @@ func parseShadowsocksURI(data string, atIdx int, name string, rawLink string) (*
 
 	profile := &database.Profile{
 		Name:     name,
-		Address:  host,
-		Port:     port,
-		Protocol: "shadowsocks",
-		Security: method,
-		UUID:     password,
+		ProxyAddress:  host,
+		ProxyPort:     port,
+		ProxyProtocol: "shadowsocks",
+		ProxySecurity: method,
+		ProxyCredential:     password,
 		RawLink:  rawLink,
 	}
 
@@ -82,12 +82,12 @@ func parseShadowsocksURI(data string, atIdx int, name string, rawLink string) (*
 	if query != "" {
 		params := parseQueryString(query)
 		if plugin := params["plugin"]; plugin != "" {
-			profile.Path = plugin
+			profile.ProxyPath = plugin
 		}
 	}
 
 	if profile.Name == "" {
-		profile.Name = fmt.Sprintf("%s:%d", profile.Address, profile.Port)
+		profile.Name = fmt.Sprintf("%s:%d", profile.ProxyAddress, profile.ProxyPort)
 	}
 
 	return profile, nil
@@ -121,16 +121,16 @@ func parseShadowsocksDecoded(decoded string, name string, rawLink string) (*data
 
 	profile := &database.Profile{
 		Name:     name,
-		Address:  host,
-		Port:     port,
-		Protocol: "shadowsocks",
-		Security: method,
-		UUID:     password,
+		ProxyAddress:  host,
+		ProxyPort:     port,
+		ProxyProtocol: "shadowsocks",
+		ProxySecurity: method,
+		ProxyCredential:     password,
 		RawLink:  rawLink,
 	}
 
 	if profile.Name == "" {
-		profile.Name = fmt.Sprintf("%s:%d", profile.Address, profile.Port)
+		profile.Name = fmt.Sprintf("%s:%d", profile.ProxyAddress, profile.ProxyPort)
 	}
 
 	return profile, nil
@@ -175,13 +175,13 @@ func parseShadowsocksR(link string) (*database.Profile, error) {
 
 	profile := &database.Profile{
 		Name:     name,
-		Address:  host,
-		Port:     port,
-		Protocol: "shadowsocksr",
-		Security: method,
-		UUID:     password,
-		Network:  protocol,
-		Path:     obfs,
+		ProxyAddress:  host,
+		ProxyPort:     port,
+		ProxyProtocol: "shadowsocksr",
+		ProxySecurity: method,
+		ProxyCredential:     password,
+		ProxyNetwork:  protocol,
+		ProxyPath:     obfs,
 		RawLink:  link,
 	}
 
@@ -190,11 +190,11 @@ func parseShadowsocksR(link string) (*database.Profile, error) {
 		params := parseQueryString(queryPart)
 		if obfsParam := params["obfsparam"]; obfsParam != "" {
 			decoded, _ := base64Decode(obfsParam)
-			profile.Host = decoded
+			profile.ProxyHost = decoded
 		}
 		if protoParam := params["protoparam"]; protoParam != "" {
 			decoded, _ := base64Decode(protoParam)
-			profile.Seed = decoded
+			profile.ProxySeed = decoded
 		}
 		if remarks := params["remarks"]; remarks != "" {
 			decoded, _ := base64Decode(remarks)
@@ -205,7 +205,7 @@ func parseShadowsocksR(link string) (*database.Profile, error) {
 	}
 
 	if profile.Name == "" {
-		profile.Name = fmt.Sprintf("%s:%d", profile.Address, profile.Port)
+		profile.Name = fmt.Sprintf("%s:%d", profile.ProxyAddress, profile.ProxyPort)
 	}
 
 	return profile, nil

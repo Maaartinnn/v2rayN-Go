@@ -70,7 +70,7 @@ func (ps *PingService) HTTPPing(url string) (int, error) {
 
 // PingProfile 测试单个节点延迟（TCP Ping）
 func (ps *PingService) PingProfile(profile *database.Profile) PingResult {
-	latency, err := ps.TCPPing(profile.Address, profile.Port)
+	latency, err := ps.TCPPing(profile.ProxyAddress, profile.ProxyPort)
 	if err != nil {
 		return PingResult{
 			ProfileID: profile.ID,

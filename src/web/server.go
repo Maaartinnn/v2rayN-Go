@@ -266,6 +266,7 @@ func (s *Server) handleProfiles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		profile.SortOrder = database.SortNewScoped(&database.Profile{}, "group_uuid = ?", profile.GroupUUID)
+		profile.UUID = database.GenerateUUID()
 		if err := database.DB.Create(&profile).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -539,36 +540,36 @@ func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Cannot delete the last group", http.StatusBadRequest)
 			return
 		}
-		// 先查出被删节点的 ID 列表，用于清理策略组脏引用
-		var deletedProfileIDs []uint
-		database.DB.Model(&database.Profile{}).Where("group_uuid = ?", group.UUID).Pluck("id", &deletedProfileIDs)
+		// 先查出被删节点的 UUID 列表，用于清理策略组脏引用
+		var deletedProfileUUIDs []string
+		database.DB.Model(&database.Profile{}).Where("group_uuid = ?", group.UUID).Pluck("uuid", &deletedProfileUUIDs)
 		// 删除该分组下的所有节点
 		database.DB.Where("group_uuid = ?", group.UUID).Delete(&database.Profile{})
 		// 清理 StrategyGroup 中的脏引用
-		if len(deletedProfileIDs) > 0 {
-			deletedSet := make(map[uint]bool, len(deletedProfileIDs))
-			for _, id := range deletedProfileIDs {
-				deletedSet[id] = true
+		if len(deletedProfileUUIDs) > 0 {
+			deletedSet := make(map[string]bool, len(deletedProfileUUIDs))
+			for _, uid := range deletedProfileUUIDs {
+				deletedSet[uid] = true
 			}
 			var strategyGroups []database.StrategyGroup
 			database.DB.Find(&strategyGroups)
 			for _, sg := range strategyGroups {
-				if sg.ProfileIDs == "" {
+				if sg.ProfileUUIDs == "" {
 					continue
 				}
-				var ids []uint
-				if err := json.Unmarshal([]byte(sg.ProfileIDs), &ids); err != nil {
+				var uuids []string
+				if err := json.Unmarshal([]byte(sg.ProfileUUIDs), &uuids); err != nil {
 					continue
 				}
-				var cleaned []uint
-				for _, id := range ids {
-					if !deletedSet[id] {
-						cleaned = append(cleaned, id)
+				var cleaned []string
+				for _, uid := range uuids {
+					if !deletedSet[uid] {
+						cleaned = append(cleaned, uid)
 					}
 				}
-				if len(cleaned) != len(ids) {
+				if len(cleaned) != len(uuids) {
 					newJSON, _ := json.Marshal(cleaned)
-					database.DB.Model(&sg).Update("profile_ids", string(newJSON))
+					database.DB.Model(&sg).Update("profile_uuids", string(newJSON))
 				}
 			}
 		}
@@ -609,9 +610,9 @@ func (s *Server) handleProfileDedup(w http.ResponseWriter, r *http.Request) {
 			key = key[:idx]
 		}
 		if key == "" {
-			key = fmt.Sprintf("%s:%d:%s", p.Address, p.Port, p.Protocol)
-			if p.UUID != "" {
-				key += ":" + p.UUID
+			key = fmt.Sprintf("%s:%d:%s", p.ProxyAddress, p.ProxyPort, p.ProxyProtocol)
+			if p.ProxyCredential != "" {
+				key += ":" + p.ProxyCredential
 			}
 		}
 		if seen[key] {
@@ -1051,6 +1052,7 @@ func (s *Server) handleRoutingRules(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		rule.SortOrder = database.SortNew(&database.RoutingRule{})
+		rule.UUID = database.GenerateUUID()
 		if err := database.DB.Create(&rule).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -1183,6 +1185,7 @@ func (s *Server) handleStrategyGroups(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		group.SortOrder = database.SortNew(&database.StrategyGroup{})
+		group.UUID = database.GenerateUUID()
 		if err := database.DB.Create(&group).Error; err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return

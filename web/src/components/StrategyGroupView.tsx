@@ -14,7 +14,7 @@ interface StrategyGroup {
   name: string
   type: string
   description: string
-  profile_ids: string
+  profile_uuids: string
   test_url: string
   test_interval: number
   strategy: string
@@ -52,7 +52,7 @@ function StrategyGroupEditForm({
   const [formProfileIDs, setFormProfileIDs] = useState<number[]>(() => {
     if (!group) return []
     try {
-      return JSON.parse(group.profile_ids || '[]')
+      return JSON.parse(group.profile_uuids || '[]')
     } catch {
       return []
     }
@@ -73,7 +73,7 @@ function StrategyGroupEditForm({
       test_url: formTestURL,
       test_interval: parseInt(formTestInterval) || 300,
       strategy: formStrategy,
-      profile_ids: JSON.stringify(formProfileIDs),
+      profile_uuids: JSON.stringify(formProfileIDs),
     })
   }
 
@@ -172,7 +172,7 @@ function StrategyGroupEditForm({
                     {p.name}
                   </span>
                   <span className="text-[10px] px-1 py-0.5 rounded" style={{ backgroundColor: 'var(--color-muted)', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}>
-                    {p.protocol}
+                    {p.proxy_protocol}
                   </span>
                 </label>
               ))
@@ -320,7 +320,7 @@ export function StrategyGroupView() {
           groups.map((group, index) => {
             const typeInfo = getTypeInfo(group.type)
             const TypeIcon = typeInfo.icon
-            const memberNames = getProfileNames(group.profile_ids)
+            const memberNames = getProfileNames(group.profile_uuids)
             return (
               <div key={group.ID}>
                 <motion.div

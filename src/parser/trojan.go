@@ -28,35 +28,35 @@ func parseTrojan(link string) (*database.Profile, error) {
 
 	profile := &database.Profile{
 		Name:          name,
-		Address:       host,
-		Port:          port,
-		Protocol:      "trojan",
-		UUID:          password,
-		Network:       q.Get("type"),
-		TLS:           "tls",
-		SNI:           q.Get("sni"),
-		Fingerprint:   q.Get("fp"),
-		AllowInsecure: q.Get("allowInsecure") == "1" || q.Get("allowInsecure") == "true",
-		Host:          q.Get("host"),
-		Path:          q.Get("path"),
-		Flow:          q.Get("flow"),
+		ProxyAddress:       host,
+		ProxyPort:          port,
+		ProxyProtocol:      "trojan",
+		ProxyCredential:          password,
+		ProxyNetwork:       q.Get("type"),
+		ProxyTLS:           "tls",
+		ProxySNI:           q.Get("sni"),
+		ProxyFingerprint:   q.Get("fp"),
+		ProxyAllowInsecure: q.Get("allowInsecure") == "1" || q.Get("allowInsecure") == "true",
+		ProxyHost:          q.Get("host"),
+		ProxyPath:          q.Get("path"),
+		ProxyFlow:          q.Get("flow"),
 		RawLink:       link,
 	}
 
 	// Trojan 支持非 TLS 模式
 	if q.Get("security") == "tls" || q.Get("security") == "" {
-		profile.TLS = "tls"
+		profile.ProxyTLS = "tls"
 	} else if q.Get("security") == "reality" {
-		profile.TLS = "reality"
-		profile.PublicKey = q.Get("pbk")
-		profile.ShortID = q.Get("sid")
+		profile.ProxyTLS = "reality"
+		profile.ProxyPublicKey = q.Get("pbk")
+		profile.ProxyShortID = q.Get("sid")
 	}
 
-	if profile.Network == "" {
-		profile.Network = "tcp"
+	if profile.ProxyNetwork == "" {
+		profile.ProxyNetwork = "tcp"
 	}
 	if profile.Name == "" {
-		profile.Name = fmt.Sprintf("%s:%d", profile.Address, profile.Port)
+		profile.Name = fmt.Sprintf("%s:%d", profile.ProxyAddress, profile.ProxyPort)
 	}
 
 	return profile, nil

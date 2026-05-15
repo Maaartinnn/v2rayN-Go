@@ -137,8 +137,8 @@ export function NodesView() {
       const q = searchQuery.toLowerCase()
       return (
         p.name.toLowerCase().includes(q) ||
-        p.address.toLowerCase().includes(q) ||
-        p.protocol.toLowerCase().includes(q) ||
+        p.proxy_address.toLowerCase().includes(q) ||
+        p.proxy_protocol.toLowerCase().includes(q) ||
         (groups.find(gr => gr.uuid === p.group_uuid)?.alias || '').toLowerCase().includes(q)
       )
     })()
@@ -310,7 +310,7 @@ export function NodesView() {
               </motion.div>
             ) : (
               filteredProfiles.map((profile) => {
-                const protoColor = getProtocolColor(profile.protocol)
+                const protoColor = getProtocolColor(profile.proxy_protocol)
                 return (
                   <motion.div
                     key={profile.ID}
@@ -360,14 +360,14 @@ export function NodesView() {
                                   fontFamily: 'var(--font-heading)',
                                 }}
                               >
-                                {profile.protocol}
+                                {profile.proxy_protocol}
                               </span>
                             </div>
                             <p
                               className="text-xs mt-0.5 truncate"
                               style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
                             >
-                              {profile.address}:{profile.port}
+                              {profile.proxy_address}:{profile.proxy_port}
                               {profile.group_uuid && (() => {
                                 const g = groups.find(gr => gr.uuid === profile.group_uuid)
                                 return g ? <span style={{ fontFamily: 'var(--font-heading)' }}> · {g.alias}</span> : null
@@ -511,11 +511,11 @@ export function NodesView() {
               </motion.button>
 
               {groups.map((group) => {
-                const isSelected = selectedGroupUUID === group.uuid
+                const isSelected = selectedGroupUUID === group.proxy_credential
                 return (
                   <motion.button
                     key={group.ID}
-                    onClick={() => setSelectedGroupUUID(group.uuid)}
+                    onClick={() => setSelectedGroupUUID(group.proxy_credential)}
                     className="w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-left cursor-pointer"
                     style={{
                       backgroundColor: isSelected ? 'var(--color-accent-dim)' : 'transparent',

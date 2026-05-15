@@ -24,34 +24,34 @@ func parseVless(link string) (*database.Profile, error) {
 
 	profile := &database.Profile{
 		Name:        name,
-		Address:     host,
-		Port:        port,
-		Protocol:    "vless",
-		UUID:        u.User.Username(),
-		Network:     q.Get("type"),
-		TLS:         q.Get("security"),
-		SNI:         q.Get("sni"),
-		Fingerprint: q.Get("fp"),
-		Flow:        q.Get("flow"),
-		Host:        q.Get("host"),
-		Path:        q.Get("path"),
-		Seed:        q.Get("seed"),
-		PublicKey:   q.Get("pbk"),
-		ShortID:     q.Get("sid"),
-		SiderSNI:    q.Get("sni"),
+		ProxyAddress:     host,
+		ProxyPort:        port,
+		ProxyProtocol:    "vless",
+		ProxyCredential:        u.User.Username(),
+		ProxyNetwork:     q.Get("type"),
+		ProxyTLS:         q.Get("security"),
+		ProxySNI:         q.Get("sni"),
+		ProxyFingerprint: q.Get("fp"),
+		ProxyFlow:        q.Get("flow"),
+		ProxyHost:        q.Get("host"),
+		ProxyPath:        q.Get("path"),
+		ProxySeed:        q.Get("seed"),
+		ProxyPublicKey:   q.Get("pbk"),
+		ProxyShortID:     q.Get("sid"),
+		ProxySiderSNI:    q.Get("sni"),
 		RawLink:     link,
 	}
 
 	// Reality 模式下的特殊参数
 	if q.Get("sni") != "" {
-		profile.SNI = q.Get("sni")
+		profile.ProxySNI = q.Get("sni")
 	}
 
-	if profile.Network == "" {
-		profile.Network = "tcp"
+	if profile.ProxyNetwork == "" {
+		profile.ProxyNetwork = "tcp"
 	}
 	if profile.Name == "" {
-		profile.Name = fmt.Sprintf("%s:%d", profile.Address, profile.Port)
+		profile.Name = fmt.Sprintf("%s:%d", profile.ProxyAddress, profile.ProxyPort)
 	}
 
 	return profile, nil

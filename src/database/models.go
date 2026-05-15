@@ -10,38 +10,35 @@ import (
 type Profile struct {
 	gorm.Model
 
+	// 记录标识
+	UUID string `gorm:"size:36;uniqueIndex" json:"uuid"` // 记录唯一标识
+
 	// 基本信息
-	Name     string `gorm:"size:256" json:"name"`    // 节点名称
-	Address  string `gorm:"size:256" json:"address"` // 服务器地址
-	Port     int    `json:"port"`                    // 服务器端口
-	Protocol string `gorm:"size:64" json:"protocol"` // 协议类型: vmess, vless, trojan, shadowsocks, hysteria2 等
+	Name string `gorm:"size:256" json:"name"` // 节点名称
 
-	// 认证信息
-	UUID     string `gorm:"size:128" json:"uuid"`    // UUID / 密码
-	AlterID  int    `json:"alter_id"`                // VMess alterId
-	Security string `gorm:"size:64" json:"security"` // 加密方式
-	Network  string `gorm:"size:64" json:"network"`  // 传输协议: tcp, ws, grpc, h2 等
-
-	// TLS 设置
-	TLS           string `gorm:"size:32" json:"tls"`         // tls, reality, ""
-	SNI           string `gorm:"size:256" json:"sni"`        // Server Name Indication
-	Fingerprint   string `gorm:"size:64" json:"fingerprint"` // TLS 指纹
-	AllowInsecure bool   `json:"allow_insecure"`             // 跳过证书验证
-
-	// 传输层设置
-	Host      string `gorm:"size:256" json:"host"`       // WS/H2 主机头
-	Path      string `gorm:"size:512" json:"path"`       // WS/H2 路径
-	Seed      string `gorm:"size:256" json:"seed"`       // QUIC seed
-	Flow      string `gorm:"size:64" json:"flow"`        // VLESS flow
-	PublicKey string `gorm:"size:128" json:"public_key"` // Reality 公钥
-	ShortID   string `gorm:"size:128" json:"short_id"`   // Reality shortId
-	SiderSNI  string `gorm:"size:256" json:"sider_sni"`  // Reality serverName
+	// 代理配置（proxy_ 前缀，与业务字段隔离）
+	ProxyAddress       string `gorm:"size:256" json:"proxy_address"`      // 服务器地址
+	ProxyPort          int    `json:"proxy_port"`                         // 服务器端口
+	ProxyProtocol      string `gorm:"size:64" json:"proxy_protocol"`      // 协议类型: vmess, vless, trojan, shadowsocks, hysteria2 等
+	ProxyCredential    string `gorm:"size:128" json:"proxy_credential"`   // UUID / 密码（代理认证凭证）
+	ProxyAlterID       int    `json:"proxy_alter_id"`                     // VMess alterId
+	ProxySecurity      string `gorm:"size:64" json:"proxy_security"`      // 加密方式
+	ProxyNetwork       string `gorm:"size:64" json:"proxy_network"`       // 传输协议: tcp, ws, grpc, h2 等
+	ProxyTLS           string `gorm:"size:32" json:"proxy_tls"`           // tls, reality, ""
+	ProxySNI           string `gorm:"size:256" json:"proxy_sni"`          // Server Name Indication
+	ProxyFingerprint   string `gorm:"size:64" json:"proxy_fingerprint"`   // TLS 指纹
+	ProxyAllowInsecure bool   `json:"proxy_allow_insecure"`               // 跳过证书验证
+	ProxyHost          string `gorm:"size:256" json:"proxy_host"`         // WS/H2 主机头
+	ProxyPath          string `gorm:"size:512" json:"proxy_path"`         // WS/H2 路径
+	ProxySeed          string `gorm:"size:256" json:"proxy_seed"`         // QUIC seed
+	ProxyFlow          string `gorm:"size:64" json:"proxy_flow"`          // VLESS flow
+	ProxyPublicKey     string `gorm:"size:128" json:"proxy_public_key"`   // Reality 公钥
+	ProxyShortID       string `gorm:"size:128" json:"proxy_short_id"`     // Reality shortId
+	ProxySiderSNI      string `gorm:"size:256" json:"proxy_sider_sni"`    // Reality serverName
+	ProxyDialerProxy   string `gorm:"size:256" json:"proxy_dialer_proxy"` // 前置代理 tag（链式代理）
 
 	// 内核设置
 	CoreType string `gorm:"size:64;default:''" json:"core_type"` // 内核类型: xray, sing-box, mihomo, ""(自动)
-
-	// 链式代理
-	DialerProxy string `gorm:"size:256" json:"dialer_proxy"` // 前置代理 tag（链式代理）
 
 	// 原始链接
 	RawLink string `gorm:"type:text" json:"raw_link"` // 原始分享链接
@@ -87,11 +84,12 @@ type NodeGroup struct {
 type RoutingRule struct {
 	gorm.Model
 
-	Name      string `gorm:"size:256" json:"name"`    // 规则名称
-	Type      string `gorm:"size:64" json:"type"`     // 规则类型: direct, proxy, block
-	Domain    string `gorm:"type:text" json:"domain"` // 域名规则（逗号分隔）
-	IP        string `gorm:"type:text" json:"ip"`     // IP 规则（CIDR，逗号分隔）
-	Port      string `gorm:"size:128" json:"port"`    // 端口规则
+	UUID      string `gorm:"size:36;uniqueIndex" json:"uuid"` // 唯一标识
+	Name      string `gorm:"size:256" json:"name"`            // 规则名称
+	Type      string `gorm:"size:64" json:"type"`             // 规则类型: direct, proxy, block
+	Domain    string `gorm:"type:text" json:"domain"`         // 域名规则（逗号分隔）
+	IP        string `gorm:"type:text" json:"ip"`             // IP 规则（CIDR，逗号分隔）
+	Port      string `gorm:"size:128" json:"port"`            // 端口规则
 	Enabled   bool   `gorm:"default:true" json:"enabled"`
 	SortOrder int    `json:"sort_order"` // 排序顺序（越小优先级越高）
 }
@@ -100,12 +98,13 @@ type RoutingRule struct {
 type StrategyGroup struct {
 	gorm.Model
 
+	UUID        string `gorm:"size:36;uniqueIndex" json:"uuid"`  // 唯一标识
 	Name        string `gorm:"size:256;uniqueIndex" json:"name"` // 策略组名称
 	Type        string `gorm:"size:64" json:"type"`              // 策略组类型: selector, urltest, fallback, loadbalance
 	Description string `gorm:"size:512" json:"description"`      // 描述
 
-	// 成员节点（通过关联表）
-	ProfileIDs string `gorm:"type:text" json:"profile_ids"` // 成员节点 ID 列表（JSON 数组）
+	// 成员节点（存 Profile UUID 的 JSON 数组）
+	ProfileUUIDs string `gorm:"type:text" json:"profile_uuids"` // 成员节点 UUID 列表（JSON 数组）
 
 	// 测试设置
 	TestURL      string `gorm:"size:512" json:"test_url"`         // 测试 URL

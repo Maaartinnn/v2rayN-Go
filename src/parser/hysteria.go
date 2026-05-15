@@ -33,28 +33,28 @@ func parseHysteria2(link string) (*database.Profile, error) {
 
 	profile := &database.Profile{
 		Name:          name,
-		Address:       host,
-		Port:          port,
-		Protocol:      "hysteria2",
-		UUID:          password,
-		TLS:           "tls",
-		SNI:           q.Get("sni"),
-		AllowInsecure: q.Get("insecure") == "1" || q.Get("insecure") == "true",
-		Fingerprint:   q.Get("fp"),
+		ProxyAddress:       host,
+		ProxyPort:          port,
+		ProxyProtocol:      "hysteria2",
+		ProxyCredential:          password,
+		ProxyTLS:           "tls",
+		ProxySNI:           q.Get("sni"),
+		ProxyAllowInsecure: q.Get("insecure") == "1" || q.Get("insecure") == "true",
+		ProxyFingerprint:   q.Get("fp"),
 		RawLink:       link,
 	}
 
 	// OBFS 支持
 	if obfs := q.Get("obfs"); obfs != "" {
-		profile.Network = obfs
-		profile.Path = q.Get("obfs-password")
+		profile.ProxyNetwork = obfs
+		profile.ProxyPath = q.Get("obfs-password")
 	}
 
-	if profile.SNI == "" {
-		profile.SNI = host
+	if profile.ProxySNI == "" {
+		profile.ProxySNI = host
 	}
 	if profile.Name == "" {
-		profile.Name = fmt.Sprintf("%s:%d", profile.Address, profile.Port)
+		profile.Name = fmt.Sprintf("%s:%d", profile.ProxyAddress, profile.ProxyPort)
 	}
 
 	return profile, nil
@@ -83,27 +83,27 @@ func parseHysteria(link string) (*database.Profile, error) {
 
 	profile := &database.Profile{
 		Name:          name,
-		Address:       host,
-		Port:          port,
-		Protocol:      "hysteria",
-		UUID:          auth,
-		TLS:           "tls",
-		SNI:           q.Get("sni"),
-		AllowInsecure: q.Get("insecure") == "1" || q.Get("insecure") == "true",
-		Fingerprint:   q.Get("fp"),
+		ProxyAddress:       host,
+		ProxyPort:          port,
+		ProxyProtocol:      "hysteria",
+		ProxyCredential:          auth,
+		ProxyTLS:           "tls",
+		ProxySNI:           q.Get("sni"),
+		ProxyAllowInsecure: q.Get("insecure") == "1" || q.Get("insecure") == "true",
+		ProxyFingerprint:   q.Get("fp"),
 		RawLink:       link,
 	}
 
 	if obfs := q.Get("obfs"); obfs != "" {
-		profile.Network = obfs
-		profile.Path = q.Get("obfs-password")
+		profile.ProxyNetwork = obfs
+		profile.ProxyPath = q.Get("obfs-password")
 	}
 
-	if profile.SNI == "" {
-		profile.SNI = host
+	if profile.ProxySNI == "" {
+		profile.ProxySNI = host
 	}
 	if profile.Name == "" {
-		profile.Name = fmt.Sprintf("%s:%d", profile.Address, profile.Port)
+		profile.Name = fmt.Sprintf("%s:%d", profile.ProxyAddress, profile.ProxyPort)
 	}
 
 	return profile, nil
@@ -136,24 +136,24 @@ func parseTuic(link string) (*database.Profile, error) {
 
 	profile := &database.Profile{
 		Name:          name,
-		Address:       host,
-		Port:          port,
-		Protocol:      "tuic",
-		UUID:          uuid,
-		Security:      password,
-		TLS:           "tls",
-		SNI:           q.Get("sni"),
-		AllowInsecure: q.Get("allow_insecure") == "1" || q.Get("allow_insecure") == "true",
-		Fingerprint:   q.Get("fp"),
-		Network:       q.Get("congestion_control"),
+		ProxyAddress:       host,
+		ProxyPort:          port,
+		ProxyProtocol:      "tuic",
+		ProxyCredential:          uuid,
+		ProxySecurity:      password,
+		ProxyTLS:           "tls",
+		ProxySNI:           q.Get("sni"),
+		ProxyAllowInsecure: q.Get("allow_insecure") == "1" || q.Get("allow_insecure") == "true",
+		ProxyFingerprint:   q.Get("fp"),
+		ProxyNetwork:       q.Get("congestion_control"),
 		RawLink:       link,
 	}
 
-	if profile.SNI == "" {
-		profile.SNI = host
+	if profile.ProxySNI == "" {
+		profile.ProxySNI = host
 	}
 	if profile.Name == "" {
-		profile.Name = fmt.Sprintf("%s:%d", profile.Address, profile.Port)
+		profile.Name = fmt.Sprintf("%s:%d", profile.ProxyAddress, profile.ProxyPort)
 	}
 
 	return profile, nil

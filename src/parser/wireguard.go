@@ -26,30 +26,30 @@ func parseWireGuard(link string) (*database.Profile, error) {
 
 	profile := &database.Profile{
 		Name:      name,
-		Address:   host,
-		Port:      port,
-		Protocol:  "wireguard",
-		UUID:      privateKey, // Store private key in UUID field
-		PublicKey: q.Get("public_key"),
+		ProxyAddress:   host,
+		ProxyPort:      port,
+		ProxyProtocol:  "wireguard",
+		ProxyCredential:      privateKey, // Store private key in UUID field
+		ProxyPublicKey: q.Get("public_key"),
 		// WireGuard specific: store reserved bytes and address in extra fields
-		Path:    q.Get("reserved"), // Reserved bytes stored in Path
-		Host:    q.Get("address"),  // WireGuard interface address stored in Host
+		ProxyPath:    q.Get("reserved"), // Reserved bytes stored in Path
+		ProxyHost:    q.Get("address"),  // WireGuard interface address stored in Host
 		RawLink: link,
 	}
 
 	// Also check for shorter param names
-	if profile.PublicKey == "" {
-		profile.PublicKey = q.Get("pk")
+	if profile.ProxyPublicKey == "" {
+		profile.ProxyPublicKey = q.Get("pk")
 	}
-	if profile.Path == "" {
-		profile.Path = q.Get("reserved")
+	if profile.ProxyPath == "" {
+		profile.ProxyPath = q.Get("reserved")
 	}
-	if profile.Host == "" {
-		profile.Host = q.Get("addr")
+	if profile.ProxyHost == "" {
+		profile.ProxyHost = q.Get("addr")
 	}
 
 	if profile.Name == "" {
-		profile.Name = fmt.Sprintf("wg-%s:%d", profile.Address, profile.Port)
+		profile.Name = fmt.Sprintf("wg-%s:%d", profile.ProxyAddress, profile.ProxyPort)
 	}
 
 	return profile, nil

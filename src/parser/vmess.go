@@ -76,29 +76,29 @@ func parseVmessJSON(jsonStr string, rawLink string) (*database.Profile, error) {
 
 	profile := &database.Profile{
 		Name:        vj.Ps,
-		Address:     vj.Add,
-		Port:        port,
-		Protocol:    "vmess",
-		UUID:        vj.ID,
-		AlterID:     aid,
-		Security:    vj.Scy,
-		Network:     vj.Net,
-		TLS:         vj.TLS,
-		SNI:         vj.SNI,
-		Fingerprint: vj.Fp,
-		Host:        vj.Host,
-		Path:        vj.Path,
+		ProxyAddress:     vj.Add,
+		ProxyPort:        port,
+		ProxyProtocol:    "vmess",
+		ProxyCredential:        vj.ID,
+		ProxyAlterID:     aid,
+		ProxySecurity:    vj.Scy,
+		ProxyNetwork:     vj.Net,
+		ProxyTLS:         vj.TLS,
+		ProxySNI:         vj.SNI,
+		ProxyFingerprint: vj.Fp,
+		ProxyHost:        vj.Host,
+		ProxyPath:        vj.Path,
 		RawLink:     rawLink,
 	}
 
-	if profile.Security == "" {
-		profile.Security = "auto"
+	if profile.ProxySecurity == "" {
+		profile.ProxySecurity = "auto"
 	}
-	if profile.Network == "" {
-		profile.Network = "tcp"
+	if profile.ProxyNetwork == "" {
+		profile.ProxyNetwork = "tcp"
 	}
 	if profile.Name == "" {
-		profile.Name = fmt.Sprintf("%s:%d", profile.Address, profile.Port)
+		profile.Name = fmt.Sprintf("%s:%d", profile.ProxyAddress, profile.ProxyPort)
 	}
 
 	return profile, nil
@@ -128,28 +128,28 @@ func parseVmessURI(decoded string, rawLink string) (*database.Profile, error) {
 	q := u.Query()
 	profile := &database.Profile{
 		Name:        name,
-		Address:     host,
-		Port:        port,
-		Protocol:    "vmess",
-		UUID:        u.User.Username(),
-		Security:    q.Get("security"),
-		Network:     q.Get("type"),
-		TLS:         q.Get("tls"),
-		SNI:         q.Get("sni"),
-		Fingerprint: q.Get("fp"),
-		Host:        q.Get("host"),
-		Path:        q.Get("path"),
+		ProxyAddress:     host,
+		ProxyPort:        port,
+		ProxyProtocol:    "vmess",
+		ProxyCredential:        u.User.Username(),
+		ProxySecurity:    q.Get("security"),
+		ProxyNetwork:     q.Get("type"),
+		ProxyTLS:         q.Get("tls"),
+		ProxySNI:         q.Get("sni"),
+		ProxyFingerprint: q.Get("fp"),
+		ProxyHost:        q.Get("host"),
+		ProxyPath:        q.Get("path"),
 		RawLink:     rawLink,
 	}
 
-	if profile.Security == "" {
-		profile.Security = "auto"
+	if profile.ProxySecurity == "" {
+		profile.ProxySecurity = "auto"
 	}
-	if profile.Network == "" {
-		profile.Network = "tcp"
+	if profile.ProxyNetwork == "" {
+		profile.ProxyNetwork = "tcp"
 	}
 	if profile.Name == "" {
-		profile.Name = fmt.Sprintf("%s:%d", profile.Address, profile.Port)
+		profile.Name = fmt.Sprintf("%s:%d", profile.ProxyAddress, profile.ProxyPort)
 	}
 
 	return profile, nil

@@ -2,26 +2,27 @@ import { create } from 'zustand'
 
 export interface Profile {
   ID: number
-  name: string
-  address: string
-  port: number
-  protocol: string
   uuid: string
-  alter_id: number
-  security: string
-  network: string
-  tls: string
-  sni: string
-  fingerprint: string
-  allow_insecure: boolean
-  host: string
-  path: string
-  seed: string
-  flow: string
-  public_key: string
-  short_id: string
-  sider_sni: string
-  dialer_proxy: string
+  name: string
+  proxy_address: string
+  proxy_port: number
+  proxy_protocol: string
+  proxy_credential: string
+  proxy_alter_id: number
+  proxy_security: string
+  proxy_network: string
+  proxy_tls: string
+  proxy_sni: string
+  proxy_fingerprint: string
+  proxy_allow_insecure: boolean
+  proxy_host: string
+  proxy_path: string
+  proxy_seed: string
+  proxy_flow: string
+  proxy_public_key: string
+  proxy_short_id: string
+  proxy_sider_sni: string
+  proxy_dialer_proxy: string
   raw_link: string
   test_result: string
   last_test_time: string
