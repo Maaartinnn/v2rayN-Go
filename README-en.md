@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white" alt="Go">
+  <img src="https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white" alt="Go">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" alt="React">
   <img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License">
 </p>
@@ -17,7 +17,7 @@
 
 - 🚀 **Single Binary** — One executable with embedded frontend, zero dependencies, just run
 - 🌐 **Modern Web UI** — Anthropic-style warm beige theme, React 19 + Tailwind CSS v4 minimalist control panel
-- 🔌 **Multi-Core Support** — Compatible with Xray-core, Sing-box, Mihomo, with full lifecycle management (start/stop/status monitoring/log collection)
+- 🔌 **Multi-Core Support** — Compatible with Xray-core, Sing-box, Mihomo, with full lifecycle management (start/stop/status monitoring/log collection/graceful shutdown)
 - 📡 **Multi-Protocol Parsing** — VMess, VLESS, Trojan, Shadowsocks, ShadowsocksR, Hysteria2, Hysteria, TUIC, AnyTLS, WireGuard
 - 📋 **Subscription Management** — Concurrent fetching, scheduled auto-update, custom User-Agent, alias regex filtering, one-click link import, transactional atomic updates
 - 📦 **Group Management** — Multi-level node groups with drag-and-drop reorder, filter by group, assign subscriptions to groups
@@ -29,12 +29,14 @@
 - ♻️ **Strategy Groups** — Visual management of Selector, URLTest, Fallback, and LoadBalance proxy groups
 - 🔧 **Type-Safe Config** — Generate Xray / Sing-box kernel configs via Go Structs, no JSON syntax errors
 - 📝 **Kernel Config Generation** — Auto-generate Xray and Sing-box configuration files from node data
-- 🖥️ **System Service** — Register as Windows Service or systemd daemon with install/start/stop/restart/uninstall/daemon commands
+- 🖥️ **System Service** — Register as Windows Service or systemd daemon with foreground run, background daemon, and install/start/stop/restart/uninstall commands
 - 🌍 **Multi-Language** — Chinese / English with standalone locale files
 - 🌙 **Dark Mode** — Follows system preference or manual override, full Anthropic style adaptation
 - ⚙️ **External Config** — CLI flags, config.json, and Web settings page with three-tier priority, auto-persist on Web changes
 - 🎯 **System Proxy** — One-click toggle for system-wide proxy
 - 📦 **Multi-Source Kernel Download** — GitHub direct, mirror, custom URL, local binary/archive upload (tar.gz/zip auto-extract), automatic platform matching
+- 🔍 **CPU Microarchitecture Detection** — mihomo amd64 automatically detects CPU level (v1/v2/v3/v4) and selects the optimal kernel variant
+- ⏱️ **Cache Acceleration** — GitHub Release API auto-caching (5-minute TTL) to reduce requests
 - 📡 **WebSocket Real-Time Logs** — Live kernel log streaming with level and source filtering
 - 🧩 **Code Splitting** — Lazy-loaded non-critical components for faster initial load
 - 📦 **Dual Distribution** — Lite (~15MB) and Full (with kernels) editions
@@ -76,7 +78,7 @@ v2rayN-Go/
 │       │   ├── SettingsView.tsx   # Settings (language/theme/network/system proxy)
 │       │   ├── LogConsole.tsx     # Log terminal (level/source filtering)
 │       │   ├── ErrorBoundary.tsx  # Error boundary
-│       │   └── ui/               # Atomic UI components
+│       │   └── ui/               # Atomic UI components (includes DeleteConfirmBanner, etc.)
 │       ├── lib/
 │       │   ├── api.ts             # API client (Axios)
 │       │   ├── i18n.ts            # i18n + theme management
@@ -91,12 +93,15 @@ v2rayN-Go/
 │       └── index.css              # Global styles (Tailwind CSS v4)
 └── src/                           # Backend (Go)
     ├── main.go                    # Entry point: init config → load config → execute CLI
-    ├── cmd/cli.go                 # CLI commands + flag parsing
-    │                              # Commands: install/uninstall/start/stop/restart/daemon/help
-    ├── config/                    # App config (three-tier priority)
-    │   └── config.go              # AppConfig definition, JSON loading, CLI parsing, settings persistence
+    ├── cmd/
+    │   └── cli.go                 # CLI commands + flag parsing
+    │                              # Commands: foreground run, install/uninstall/start/stop/restart/daemon/help
+    ├── config/
+    │   └── config.go              # AppConfig definition, JSON loading, CLI parsing, three-tier priority, settings persistence
+    ├── coredef/
+    │   └── coredef.go             # Core type & metadata registry (single source of truth), supports Xray/Sing-box/Mihomo
     ├── database/                  # SQLite database (pure Go, no CGO required)
-    │   ├── db.go                  # DB initialization / AutoMigrate / default group creation
+    │   ├── db.go                  # DB initialization / AutoMigrate / soft-delete purge / sort rebalance / default group creation
     │   ├── models.go              # Profile, NodeGroup, RoutingRule, StrategyGroup, AppSetting
     │   └── utils.go               # UUID generation
     ├── parser/                    # Multi-protocol parsers + QR code decoder
@@ -112,15 +117,17 @@ v2rayN-Go/
     │   ├── subscription.go        # Subscription fetch/parse/filter/update, auto-update scheduler
     │   └── ping.go                # TCP Ping + HTTP Ping batch concurrent latency testing
     ├── configbuilder/             # Type-safe kernel config generator
-    │   ├── xray.go                # Xray config struct definitions and generation
+    │   ├── xray.go                # Xray config struct definitions and generation (with strategy group balancer support)
     │   ├── singbox.go             # Sing-box config struct definitions and generation
     │   └── utils.go               # Common utility functions
     ├── core/                      # Kernel process manager
-    │   └── admin.go               # Three-core lifecycle management (start/stop/status/log/graceful shutdown)
+    │   └── admin.go               # Three-core lifecycle management (start/stop/status/log/graceful shutdown/timeout force kill)
+    ├── httpclient/                # Unified HTTP client
+    │   └── httpclient.go          # Auto-injects User-Agent, supports normal/proxy modes, based on Go std lib transport clone
     ├── updater/                   # Kernel online download & update
-    │   └── updater.go             # Xray / Sing-box / Mihomo multi-source download (tar.gz/zip auto-extract)
-    ├── service/                   # System service integration
-    │   └── service.go             # Windows service / systemd registration & management / foreground direct run
+    │   └── updater.go             # Xray / Sing-box / Mihomo multi-source download (mirror fallback + mihomo CPU level fallback), tar.gz/zip auto-extract
+    ├── sysmgr/                    # System service manager
+    │   └── sysmgr.go              # Foreground run / background daemon / Windows service + systemd registration & lifecycle management
     └── web/                       # Web server
         ├── embed.go               # Frontend static asset embedding (go:embed dist/*)
         └── server.go              # HTTP routes / RESTful API / WebSocket / static files / kernel config generation
@@ -218,7 +225,7 @@ After startup, use the **Settings** page to visually modify network parameters, 
 
 ### Prerequisites
 
-- **Go** 1.22+
+- **Go** 1.26+
 - **Node.js** 20+
 - **npm** 9+
 
@@ -246,6 +253,15 @@ GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o v2rayN-Go-lin
 # macOS ARM64 (Apple Silicon)
 cd src
 GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o v2rayN-Go-darwin-arm64 .
+```
+
+### One-Click Build Script
+
+On Windows, use the `src/dev-build.cmd` script to build both frontend and backend in one step:
+
+```cmd
+cd src
+dev-build.cmd
 ```
 
 ---
@@ -280,13 +296,15 @@ GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o v2rayN-Go-da
 ## ⚙️ Tech Stack
 
 ### Backend
-- **Language**: Go 1.22+
+- **Language**: Go 1.26+
 - **Web Framework**: Standard library `net/http`
 - **Database**: SQLite (`glebarez/sqlite`, pure Go, no CGO required)
 - **ORM**: GORM
 - **WebSocket**: gorilla/websocket
 - **System Service**: kardianos/service
 - **QR Code Decoder**: gozxing
+- **UUID**: google/uuid
+- **CPU Detection**: golang.org/x/sys (for mihomo CPU microarchitecture level detection)
 
 ### Frontend
 - **Framework**: React 19 + TypeScript
@@ -305,11 +323,11 @@ GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o v2rayN-Go-da
 ## ⭐ Star History
 
 <a href="https://www.star-history.com/?repos=Maaartinnn%2Fv2rayN-Go&type=date&logscale=&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Maaartinnn/v2rayN-Go&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Maaartinnn/v2rayN-Go&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Maaartinnn/v2rayN-Go&type=date&legend=top-left" />
- </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Maaartinnn/v2rayN-Go&type=date&theme=dark&legend=top-left" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Maaartinnn/v2rayN-Go&type=date&legend=top-left" />
+    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Maaartinnn/v2rayN-Go&type=date&legend=top-left" />
+  </picture>
 </a>
 
 ## 📄 License

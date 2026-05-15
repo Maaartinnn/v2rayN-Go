@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white" alt="Go">
+  <img src="https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white" alt="Go">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" alt="React">
   <img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License">
 </p>
@@ -17,7 +17,7 @@
 
 - 🚀 **单文件部署** — 一个二进制文件包含前后端，零依赖，解压即用
 - 🌐 **现代化 Web UI** — Anthropic 风格暖米色主题，React 19 + Tailwind CSS v4 打造的极简控制面板
-- 🔌 **多内核支持** — 兼容 Xray-core、Sing-box、Mihomo 等主流代理内核，支持完整生命周期管理（启动/停止/状态监控/日志收集）
+- 🔌 **多内核支持** — 兼容 Xray-core、Sing-box、Mihomo 等主流代理内核，支持完整生命周期管理（启动/停止/状态监控/日志收集/优雅退出）
 - 📡 **多协议解析** — 支持 VMess、VLESS、Trojan、Shadowsocks、ShadowsocksR、Hysteria2、Hysteria、TUIC、AnyTLS、WireGuard 等协议
 - 📋 **订阅管理** — 并发拉取订阅、定期自动更新、自定义 User-Agent、别名正则过滤、一键导入分享链接，支持事务式原子更新
 - 📦 **分组管理** — 多层级节点分组，支持拖拽排序、按分组筛选、分配合并到分组
@@ -29,12 +29,14 @@
 - ♻️ **策略组** — 可视化管理 Selector（手动切换）、URLTest（自动测速）、Fallback（故障转移）、LoadBalance（负载均衡）四种策略组
 - 🔧 **强类型配置** — 通过 Go Struct 生成 Xray / Sing-box 内核配置，杜绝 JSON 语法错误
 - 📝 **内核配置生成** — 基于节点数据自动生成 Xray 与 Sing-box 内核配置文件
-- 🖥️ **系统服务** — 支持注册为 Windows 服务 / systemd 守护进程，支持 install/start/stop/restart/uninstall/daemon 命令
+- 🖥️ **系统服务** — 支持注册为 Windows 服务 / systemd 守护进程，支持前台运行、后台守护及 install/start/stop/restart/uninstall 命令
 - 🌍 **多语言** — 支持中文 / English，独立语言包文件
 - 🌙 **深色模式** — 跟随系统自动切换 / 手动设置，完整 Anthropic 风格适配
 - ⚙️ **配置外置** — 支持 CLI 参数、config.json、Web 设置页三级配置管理，Web 修改自动持久化
 - 🎯 **系统代理** — 一键开启/关闭系统代理
 - 📦 **多源内核下载** — GitHub 直连、镜像源、自定义 URL、本地上传二进制/压缩包（支持 tar.gz/zip 自动解压），自动匹配平台架构
+- 🔍 **CPU 微架构检测** — mihomo amd64 自动检测 CPU 级别（v1/v2/v3/v4），匹配最优内核版本
+- ⏱️ **缓存加速** — GitHub Release API 自动缓存（5 分钟 TTL），减少请求次数
 - 📡 **WebSocket 实时日志** — 内核运行日志实时推送，支持按级别和来源筛选
 - 🧩 **代码分割** — 非首屏组件懒加载，首屏加载更快速
 - 📦 **双轨发行** — Lite 版（~15MB）与 Full 版（含内核）供选择
@@ -91,12 +93,15 @@ v2rayN-Go/
 │       └── index.css              # 全局样式 (Tailwind CSS v4)
 └── src/                           # 后端 (Go)
     ├── main.go                    # 程序入口：初始化配置 → 加载配置 → 执行 CLI
-    ├── cmd/cli.go                 # CLI 命令 + 参数解析
-    │                              # 支持：install/uninstall/start/stop/restart/daemon/help
-    ├── config/                    # 应用配置（三级优先级）
-    │   └── config.go              # AppConfig 定义、JSON 加载、CLI 标志解析、设置持久化
-    ├── database/                  # SQLite 数据库 (纯 Go，无需 CGO)
-    │   ├── db.go                  # 数据库初始化 / AutoMigrate / 默认分组创建
+    ├── cmd/
+    │   └── cli.go                 # CLI 命令 + 参数解析
+    │                              # 支持：前台运行 install/uninstall/start/stop/restart/daemon/help
+    ├── config/
+    │   └── config.go              # AppConfig 定义、JSON 加载、CLI 标志解析、三级优先级加载、设置持久化
+    ├── coredef/
+    │   └── coredef.go             # 内核类型与元数据注册表（唯一事实来源），支持 Xray/Sing-box/Mihomo
+    ├── database/                  # SQLite 数据库（纯 Go，无需 CGO）
+    │   ├── db.go                  # 数据库初始化 / AutoMigrate / 软删除清理 / 排序重平衡 / 默认分组创建
     │   ├── models.go              # Profile, NodeGroup, RoutingRule, StrategyGroup, AppSetting
     │   └── utils.go               # UUID 生成
     ├── parser/                    # 多协议解析器 + 二维码解码
@@ -112,15 +117,17 @@ v2rayN-Go/
     │   ├── subscription.go        # 订阅拉取/解析/过滤/更新，自动更新调度器
     │   └── ping.go                # TCP Ping + HTTP Ping 批量并发测速服务
     ├── configbuilder/             # 强类型内核配置生成器
-    │   ├── xray.go                # Xray 内核配置结构体定义与生成
+    │   ├── xray.go                # Xray 内核配置结构体定义与生成（含策略组 balancer 支持）
     │   ├── singbox.go             # Sing-box 内核配置结构体定义与生成
     │   └── utils.go               # 通用工具函数
     ├── core/                      # 内核进程管理
-    │   └── admin.go               # 三核生命周期管理（启动/停止/状态监控/日志收集/优雅退出）
+    │   └── admin.go               # 三核生命周期管理（启动/停止/状态监控/日志收集/优雅退出/超时强制终止）
+    ├── httpclient/                # 统一 HTTP 客户端
+    │   └── httpclient.go          # 自动注入 User-Agent，支持普通/代理两种模式，基于 go 标准库 transport 克隆
     ├── updater/                   # 内核在线下载更新
-    │   └── updater.go             # Xray / Sing-box / Mihomo 多源下载（tar.gz/zip 自动解压）
-    ├── service/                   # 系统服务集成
-    │   └── service.go             # Windows 服务 / systemd 注册与管理 / 前台直接运行
+    │   └── updater.go             # Xray / Sing-box / Mihomo 多源下载（镜像降级 + mihomo CPU 级别降级），tar.gz/zip 自动解压
+    ├── sysmgr/                    # 系统服务管理
+    │   └── sysmgr.go              # 前台运行 / 后台守护 / Windows 服务 + systemd 注册与生命周期管理
     └── web/                       # Web 服务器
         ├── embed.go               # 前端静态资源嵌入（go:embed dist/*）
         └── server.go              # HTTP 路由 / RESTful API / WebSocket / 静态文件 / 内核配置生成
@@ -218,7 +225,7 @@ v2rayN-Go 支持三级配置优先级（从高到低）：
 
 ### 环境要求
 
-- **Go** 1.22+
+- **Go** 1.26+
 - **Node.js** 20+
 - **npm** 9+
 
@@ -246,6 +253,15 @@ GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o v2rayN-Go-lin
 # macOS ARM64 (Apple Silicon)
 cd src
 GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o v2rayN-Go-darwin-arm64 .
+```
+
+### 一键构建脚本
+
+Windows 下可使用项目根目录的 `src/dev-build.cmd` 一键完成前端构建 + 后端编译：
+
+```cmd
+cd src
+dev-build.cmd
 ```
 
 ---
@@ -280,13 +296,15 @@ GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o v2rayN-Go-da
 ## ⚙️ 技术栈
 
 ### 后端
-- **语言**: Go 1.22+
+- **语言**: Go 1.26+
 - **Web 框架**: 标准库 `net/http`
 - **数据库**: SQLite（`glebarez/sqlite`，纯 Go，无需 CGO）
 - **ORM**: GORM
 - **WebSocket**: gorilla/websocket
 - **系统服务**: kardianos/service
 - **QR 码解码**: gozxing
+- **UUID**: google/uuid
+- **CPU 检测**: golang.org/x/sys（用于 mihomo CPU 微架构级别检测）
 
 ### 前端
 - **框架**: React 19 + TypeScript
@@ -305,11 +323,11 @@ GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o v2rayN-Go-da
 ## ⭐ Star 历史
 
 <a href="https://www.star-history.com/?repos=Maaartinnn%2Fv2rayN-Go&type=date&logscale=&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Maaartinnn/v2rayN-Go&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Maaartinnn/v2rayN-Go&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Maaartinnn/v2rayN-Go&type=date&legend=top-left" />
- </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Maaartinnn/v2rayN-Go&type=date&theme=dark&legend=top-left" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Maaartinnn/v2rayN-Go&type=date&legend=top-left" />
+    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Maaartinnn/v2rayN-Go&type=date&legend=top-left" />
+  </picture>
 </a>
 
 ## 📄 License
