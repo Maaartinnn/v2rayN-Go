@@ -9,20 +9,21 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"time"
 
 	"v2rayn-go/config"
+	"v2rayn-go/coredef"
 )
 
-// CoreType 内核类型
-type CoreType string
+// CoreType 内核类型（类型别名，指向 coredef.CoreType）
+type CoreType = coredef.CoreType
 
+// 内核类型常量（兼容引用，实际定义在 coredef 包中）
 const (
-	CoreTypeXray    CoreType = "xray"
-	CoreTypeSingBox CoreType = "sing-box"
-	CoreTypeMihomo  CoreType = "mihomo"
+	CoreTypeXray    = coredef.TypeXray
+	CoreTypeSingBox = coredef.TypeSingBox
+	CoreTypeMihomo  = coredef.TypeMihomo
 )
 
 // CoreStatus 内核运行状态
@@ -263,27 +264,10 @@ func (m *CoreAdminManager) LogChannel() <-chan LogEntry {
 	return m.logChan
 }
 
-// getCoreSubDir 获取内核嵌套子目录名
-func getCoreSubDir(coreType CoreType) string {
-	switch coreType {
-	case CoreTypeXray:
-		return "xray"
-	case CoreTypeSingBox:
-		return "sing_box"
-	case CoreTypeMihomo:
-		return "mihomo"
-	default:
-		return string(coreType)
-	}
-}
-
 // getCoreBinaryPath 获取内核可执行文件路径 (bin/xray/xray.exe, bin/sing_box/sing-box.exe, bin/mihomo/mihomo.exe)
 func (m *CoreAdminManager) getCoreBinaryPath(coreType CoreType) string {
-	binName := string(coreType)
-	if runtime.GOOS == "windows" {
-		binName += ".exe"
-	}
-	return filepath.Join(m.cfg.BinDir, getCoreSubDir(coreType), binName)
+	meta := coredef.Registry[coreType]
+	return filepath.Join(m.cfg.BinDir, meta.SubDir, meta.BinaryName())
 }
 
 // buildCoreArgs 构建内核启动参数

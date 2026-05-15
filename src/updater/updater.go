@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"v2rayn-go/config"
+	"v2rayn-go/coredef"
 
 	"golang.org/x/sys/cpu"
 )
@@ -77,31 +78,20 @@ func NewUpdater(cfg *config.AppConfig) *Updater {
 	}
 }
 
-// GetSupportedCores 获取支持的内核列表
+// GetSupportedCores 获取支持的内核列表（基于 coredef.Registry 构建）
 func (u *Updater) GetSupportedCores() []CoreInfo {
-	return []CoreInfo{
-		{
-			Name:        "xray",
-			DisplayName: "Xray-core",
-			Repo:        "XTLS/Xray-core",
-			BinaryName:  getBinaryName("xray"),
-			SubDir:      "xray",
-		},
-		{
-			Name:        "sing-box",
-			DisplayName: "Sing-box",
-			Repo:        "SagerNet/sing-box",
-			BinaryName:  getBinaryName("sing-box"),
-			SubDir:      "sing_box",
-		},
-		{
-			Name:        "mihomo",
-			DisplayName: "Mihomo",
-			Repo:        "MetaCubeX/mihomo",
-			BinaryName:  getBinaryName("mihomo"),
-			SubDir:      "mihomo",
-		},
+	supported := coredef.GetSupportedCores()
+	cores := make([]CoreInfo, 0, len(supported))
+	for _, meta := range supported {
+		cores = append(cores, CoreInfo{
+			Name:        string(meta.Type),
+			DisplayName: meta.DisplayName,
+			Repo:        meta.Repo,
+			BinaryName:  meta.BinaryName(),
+			SubDir:      meta.SubDir,
+		})
 	}
+	return cores
 }
 
 // GetCoreDir 获取内核的嵌套目录路径 (bin/xray/, bin/sing_box/, bin/mihomo/)
@@ -111,11 +101,9 @@ func (u *Updater) GetCoreDir(subDir string) string {
 
 // GetCoreBinaryPath 获取内核可执行文件完整路径
 func (u *Updater) GetCoreBinaryPath(coreName string) string {
-	cores := u.GetSupportedCores()
-	for _, c := range cores {
-		if c.Name == coreName {
-			return filepath.Join(u.cfg.BinDir, c.SubDir, c.BinaryName)
-		}
+	meta, ok := coredef.Registry[coredef.CoreType(coreName)]
+	if ok {
+		return filepath.Join(u.cfg.BinDir, meta.SubDir, meta.BinaryName())
 	}
 	return filepath.Join(u.cfg.BinDir, coreName)
 }
@@ -1106,12 +1094,4 @@ func (u *Updater) downloadFile(url string, destPath string, progressFn func(down
 	}
 
 	return nil
-}
-
-// getBinaryName 根据平台返回正确的可执行文件名
-func getBinaryName(name string) string {
-	if runtime.GOOS == "windows" {
-		return name + ".exe"
-	}
-	return name
 }

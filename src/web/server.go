@@ -16,6 +16,7 @@ import (
 	"v2rayn-go/config"
 	"v2rayn-go/configbuilder"
 	"v2rayn-go/core"
+	"v2rayn-go/coredef"
 	"v2rayn-go/database"
 	"v2rayn-go/parser"
 	"v2rayn-go/subscription"
@@ -893,26 +894,19 @@ func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	subDir := coreName
-	switch coreName {
-	case "xray":
-		subDir = "xray"
-	case "sing-box":
-		subDir = "sing_box"
-	case "mihomo":
-		subDir = "mihomo"
+	coreType := coredef.CoreType(coreName)
+	meta, exists := coredef.Registry[coreType]
+	if !exists {
+		jsonError(w, "Unsupported core: "+coreName, http.StatusBadRequest)
+		return
 	}
-	coreDir := filepath.Join(s.cfg.BinDir, subDir)
+	coreDir := filepath.Join(s.cfg.BinDir, meta.SubDir)
 	if err := os.MkdirAll(coreDir, 0755); err != nil {
 		jsonError(w, "Failed to create core directory: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	binName := coreName
-	if runtime.GOOS == "windows" {
-		binName += ".exe"
-	}
-	destPath := filepath.Join(coreDir, binName)
+	destPath := filepath.Join(coreDir, meta.BinaryName())
 
 	fileName := strings.ToLower(header.Filename)
 	isArchive := strings.HasSuffix(fileName, ".zip") || strings.HasSuffix(fileName, ".tar.gz") || strings.HasSuffix(fileName, ".tgz")
@@ -931,7 +925,7 @@ func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		tmpFile.Close()
-		if err := s.updater.ExtractBinary(tmpPath, header.Filename, destPath, binName); err != nil {
+		if err := s.updater.ExtractBinary(tmpPath, header.Filename, destPath, meta.BinaryName()); err != nil {
 			jsonError(w, "Failed to extract binary from archive: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
