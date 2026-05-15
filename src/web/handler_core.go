@@ -34,7 +34,7 @@ func (h *CoreHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET  /api/cores/{$}", h.handleCores)
 	mux.HandleFunc("GET  /api/cores/check-updates", h.handleCoresCheckUpdates)
 	mux.HandleFunc("GET  /api/cores/detect-versions", h.handleCoresDetectVersions)
-	mux.HandleFunc("POST /api/cores/download{$}", h.handleCoreDownload)
+	mux.HandleFunc("POST /api/cores/download", h.handleCoreDownload)
 	mux.HandleFunc("POST /api/cores/download-url", h.handleCoreDownloadURL)
 	mux.HandleFunc("POST /api/cores/upload", h.handleCoreUpload)
 }
