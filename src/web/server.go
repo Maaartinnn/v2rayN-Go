@@ -91,7 +91,6 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/core/status", s.handleCoreStatus)
 
 	mux.HandleFunc("/api/profiles/import-image", s.handleProfileImportImage)
-	mux.HandleFunc("/api/profiles/import-to-group", s.handleProfileImportToGroup)
 	mux.HandleFunc("/api/profiles/import", s.handleProfileImport)
 	mux.HandleFunc("/api/profiles/dedup", s.handleProfileDedup)
 	mux.HandleFunc("/api/profiles/ping-all", s.handlePingAll)
@@ -183,7 +182,10 @@ func (s *Server) handleCoreStart(w http.ResponseWriter, r *http.Request) {
 			req.CoreType = profile.CoreType
 		}
 		var rules []database.RoutingRule
-		database.DB.Order("sort_order ASC").Find(&rules)
+		if err := database.DB.Order("sort_order ASC").Find(&rules).Error; err != nil {
+			jsonError(w, "Failed to load routing rules: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 		var configPath string
 		var configErr error
@@ -314,48 +316,10 @@ func (s *Server) handleProfileImport(w http.ResponseWriter, r *http.Request) {
 	for i, profile := range profiles {
 		profile.SortOrder = seq[i]
 		profile.GroupUUID = req.GroupUUID
-		database.DB.Create(profile)
-	}
-
-	jsonOK(w, map[string]int{"imported": len(profiles)})
-}
-
-func (s *Server) handleProfileImportToGroup(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req struct {
-		Links     string `json:"links"`
-		GroupUUID string `json:"group_uuid"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
-		return
-	}
-	if req.GroupUUID == "" {
-		jsonError(w, "group_uuid is required", http.StatusBadRequest)
-		return
-	}
-	var group database.NodeGroup
-	if err := database.DB.Where("uuid = ?", req.GroupUUID).First(&group).Error; err != nil {
-		jsonError(w, "Group not found", http.StatusBadRequest)
-		return
-	}
-
-	profiles, err := parser.ParseLinks(strings.Split(req.Links, "\n"))
-	if err != nil {
-		jsonError(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	seq := database.SortNewBatch(&database.Profile{}, "group_uuid = ?", len(profiles), req.GroupUUID)
-
-	for i, profile := range profiles {
-		profile.SortOrder = seq[i]
-		profile.GroupUUID = req.GroupUUID
-		database.DB.Create(profile)
+		if err := database.DB.Create(profile).Error; err != nil {
+			jsonError(w, fmt.Sprintf("Failed to create profile %d: %s", i, err.Error()), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	jsonOK(w, map[string]int{"imported": len(profiles)})
@@ -536,16 +500,25 @@ func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodDelete:
 		var count int64
-		database.DB.Model(&database.NodeGroup{}).Count(&count)
+		if err := database.DB.Model(&database.NodeGroup{}).Count(&count).Error; err != nil {
+			jsonError(w, "Failed to count groups: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 		if count <= 1 {
 			jsonError(w, "Cannot delete the last group", http.StatusBadRequest)
 			return
 		}
 		// 先查出被删节点的 UUID 列表，用于清理策略组脏引用
 		var deletedProfileUUIDs []string
-		database.DB.Model(&database.Profile{}).Where("group_uuid = ?", group.UUID).Pluck("uuid", &deletedProfileUUIDs)
+		if err := database.DB.Model(&database.Profile{}).Where("group_uuid = ?", group.UUID).Pluck("uuid", &deletedProfileUUIDs).Error; err != nil {
+			jsonError(w, "Failed to query profiles: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 		// 删除该分组下的所有节点
-		database.DB.Where("group_uuid = ?", group.UUID).Delete(&database.Profile{})
+		if err := database.DB.Where("group_uuid = ?", group.UUID).Delete(&database.Profile{}).Error; err != nil {
+			jsonError(w, "Failed to delete profiles: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 		// 清理 StrategyGroup 中的脏引用
 		if len(deletedProfileUUIDs) > 0 {
 			deletedSet := make(map[string]bool, len(deletedProfileUUIDs))
@@ -574,7 +547,10 @@ func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		database.DB.Delete(&group)
+		if err := database.DB.Delete(&group).Error; err != nil {
+			jsonError(w, "Failed to delete group: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 		jsonOK(w, map[string]string{"status": "deleted"})
 
 	default:
@@ -593,7 +569,10 @@ func (s *Server) handleProfileDedup(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		GroupUUID string `json:"group_uuid"`
 	}
-	json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
 
 	var profiles []database.Profile
 	query := database.DB.Order("sort_order ASC")
@@ -719,7 +698,10 @@ func importParsedLinksWithGroup(w http.ResponseWriter, links []string, groupUUID
 	for i, profile := range profiles {
 		profile.SortOrder = seq[i]
 		profile.GroupUUID = groupUUID
-		database.DB.Create(profile)
+		if err := database.DB.Create(profile).Error; err != nil {
+			jsonError(w, fmt.Sprintf("Failed to create profile %d: %s", i, err.Error()), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	jsonOK(w, map[string]int{"imported": len(profiles)})
@@ -975,8 +957,14 @@ func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 				return
 			}
-			database.DB.Model(&database.Profile{}).Where("is_active = ?", true).Update("is_active", false)
-			database.DB.Model(&profile).Update("is_active", true)
+			if err := database.DB.Model(&database.Profile{}).Where("is_active = ?", true).Update("is_active", false).Error; err != nil {
+				jsonError(w, "Failed to deactivate profiles: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if err := database.DB.Model(&profile).Update("is_active", true).Error; err != nil {
+				jsonError(w, "Failed to activate profile: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
 			jsonOK(w, map[string]string{"status": "selected"})
 			return
 
@@ -1023,11 +1011,17 @@ func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		database.DB.First(&profile, profile.ID)
+		if err := database.DB.First(&profile, profile.ID).Error; err != nil {
+			jsonError(w, "Failed to reload profile: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 		jsonOK(w, profile)
 
 	case http.MethodDelete:
-		database.DB.Delete(&profile)
+		if err := database.DB.Delete(&profile).Error; err != nil {
+			jsonError(w, "Failed to delete profile: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 		jsonOK(w, map[string]string{"status": "deleted"})
 
 	default:
@@ -1087,7 +1081,10 @@ func (s *Server) handleRoutingRuleByID(w http.ResponseWriter, r *http.Request) {
 		jsonOK(w, updated)
 
 	case http.MethodDelete:
-		database.DB.Delete(&rule)
+		if err := database.DB.Delete(&rule).Error; err != nil {
+			jsonError(w, "Failed to delete rule: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 		jsonOK(w, map[string]string{"status": "deleted"})
 
 	default:
@@ -1230,7 +1227,10 @@ func (s *Server) handleStrategyGroupByID(w http.ResponseWriter, r *http.Request)
 		jsonOK(w, updated)
 
 	case http.MethodDelete:
-		database.DB.Delete(&group)
+		if err := database.DB.Delete(&group).Error; err != nil {
+			jsonError(w, "Failed to delete strategy group: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 		jsonOK(w, map[string]string{"status": "deleted"})
 
 	default:
