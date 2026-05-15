@@ -7,20 +7,15 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 
 	"v2rayn-go/config"
-	"v2rayn-go/configbuilder"
 	"v2rayn-go/core"
-	"v2rayn-go/coredef"
 	"v2rayn-go/database"
 	"v2rayn-go/parser"
+	"v2rayn-go/service"
 	"v2rayn-go/subscription"
-	"v2rayn-go/updater"
 
 	"github.com/gorilla/websocket"
 )
@@ -57,24 +52,41 @@ type downloadState struct {
 
 // Server Web 服务器
 type Server struct {
-	cfg             *config.AppConfig
-	coreMgr         *core.CoreAdminManager
-	subSvc          *subscription.Service
-	pingSvc         *subscription.PingService
-	updater         *updater.Updater
+	cfg *config.AppConfig
+
+	// 业务 Service 层
+	profileSvc  *service.ProfileService
+	groupSvc    *service.GroupService
+	strategySvc *service.StrategyGroupService
+	routingSvc  *service.RoutingRuleService
+	coreSvc     *service.CoreService
+	settingsSvc *service.SettingsService
+
+	// 保留的直接依赖
+	coreMgr *core.CoreAdminManager
+	pingSvc service.PingServiceInterface
+
 	upgrader        websocket.Upgrader
 	wsClients       sync.Map
 	activeDownloads sync.Map // map[string]*downloadState
 }
 
+// PingServiceInterface 是 ping 服务的接口（由 subscription 包实现）
+type PingServiceInterface = service.PingServiceInterface
+
 // NewServer 创建 Web 服务器
 func NewServer(cfg *config.AppConfig, coreMgr *core.CoreAdminManager) *Server {
+	coreSvc := service.NewCoreService(cfg, coreMgr)
 	return &Server{
-		cfg:     cfg,
-		coreMgr: coreMgr,
-		subSvc:  subscription.NewService(),
-		pingSvc: subscription.NewPingService(),
-		updater: updater.NewUpdater(cfg),
+		cfg:         cfg,
+		profileSvc:  service.NewProfileService(),
+		groupSvc:    service.NewGroupService(),
+		strategySvc: service.NewStrategyGroupService(),
+		routingSvc:  service.NewRoutingRuleService(),
+		coreSvc:     coreSvc,
+		settingsSvc: service.NewSettingsService(cfg),
+		coreMgr:     coreMgr,
+		pingSvc:     service.NewPingService(),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
 		},
@@ -172,40 +184,7 @@ func (s *Server) handleCoreStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.ConfigPath == "" {
-		var profile database.Profile
-		if err := database.DB.Where("is_active = ?", true).First(&profile).Error; err != nil {
-			jsonError(w, "No active profile selected", http.StatusBadRequest)
-			return
-		}
-		if req.CoreType == "" {
-			req.CoreType = profile.CoreType
-		}
-		var rules []database.RoutingRule
-		if err := database.DB.Order("sort_order ASC").Find(&rules).Error; err != nil {
-			jsonError(w, "Failed to load routing rules: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		var configPath string
-		var configErr error
-		switch req.CoreType {
-		case "xray":
-			configPath, configErr = configbuilder.SaveXrayConfig(&profile, rules, s.cfg.AppDir, s.cfg.SocksPort, s.cfg.HTTPPort)
-		case "sing-box":
-			configPath, configErr = configbuilder.SaveSingboxConfig(&profile, rules, s.cfg.AppDir, s.cfg.SocksPort)
-		default:
-			jsonError(w, "Unsupported core type", http.StatusBadRequest)
-			return
-		}
-		if configErr != nil {
-			jsonError(w, configErr.Error(), http.StatusInternalServerError)
-			return
-		}
-		req.ConfigPath = configPath
-	}
-
-	if err := s.coreMgr.StartCore(core.CoreType(req.CoreType), req.ConfigPath); err != nil {
+	if err := s.coreSvc.Start(req.CoreType, req.ConfigPath); err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -227,10 +206,8 @@ func (s *Server) handleCoreStop(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	if req.CoreType == "" {
-		req.CoreType = "xray"
-	}
-	if err := s.coreMgr.StopCore(core.CoreType(req.CoreType)); err != nil {
+
+	if err := s.coreSvc.Stop(req.CoreType); err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -240,7 +217,7 @@ func (s *Server) handleCoreStop(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCoreStatus(w http.ResponseWriter, r *http.Request) {
-	statuses := s.coreMgr.GetAllStatus()
+	statuses := s.coreSvc.GetAllStatus()
 	jsonOK(w, statuses)
 }
 
@@ -249,8 +226,11 @@ func (s *Server) handleCoreStatus(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleProfiles(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		var profiles []database.Profile
-		database.DB.Order("sort_order ASC").Find(&profiles)
+		profiles, err := s.profileSvc.List()
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		jsonOK(w, profiles)
 
 	case http.MethodPost:
@@ -259,19 +239,12 @@ func (s *Server) handleProfiles(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		if profile.GroupUUID == "" {
-			jsonError(w, "group_uuid is required", http.StatusBadRequest)
-			return
-		}
-		var group database.NodeGroup
-		if err := database.DB.Where("uuid = ?", profile.GroupUUID).First(&group).Error; err != nil {
-			jsonError(w, "Group not found", http.StatusBadRequest)
-			return
-		}
-		profile.SortOrder = database.SortNewScoped(&database.Profile{}, "group_uuid = ?", profile.GroupUUID)
-		profile.UUID = database.GenerateUUID()
-		if err := database.DB.Create(&profile).Error; err != nil {
-			jsonError(w, err.Error(), http.StatusInternalServerError)
+		if err := s.profileSvc.Create(&profile); err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				jsonError(w, err.Error(), http.StatusBadRequest)
+			} else {
+				jsonError(w, err.Error(), http.StatusInternalServerError)
+			}
 			return
 		}
 		jsonOK(w, profile)
@@ -295,34 +268,18 @@ func (s *Server) handleProfileImport(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	if req.GroupUUID == "" {
-		jsonError(w, "group_uuid is required", http.StatusBadRequest)
-		return
-	}
-	var group database.NodeGroup
-	if err := database.DB.Where("uuid = ?", req.GroupUUID).First(&group).Error; err != nil {
-		jsonError(w, "Group not found", http.StatusBadRequest)
-		return
-	}
 
-	profiles, err := parser.ParseLinks(strings.Split(req.Links, "\n"))
+	count, err := s.profileSvc.ImportLinks(req.Links, req.GroupUUID)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusBadRequest)
+		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "required") {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+		} else {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
-	seq := database.SortNewBatch(&database.Profile{}, "group_uuid = ?", len(profiles), req.GroupUUID)
-
-	for i, profile := range profiles {
-		profile.SortOrder = seq[i]
-		profile.GroupUUID = req.GroupUUID
-		if err := database.DB.Create(profile).Error; err != nil {
-			jsonError(w, fmt.Sprintf("Failed to create profile %d: %s", i, err.Error()), http.StatusInternalServerError)
-			return
-		}
-	}
-
-	jsonOK(w, map[string]int{"imported": len(profiles)})
+	jsonOK(w, map[string]int{"imported": count})
 }
 
 func (s *Server) handlePingAll(w http.ResponseWriter, r *http.Request) {
@@ -339,12 +296,10 @@ func (s *Server) handlePingAll(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGroups(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		var groups []database.NodeGroup
-		database.DB.Order("sort_order ASC").Find(&groups)
-		for i := range groups {
-			var count int64
-			database.DB.Model(&database.Profile{}).Where("group_uuid = ?", groups[i].UUID).Count(&count)
-			groups[i].NodeCount = int(count)
+		groups, err := s.groupSvc.List()
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 		jsonOK(w, groups)
 
@@ -354,11 +309,7 @@ func (s *Server) handleGroups(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		if group.UUID == "" {
-			group.UUID = database.GenerateUUID()
-		}
-		group.SortOrder = database.SortNew(&database.NodeGroup{})
-		if err := database.DB.Create(&group).Error; err != nil {
+		if err := s.groupSvc.Create(&group); err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -384,32 +335,10 @@ func (s *Server) handleGroupsReorder(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	if req.UUID == "" {
-		jsonError(w, "uuid is required", http.StatusBadRequest)
-		return
-	}
 
-	var beforeOrder, afterOrder *int
-
-	if req.BeforeUUID != "" {
-		var group database.NodeGroup
-		if err := database.DB.Where("uuid = ?", req.BeforeUUID).First(&group).Error; err == nil {
-			v := group.SortOrder
-			beforeOrder = &v
-		}
-	}
-	if req.AfterUUID != "" {
-		var group database.NodeGroup
-		if err := database.DB.Where("uuid = ?", req.AfterUUID).First(&group).Error; err == nil {
-			v := group.SortOrder
-			afterOrder = &v
-		}
-	}
-
-	newOrder := database.SortInsert(beforeOrder, afterOrder)
-
-	if err := database.DB.Model(&database.NodeGroup{}).Where("uuid = ?", req.UUID).Update("sort_order", newOrder).Error; err != nil {
-		jsonError(w, "Failed to reorder: "+err.Error(), http.StatusInternalServerError)
+	newOrder, err := s.groupSvc.Reorder(req.UUID, req.BeforeUUID, req.AfterUUID)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -426,12 +355,6 @@ func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var group database.NodeGroup
-	if err := database.DB.Where("uuid = ?", uuid).First(&group).Error; err != nil {
-		jsonError(w, "Group not found", http.StatusNotFound)
-		return
-	}
-
 	if len(parts) > 1 {
 		switch parts[1] {
 		case "refresh":
@@ -439,12 +362,19 @@ func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 				return
 			}
+			group, err := s.groupSvc.Get(uuid)
+			if err != nil {
+				jsonError(w, err.Error(), http.StatusNotFound)
+				return
+			}
 			if !group.IsSubscription {
 				jsonError(w, "Group is not a subscription group", http.StatusBadRequest)
 				return
 			}
 			go func() {
-				if err := s.subSvc.UpdateGroupSubscription(&group, false); err != nil {
+				// 订阅刷新仍由 subscription 包处理
+				subSvc := subscription.NewService()
+				if err := subSvc.UpdateGroupSubscription(group, false); err != nil {
 					log.Printf("Failed to refresh group %s: %v", group.Alias, err)
 				}
 			}()
@@ -456,12 +386,18 @@ func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 				return
 			}
+			group, err := s.groupSvc.Get(uuid)
+			if err != nil {
+				jsonError(w, err.Error(), http.StatusNotFound)
+				return
+			}
 			if !group.IsSubscription {
 				jsonError(w, "Group is not a subscription group", http.StatusBadRequest)
 				return
 			}
 			go func() {
-				if err := s.subSvc.UpdateGroupSubscription(&group, true); err != nil {
+				subSvc := subscription.NewService()
+				if err := subSvc.UpdateGroupSubscription(group, true); err != nil {
 					log.Printf("Failed to refresh group %s via proxy: %v", group.Alias, err)
 				}
 			}()
@@ -476,9 +412,11 @@ func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		var count int64
-		database.DB.Model(&database.Profile{}).Where("group_uuid = ?", group.UUID).Count(&count)
-		group.NodeCount = int(count)
+		group, err := s.groupSvc.Get(uuid)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusNotFound)
+			return
+		}
 		jsonOK(w, group)
 
 	case http.MethodPut:
@@ -487,68 +425,20 @@ func (s *Server) handleGroupByID(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		updated.ID = group.ID
-		if updated.UUID == "" {
-			updated.UUID = group.UUID
-		}
-		updated.SortOrder = group.SortOrder
-		if err := database.DB.Save(&updated).Error; err != nil {
+		result, err := s.groupSvc.Update(uuid, &updated)
+		if err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		jsonOK(w, updated)
+		jsonOK(w, result)
 
 	case http.MethodDelete:
-		var count int64
-		if err := database.DB.Model(&database.NodeGroup{}).Count(&count).Error; err != nil {
-			jsonError(w, "Failed to count groups: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if count <= 1 {
-			jsonError(w, "Cannot delete the last group", http.StatusBadRequest)
-			return
-		}
-		// 先查出被删节点的 UUID 列表，用于清理策略组脏引用
-		var deletedProfileUUIDs []string
-		if err := database.DB.Model(&database.Profile{}).Where("group_uuid = ?", group.UUID).Pluck("uuid", &deletedProfileUUIDs).Error; err != nil {
-			jsonError(w, "Failed to query profiles: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		// 删除该分组下的所有节点
-		if err := database.DB.Where("group_uuid = ?", group.UUID).Delete(&database.Profile{}).Error; err != nil {
-			jsonError(w, "Failed to delete profiles: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		// 清理 StrategyGroup 中的脏引用
-		if len(deletedProfileUUIDs) > 0 {
-			deletedSet := make(map[string]bool, len(deletedProfileUUIDs))
-			for _, uid := range deletedProfileUUIDs {
-				deletedSet[uid] = true
+		if err := s.groupSvc.Delete(uuid); err != nil {
+			if strings.Contains(err.Error(), "last group") || strings.Contains(err.Error(), "not found") {
+				jsonError(w, err.Error(), http.StatusBadRequest)
+			} else {
+				jsonError(w, err.Error(), http.StatusInternalServerError)
 			}
-			var strategyGroups []database.StrategyGroup
-			database.DB.Find(&strategyGroups)
-			for _, sg := range strategyGroups {
-				if sg.ProfileUUIDs == "" {
-					continue
-				}
-				var uuids []string
-				if err := json.Unmarshal([]byte(sg.ProfileUUIDs), &uuids); err != nil {
-					continue
-				}
-				var cleaned []string
-				for _, uid := range uuids {
-					if !deletedSet[uid] {
-						cleaned = append(cleaned, uid)
-					}
-				}
-				if len(cleaned) != len(uuids) {
-					newJSON, _ := json.Marshal(cleaned)
-					database.DB.Model(&sg).Update("profile_uuids", string(newJSON))
-				}
-			}
-		}
-		if err := database.DB.Delete(&group).Error; err != nil {
-			jsonError(w, "Failed to delete group: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		jsonOK(w, map[string]string{"status": "deleted"})
@@ -574,41 +464,15 @@ func (s *Server) handleProfileDedup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var profiles []database.Profile
-	query := database.DB.Order("sort_order ASC")
-	if req.GroupUUID != "" {
-		query = query.Where("group_uuid = ?", req.GroupUUID)
-	}
-	query.Find(&profiles)
-
-	seen := make(map[string]bool)
-	var duplicates []uint
-
-	for _, p := range profiles {
-		key := p.RawLink
-		if idx := strings.LastIndex(key, "#"); idx != -1 {
-			key = key[:idx]
-		}
-		if key == "" {
-			key = fmt.Sprintf("%s:%d:%s", p.ProxyAddress, p.ProxyPort, p.ProxyProtocol)
-			if p.ProxyCredential != "" {
-				key += ":" + p.ProxyCredential
-			}
-		}
-		if seen[key] {
-			duplicates = append(duplicates, p.ID)
-		} else {
-			seen[key] = true
-		}
-	}
-
-	if len(duplicates) > 0 {
-		database.DB.Delete(&database.Profile{}, duplicates)
+	result, err := s.profileSvc.Dedup(req.GroupUUID)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	jsonOK(w, map[string]interface{}{
-		"removed": len(duplicates),
-		"total":   len(profiles),
+		"removed": result.Removed,
+		"total":   result.Total,
 	})
 }
 
@@ -644,7 +508,7 @@ func (s *Server) handleProfileImportImage(w http.ResponseWriter, r *http.Request
 			jsonError(w, "No QR code found in image: "+decodeErr.Error(), http.StatusBadRequest)
 			return
 		}
-		importParsedLinksWithGroup(w, links, groupUUID)
+		s.importParsedLinks(w, links, groupUUID)
 		return
 	}
 
@@ -673,38 +537,22 @@ func (s *Server) handleProfileImportImage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	importParsedLinksWithGroup(w, links, groupUUID)
+	s.importParsedLinks(w, links, groupUUID)
 }
 
-func importParsedLinksWithGroup(w http.ResponseWriter, links []string, groupUUID string) {
-	if groupUUID == "" {
-		jsonError(w, "group_uuid is required", http.StatusBadRequest)
-		return
-	}
-	var group database.NodeGroup
-	if err := database.DB.Where("uuid = ?", groupUUID).First(&group).Error; err != nil {
-		jsonError(w, "Group not found", http.StatusBadRequest)
-		return
-	}
-
-	profiles, err := parser.ParseLinks(links)
+// importParsedLinks 将已解析的链接导入到指定分组
+func (s *Server) importParsedLinks(w http.ResponseWriter, links []string, groupUUID string) {
+	count, err := s.profileSvc.ImportParsedLinks(links, groupUUID)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusBadRequest)
+		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "required") {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+		} else {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
-	seq := database.SortNewBatch(&database.Profile{}, "group_uuid = ?", len(profiles), groupUUID)
-
-	for i, profile := range profiles {
-		profile.SortOrder = seq[i]
-		profile.GroupUUID = groupUUID
-		if err := database.DB.Create(profile).Error; err != nil {
-			jsonError(w, fmt.Sprintf("Failed to create profile %d: %s", i, err.Error()), http.StatusInternalServerError)
-			return
-		}
-	}
-
-	jsonOK(w, map[string]int{"imported": len(profiles)})
+	jsonOK(w, map[string]int{"imported": count})
 }
 
 // ========== Core Hub API ==========
@@ -714,7 +562,7 @@ func (s *Server) handleCores(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	cores := s.updater.GetLocalCores()
+	cores := s.coreSvc.GetLocalCores()
 	jsonOK(w, cores)
 }
 
@@ -723,14 +571,7 @@ func (s *Server) handleCoresCheckUpdates(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	cores := s.updater.CheckAllUpdates()
-	latestVersions := make(map[string]string)
-	for _, c := range cores {
-		if c.LatestVer != "" {
-			ver := strings.TrimPrefix(c.LatestVer, "v")
-			latestVersions[c.Name] = ver
-		}
-	}
+	latestVersions := s.coreSvc.CheckUpdates()
 	jsonOK(w, map[string]interface{}{"latest_versions": latestVersions})
 }
 
@@ -739,21 +580,10 @@ func (s *Server) handleCoresDetectVersions(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	s.detectCoreVersions()
-	jsonOK(w, map[string]string{"status": "detecting"})
-}
-
-func (s *Server) detectCoreVersions() {
-	go func() {
-		cores := s.updater.GetLocalCoresWithVersions()
-		versions := make(map[string]string)
-		for _, c := range cores {
-			if c.Version != "" {
-				versions[c.Name] = c.Version
-			}
-		}
+	s.coreSvc.DetectVersions(func(versions map[string]string) {
 		s.broadcastToAll(map[string]interface{}{"type": "core_versions", "payload": versions})
-	}()
+	})
+	jsonOK(w, map[string]string{"status": "detecting"})
 }
 
 func (s *Server) handleCoreDownload(w http.ResponseWriter, r *http.Request) {
@@ -782,7 +612,7 @@ func (s *Server) handleCoreDownload(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		defer s.activeDownloads.Delete(req.CoreName)
-		err := s.updater.DownloadCore(req.CoreName, func(downloaded, total int64) {
+		err := s.coreSvc.Download(req.CoreName, func(downloaded, total int64) {
 			state.Downloaded = downloaded
 			state.Total = total
 			if total > 0 {
@@ -832,7 +662,7 @@ func (s *Server) handleCoreDownloadURL(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		defer s.activeDownloads.Delete(req.CoreName)
-		err := s.updater.DownloadCoreFromURL(req.CoreName, req.DownloadURL, func(downloaded, total int64) {
+		err := s.coreSvc.DownloadFromURL(req.CoreName, req.DownloadURL, func(downloaded, total int64) {
 			state.Downloaded = downloaded
 			state.Total = total
 			if total > 0 {
@@ -876,59 +706,12 @@ func (s *Server) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	coreType := coredef.CoreType(coreName)
-	meta, exists := coredef.Registry[coreType]
-	if !exists {
-		jsonError(w, "Unsupported core: "+coreName, http.StatusBadRequest)
-		return
-	}
-	coreDir := filepath.Join(s.cfg.BinDir, meta.SubDir)
-	if err := os.MkdirAll(coreDir, 0755); err != nil {
-		jsonError(w, "Failed to create core directory: "+err.Error(), http.StatusInternalServerError)
+	destPath, err := s.coreSvc.Upload(coreName, header.Filename, file)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	destPath := filepath.Join(coreDir, meta.BinaryName())
-
-	fileName := strings.ToLower(header.Filename)
-	isArchive := strings.HasSuffix(fileName, ".zip") || strings.HasSuffix(fileName, ".tar.gz") || strings.HasSuffix(fileName, ".tgz")
-
-	if isArchive {
-		tmpFile, err := os.CreateTemp("", "v2rayn-upload-*.tmp")
-		if err != nil {
-			jsonError(w, "Failed to create temp file: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		tmpPath := tmpFile.Name()
-		defer os.Remove(tmpPath)
-		if _, err := io.Copy(tmpFile, file); err != nil {
-			tmpFile.Close()
-			jsonError(w, "Failed to save temp file: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		tmpFile.Close()
-		if err := s.updater.ExtractBinary(tmpPath, header.Filename, destPath, meta.BinaryName()); err != nil {
-			jsonError(w, "Failed to extract binary from archive: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-	} else {
-		dst, err := os.Create(destPath)
-		if err != nil {
-			jsonError(w, "Failed to create file: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer dst.Close()
-		if _, err := io.Copy(dst, file); err != nil {
-			jsonError(w, "Failed to save file: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
-
-	if runtime.GOOS != "windows" {
-		os.Chmod(destPath, 0755)
-	}
-
-	log.Printf("Uploaded core: %s (%s)", coreName, header.Filename)
 	jsonOK(w, map[string]string{"status": "uploaded", "core": coreName, "path": destPath})
 }
 
@@ -944,12 +727,6 @@ func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var profile database.Profile
-	if err := database.DB.Where("uuid = ?", uuid).First(&profile).Error; err != nil {
-		jsonError(w, "Profile not found", http.StatusNotFound)
-		return
-	}
-
 	if len(parts) > 1 {
 		switch parts[1] {
 		case "select":
@@ -957,12 +734,8 @@ func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 				return
 			}
-			if err := database.DB.Model(&database.Profile{}).Where("is_active = ?", true).Update("is_active", false).Error; err != nil {
-				jsonError(w, "Failed to deactivate profiles: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-			if err := database.DB.Model(&profile).Update("is_active", true).Error; err != nil {
-				jsonError(w, "Failed to activate profile: "+err.Error(), http.StatusInternalServerError)
+			if err := s.profileSvc.Select(uuid); err != nil {
+				jsonError(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			jsonOK(w, map[string]string{"status": "selected"})
@@ -973,7 +746,12 @@ func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 				return
 			}
-			go s.pingSvc.PingSingleProfile(&profile)
+			profile, err := s.profileSvc.Get(uuid)
+			if err != nil {
+				jsonError(w, err.Error(), http.StatusNotFound)
+				return
+			}
+			go s.pingSvc.PingSingleProfile(profile)
 			jsonOK(w, map[string]string{"status": "pinging"})
 			return
 
@@ -985,6 +763,11 @@ func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
+		profile, err := s.profileSvc.Get(uuid)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusNotFound)
+			return
+		}
 		jsonOK(w, profile)
 
 	case http.MethodPut:
@@ -993,33 +776,20 @@ func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		groupUUID, _ := req["group_uuid"].(string)
-		if groupUUID == "" {
-			jsonError(w, "group_uuid is required", http.StatusBadRequest)
-			return
-		}
-		var group database.NodeGroup
-		if err := database.DB.Where("uuid = ?", groupUUID).First(&group).Error; err != nil {
-			jsonError(w, "Group not found", http.StatusBadRequest)
-			return
-		}
-		delete(req, "uuid")
-		delete(req, "sort_order")
-		delete(req, "ID")
-		delete(req, "id")
-		if err := database.DB.Model(&profile).Updates(req).Error; err != nil {
-			jsonError(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if err := database.DB.First(&profile, profile.ID).Error; err != nil {
-			jsonError(w, "Failed to reload profile: "+err.Error(), http.StatusInternalServerError)
+		profile, err := s.profileSvc.Update(uuid, req)
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "required") {
+				jsonError(w, err.Error(), http.StatusBadRequest)
+			} else {
+				jsonError(w, err.Error(), http.StatusInternalServerError)
+			}
 			return
 		}
 		jsonOK(w, profile)
 
 	case http.MethodDelete:
-		if err := database.DB.Delete(&profile).Error; err != nil {
-			jsonError(w, "Failed to delete profile: "+err.Error(), http.StatusInternalServerError)
+		if err := s.profileSvc.Delete(uuid); err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		jsonOK(w, map[string]string{"status": "deleted"})
@@ -1034,8 +804,11 @@ func (s *Server) handleProfileByID(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleRoutingRules(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		var rules []database.RoutingRule
-		database.DB.Order("sort_order ASC").Find(&rules)
+		rules, err := s.routingSvc.List()
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		jsonOK(w, rules)
 
 	case http.MethodPost:
@@ -1044,9 +817,7 @@ func (s *Server) handleRoutingRules(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		rule.SortOrder = database.SortNew(&database.RoutingRule{})
-		rule.UUID = database.GenerateUUID()
-		if err := database.DB.Create(&rule).Error; err != nil {
+		if err := s.routingSvc.Create(&rule); err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -1060,11 +831,6 @@ func (s *Server) handleRoutingRules(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleRoutingRuleByID(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/routing-rules/")
 	uuid := strings.TrimSpace(path)
-	var rule database.RoutingRule
-	if err := database.DB.Where("uuid = ?", uuid).First(&rule).Error; err != nil {
-		jsonError(w, "Rule not found", http.StatusNotFound)
-		return
-	}
 
 	switch r.Method {
 	case http.MethodPut:
@@ -1073,16 +839,16 @@ func (s *Server) handleRoutingRuleByID(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		updated.ID = rule.ID
-		if err := database.DB.Save(&updated).Error; err != nil {
-			jsonError(w, err.Error(), http.StatusInternalServerError)
+		result, err := s.routingSvc.Update(uuid, &updated)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusNotFound)
 			return
 		}
-		jsonOK(w, updated)
+		jsonOK(w, result)
 
 	case http.MethodDelete:
-		if err := database.DB.Delete(&rule).Error; err != nil {
-			jsonError(w, "Failed to delete rule: "+err.Error(), http.StatusInternalServerError)
+		if err := s.routingSvc.Delete(uuid); err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		jsonOK(w, map[string]string{"status": "deleted"})
@@ -1118,44 +884,16 @@ func (s *Server) handleSystemProxy(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		settings := map[string]interface{}{
-			"listen_ip":     s.cfg.ListenIP,
-			"web_port":      s.cfg.WebPort,
-			"socks_port":    s.cfg.SocksPort,
-			"http_port":     s.cfg.HTTPPort,
-			"outbound_ip":   s.cfg.OutboundIP,
-			"github_mirror": s.cfg.GitHubMirror,
-		}
+		settings := s.settingsSvc.GetSettings()
 		jsonOK(w, settings)
 
 	case http.MethodPost:
-		var req struct {
-			ListenIP     *string `json:"listen_ip"`
-			SocksPort    *int    `json:"socks_port"`
-			HTTPPort     *int    `json:"http_port"`
-			OutboundIP   *string `json:"outbound_ip"`
-			GitHubMirror *string `json:"github_mirror"`
-		}
+		var req service.UpdateSettingsRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		if req.ListenIP != nil {
-			s.cfg.ListenIP = *req.ListenIP
-		}
-		if req.SocksPort != nil && *req.SocksPort > 0 {
-			s.cfg.SocksPort = *req.SocksPort
-		}
-		if req.HTTPPort != nil && *req.HTTPPort > 0 {
-			s.cfg.HTTPPort = *req.HTTPPort
-		}
-		if req.OutboundIP != nil {
-			s.cfg.OutboundIP = *req.OutboundIP
-		}
-		if req.GitHubMirror != nil {
-			s.cfg.GitHubMirror = *req.GitHubMirror
-		}
-		if err := s.cfg.SaveJSONConfig(); err != nil {
+		if err := s.settingsSvc.UpdateSettings(&req); err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -1171,8 +909,11 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleStrategyGroups(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		var groups []database.StrategyGroup
-		database.DB.Order("sort_order ASC").Find(&groups)
+		groups, err := s.strategySvc.List()
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		jsonOK(w, groups)
 
 	case http.MethodPost:
@@ -1181,9 +922,7 @@ func (s *Server) handleStrategyGroups(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		group.SortOrder = database.SortNew(&database.StrategyGroup{})
-		group.UUID = database.GenerateUUID()
-		if err := database.DB.Create(&group).Error; err != nil {
+		if err := s.strategySvc.Create(&group); err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -1203,14 +942,13 @@ func (s *Server) handleStrategyGroupByID(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var group database.StrategyGroup
-	if err := database.DB.Where("uuid = ?", uuid).First(&group).Error; err != nil {
-		jsonError(w, "Strategy group not found", http.StatusNotFound)
-		return
-	}
-
 	switch r.Method {
 	case http.MethodGet:
+		group, err := s.strategySvc.Get(uuid)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusNotFound)
+			return
+		}
 		jsonOK(w, group)
 
 	case http.MethodPut:
@@ -1219,16 +957,16 @@ func (s *Server) handleStrategyGroupByID(w http.ResponseWriter, r *http.Request)
 			jsonError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		updated.ID = group.ID
-		if err := database.DB.Save(&updated).Error; err != nil {
-			jsonError(w, err.Error(), http.StatusInternalServerError)
+		result, err := s.strategySvc.Update(uuid, &updated)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusNotFound)
 			return
 		}
-		jsonOK(w, updated)
+		jsonOK(w, result)
 
 	case http.MethodDelete:
-		if err := database.DB.Delete(&group).Error; err != nil {
-			jsonError(w, "Failed to delete strategy group: "+err.Error(), http.StatusInternalServerError)
+		if err := s.strategySvc.Delete(uuid); err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		jsonOK(w, map[string]string{"status": "deleted"})
@@ -1282,12 +1020,12 @@ func (s *Server) broadcastToAll(msg interface{}) {
 }
 
 func (s *Server) broadcastStatus() {
-	statuses := s.coreMgr.GetAllStatus()
+	statuses := s.coreSvc.GetAllStatus()
 	s.broadcastToAll(map[string]interface{}{"type": "status", "payload": statuses})
 }
 
 func (s *Server) sendStatusToClient(wc *wsConn) {
-	statuses := s.coreMgr.GetAllStatus()
+	statuses := s.coreSvc.GetAllStatus()
 	wc.WriteJSON(map[string]interface{}{"type": "status", "payload": statuses})
 }
 
