@@ -107,15 +107,6 @@ func (s *Service) UpdateGroupSubscription(group *database.NodeGroup, useProxy bo
 	return nil
 }
 
-// UpdateGroupByID 根据 ID 更新单个订阅分组
-func (s *Service) UpdateGroupByID(groupID uint, useProxy bool) error {
-	var group database.NodeGroup
-	if err := database.DB.First(&group, groupID).Error; err != nil {
-		return fmt.Errorf("group not found: %w", err)
-	}
-	return s.UpdateGroupSubscription(&group, useProxy)
-}
-
 // UpdateAllSubscriptions 更新所有启用的订阅分组
 func (s *Service) UpdateAllSubscriptions() {
 	var groups []database.NodeGroup

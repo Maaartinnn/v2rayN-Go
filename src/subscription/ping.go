@@ -14,9 +14,9 @@ import (
 
 // PingResult 测速结果
 type PingResult struct {
-	ProfileID uint   `json:"profile_id"`
-	Latency   int    `json:"latency"` // 毫秒
-	Error     string `json:"error,omitempty"`
+	ProfileUUID string `json:"profile_uuid"`
+	Latency     int    `json:"latency"` // 毫秒
+	Error       string `json:"error,omitempty"`
 }
 
 // PingService 延迟测速服务
@@ -73,15 +73,15 @@ func (ps *PingService) PingProfile(profile *database.Profile) PingResult {
 	latency, err := ps.TCPPing(profile.ProxyAddress, profile.ProxyPort)
 	if err != nil {
 		return PingResult{
-			ProfileID: profile.ID,
-			Latency:   0,
-			Error:     err.Error(),
+			ProfileUUID: profile.UUID,
+			Latency:     0,
+			Error:       err.Error(),
 		}
 	}
 
 	return PingResult{
-		ProfileID: profile.ID,
-		Latency:   latency,
+		ProfileUUID: profile.UUID,
+		Latency:     latency,
 	}
 }
 
@@ -114,12 +114,12 @@ func (ps *PingService) PingSingleProfile(profile *database.Profile) PingResult {
 	result := ps.PingProfile(profile)
 
 	if result.Error == "" {
-		database.DB.Model(&database.Profile{}).Where("id = ?", result.ProfileID).Updates(map[string]interface{}{
+		database.DB.Model(&database.Profile{}).Where("uuid = ?", result.ProfileUUID).Updates(map[string]interface{}{
 			"test_result":    fmt.Sprintf("%dms", result.Latency),
 			"last_test_time": time.Now(),
 		})
 	} else {
-		database.DB.Model(&database.Profile{}).Where("id = ?", result.ProfileID).Updates(map[string]interface{}{
+		database.DB.Model(&database.Profile{}).Where("uuid = ?", result.ProfileUUID).Updates(map[string]interface{}{
 			"test_result":    "timeout",
 			"last_test_time": time.Now(),
 		})
@@ -147,12 +147,12 @@ func (ps *PingService) PingAllProfiles(ctx context.Context, concurrency int) []P
 	// 更新数据库中的测速结果
 	for _, result := range results {
 		if result.Error == "" {
-			database.DB.Model(&database.Profile{}).Where("id = ?", result.ProfileID).Updates(map[string]interface{}{
+			database.DB.Model(&database.Profile{}).Where("uuid = ?", result.ProfileUUID).Updates(map[string]interface{}{
 				"test_result":    fmt.Sprintf("%dms", result.Latency),
 				"last_test_time": time.Now(),
 			})
 		} else {
-			database.DB.Model(&database.Profile{}).Where("id = ?", result.ProfileID).Updates(map[string]interface{}{
+			database.DB.Model(&database.Profile{}).Where("uuid = ?", result.ProfileUUID).Updates(map[string]interface{}{
 				"test_result":    "timeout",
 				"last_test_time": time.Now(),
 			})
