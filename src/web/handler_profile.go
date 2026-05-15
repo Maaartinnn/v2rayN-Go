@@ -29,7 +29,7 @@ func NewProfileHandler(profileSvc *service.ProfileService, pingSvc service.PingS
 func (h *ProfileHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET    /api/profiles/{$}", h.handleList)
 	mux.HandleFunc("POST   /api/profiles/{$}", h.handleCreate)
-	mux.HandleFunc("POST   /api/profiles/import{$}", h.handleImport)
+	mux.HandleFunc("POST /api/profiles/import", h.handleImport)
 	mux.HandleFunc("POST   /api/profiles/import-image", h.handleImportImage)
 	mux.HandleFunc("POST   /api/profiles/dedup", h.handleDedup)
 	mux.HandleFunc("POST   /api/profiles/ping-all", h.handlePingAll)

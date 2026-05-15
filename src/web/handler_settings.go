@@ -24,8 +24,8 @@ func NewSettingsHandler(settingsSvc *service.SettingsService, cfg *config.AppCon
 
 // Register 挂载设置管理路由
 func (h *SettingsHandler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET  /api/settings{$}", h.handleGetSettings)
-	mux.HandleFunc("POST /api/settings{$}", h.handleSaveSettings)
+	mux.HandleFunc("GET /api/settings", h.handleGetSettings)
+	mux.HandleFunc("POST /api/settings", h.handleSaveSettings)
 
 	mux.HandleFunc("GET  /api/proxy/system", h.handleGetSystemProxy)
 	mux.HandleFunc("POST /api/proxy/system", h.handleSetSystemProxy)
