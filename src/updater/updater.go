@@ -340,7 +340,7 @@ func (u *Updater) DownloadCore(coreName string, progressFn func(downloaded, tota
 
 // downloadMihomoWithFallback mihomo amd64 专用下载逻辑：按 CPU 级别优先级逐个尝试候选版本
 func (u *Updater) downloadMihomoWithFallback(coreInfo *CoreInfo, release *GitHubRelease, coreDir string, progressFn func(downloaded, total int64)) error {
-	candidates, err := u.findMihomoAssets(release.Assets, runtime.GOOS)
+	candidates, err := MatchMihomoAssets(release.Assets, runtime.GOOS, detectX86Level())
 	if err != nil {
 		return err
 	}
@@ -602,12 +602,10 @@ func hasGoVersionSuffix(name string) bool {
 	return false
 }
 
-// findAssetURL 根据当前平台查找匹配的下载链接
-// 每个内核使用不同的命名约定，需要分别处理
-func (u *Updater) findAssetURL(assets []GitHubAsset, coreName string) (string, error) {
-	osName := runtime.GOOS     // windows, linux, darwin
-	archName := runtime.GOARCH // amd64, arm64, 386
-
+// MatchAssetForPlatform 根据指定平台在 assets 列表中查找匹配的下载资源。
+// 纯算法函数，不依赖任何外部状态，方便单元测试。
+// x86Level 用于 mihomo amd64 的微架构级别选择，非 amd64 平台可传 0。
+func MatchAssetForPlatform(assets []GitHubAsset, osName, archName, coreName string, x86Level int) (*GitHubAsset, error) {
 	// 根据内核类型定义平台关键词映射
 	type platformKeywords struct {
 		osNames   []string // 可能的 OS 名称
@@ -640,11 +638,11 @@ func (u *Updater) findAssetURL(assets []GitHubAsset, coreName string) (string, e
 		// Mihomo 命名复杂，有多个 amd64 变体（v1/v2/v3/compatible）
 		// 需要特殊处理，返回第一个候选（DownloadCore 会处理降级重试）
 		if archName == "amd64" {
-			candidates, err := u.findMihomoAssets(assets, osName)
+			candidates, err := MatchMihomoAssets(assets, osName, x86Level)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
-			return u.getDownloadBaseURL(candidates[0].url), nil
+			return &candidates[0].asset, nil
 		}
 		keywords.osNames = []string{osName}
 		keywords.archNames = []string{archName}
@@ -654,8 +652,8 @@ func (u *Updater) findAssetURL(assets []GitHubAsset, coreName string) (string, e
 		keywords.archNames = []string{archName}
 	}
 
-	for _, asset := range assets {
-		name := strings.ToLower(asset.Name)
+	for i := range assets {
+		name := strings.ToLower(assets[i].Name)
 
 		// 跳过非压缩包
 		if !strings.HasSuffix(name, ".zip") && !strings.HasSuffix(name, ".tar.gz") && !strings.HasSuffix(name, ".tgz") {
@@ -686,10 +684,19 @@ func (u *Updater) findAssetURL(assets []GitHubAsset, coreName string) (string, e
 			continue
 		}
 
-		return u.getDownloadBaseURL(asset.BrowserDownloadURL), nil
+		return &assets[i], nil
 	}
 
-	return "", fmt.Errorf("no matching asset found for %s/%s (core: %s)", osName, archName, coreName)
+	return nil, fmt.Errorf("no matching asset found for %s/%s (core: %s)", osName, archName, coreName)
+}
+
+// findAssetURL 根据当前平台查找匹配的下载链接（薄包装：注入运行时上下文 + 镜像变换）
+func (u *Updater) findAssetURL(assets []GitHubAsset, coreName string) (string, error) {
+	asset, err := MatchAssetForPlatform(assets, runtime.GOOS, runtime.GOARCH, coreName, detectX86Level())
+	if err != nil {
+		return "", err
+	}
+	return u.getDownloadBaseURL(asset.BrowserDownloadURL), nil
 }
 
 // mihomoCandidate mihomo 下载候选
@@ -697,12 +704,13 @@ type mihomoCandidate struct {
 	name     string
 	url      string
 	priority int
+	asset    GitHubAsset // 原始 GitHubAsset 引用
 }
 
-// findMihomoAssets 专门为 mihomo amd64 查找所有匹配的 asset，按优先级排序返回
-// mihomo 有大量 amd64 变体：compatible, v1, v2, v3, 默认，以及带 go 版本后缀的
-func (u *Updater) findMihomoAssets(assets []GitHubAsset, osName string) ([]mihomoCandidate, error) {
-	level := detectX86Level()
+// MatchMihomoAssets 为 mihomo amd64 查找所有匹配的 asset，按 CPU 级别优先级排序。
+// 纯算法函数，x86Level 作为参数传入，不依赖物理机。
+func MatchMihomoAssets(assets []GitHubAsset, osName string, x86Level int) ([]mihomoCandidate, error) {
+	level := x86Level
 	log.Printf("Detected x86-64 level: v%d", level)
 
 	var candidates []mihomoCandidate
@@ -791,6 +799,7 @@ func (u *Updater) findMihomoAssets(assets []GitHubAsset, osName string) ([]mihom
 			name:     asset.Name,
 			url:      asset.BrowserDownloadURL,
 			priority: priority,
+			asset:    asset,
 		})
 	}
 
