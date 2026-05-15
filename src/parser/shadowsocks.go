@@ -69,6 +69,7 @@ func parseShadowsocksURI(data string, atIdx int, name string, rawLink string) (*
 	}
 
 	profile := &database.Profile{
+		UUID:          database.GenerateUUID(),
 		Name:     name,
 		ProxyAddress:  host,
 		ProxyPort:     port,
@@ -120,6 +121,7 @@ func parseShadowsocksDecoded(decoded string, name string, rawLink string) (*data
 	}
 
 	profile := &database.Profile{
+		UUID:          database.GenerateUUID(),
 		Name:     name,
 		ProxyAddress:  host,
 		ProxyPort:     port,
@@ -174,6 +176,7 @@ func parseShadowsocksR(link string) (*database.Profile, error) {
 	}
 
 	profile := &database.Profile{
+		UUID:          database.GenerateUUID(),
 		Name:     name,
 		ProxyAddress:  host,
 		ProxyPort:     port,

@@ -32,6 +32,7 @@ func parseHysteria2(link string) (*database.Profile, error) {
 	}
 
 	profile := &database.Profile{
+		UUID:          database.GenerateUUID(),
 		Name:          name,
 		ProxyAddress:       host,
 		ProxyPort:          port,
@@ -82,6 +83,7 @@ func parseHysteria(link string) (*database.Profile, error) {
 	}
 
 	profile := &database.Profile{
+		UUID:          database.GenerateUUID(),
 		Name:          name,
 		ProxyAddress:       host,
 		ProxyPort:          port,
@@ -135,6 +137,7 @@ func parseTuic(link string) (*database.Profile, error) {
 	}
 
 	profile := &database.Profile{
+		UUID:          database.GenerateUUID(),
 		Name:          name,
 		ProxyAddress:       host,
 		ProxyPort:          port,

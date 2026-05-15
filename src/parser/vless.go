@@ -23,6 +23,7 @@ func parseVless(link string) (*database.Profile, error) {
 	q := u.Query()
 
 	profile := &database.Profile{
+		UUID:          database.GenerateUUID(),
 		Name:        name,
 		ProxyAddress:     host,
 		ProxyPort:        port,

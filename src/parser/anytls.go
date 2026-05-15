@@ -24,6 +24,7 @@ func parseAnytls(link string) (*database.Profile, error) {
 	password := u.User.Username()
 
 	profile := &database.Profile{
+		UUID:          database.GenerateUUID(),
 		Name:          name,
 		ProxyAddress:       host,
 		ProxyPort:          port,

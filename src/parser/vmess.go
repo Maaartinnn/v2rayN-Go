@@ -75,6 +75,7 @@ func parseVmessJSON(jsonStr string, rawLink string) (*database.Profile, error) {
 	}
 
 	profile := &database.Profile{
+		UUID:          database.GenerateUUID(),
 		Name:        vj.Ps,
 		ProxyAddress:     vj.Add,
 		ProxyPort:        port,
@@ -127,6 +128,7 @@ func parseVmessURI(decoded string, rawLink string) (*database.Profile, error) {
 
 	q := u.Query()
 	profile := &database.Profile{
+		UUID:          database.GenerateUUID(),
 		Name:        name,
 		ProxyAddress:     host,
 		ProxyPort:        port,

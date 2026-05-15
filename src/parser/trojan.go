@@ -27,6 +27,7 @@ func parseTrojan(link string) (*database.Profile, error) {
 	}
 
 	profile := &database.Profile{
+		UUID:          database.GenerateUUID(),
 		Name:          name,
 		ProxyAddress:       host,
 		ProxyPort:          port,

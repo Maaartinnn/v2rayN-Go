@@ -81,6 +81,7 @@ func (s *Service) UpdateGroupSubscription(group *database.NodeGroup, useProxy bo
 	// 插入新节点（步长排序）
 	seq := database.SortSequence(len(profiles))
 	for i, profile := range profiles {
+		profile.UUID = database.GenerateUUID()
 		profile.GroupUUID = group.UUID
 		profile.SortOrder = seq[i]
 		if err := tx.Create(profile).Error; err != nil {
