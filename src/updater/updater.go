@@ -21,6 +21,7 @@ import (
 
 	"v2rayn-go/config"
 	"v2rayn-go/coredef"
+	"v2rayn-go/httpclient"
 
 	"golang.org/x/sys/cpu"
 )
@@ -70,10 +71,8 @@ type Updater struct {
 // NewUpdater 创建更新管理器
 func NewUpdater(cfg *config.AppConfig) *Updater {
 	return &Updater{
-		cfg: cfg,
-		client: &http.Client{
-			Timeout: 120 * time.Second,
-		},
+		cfg:          cfg,
+		client:       httpclient.NewClient(120 * time.Second),
 		releaseCache: make(map[string]*releaseCacheEntry),
 	}
 }
@@ -544,7 +543,7 @@ func (u *Updater) fetchRelease(url string) (*GitHubRelease, error) {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", "v2rayN-Go/1.0")
+	// User-Agent 由 httpclient.Transport 自动注入
 
 	resp, err := u.client.Do(req)
 	if err != nil {
@@ -1052,7 +1051,7 @@ func (u *Updater) downloadFile(url string, destPath string, progressFn func(down
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", "v2rayN-Go/1.0")
+	// User-Agent 由 httpclient.Transport 自动注入
 
 	resp, err := u.client.Do(req)
 	if err != nil {

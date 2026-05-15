@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"v2rayn-go/database"
+	"v2rayn-go/httpclient"
 )
 
 // PingResult 测速结果
@@ -27,9 +28,7 @@ type PingService struct {
 // NewPingService 创建测速服务
 func NewPingService() *PingService {
 	return &PingService{
-		client: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+		client: httpclient.NewClient(10 * time.Second),
 	}
 }
 
@@ -56,7 +55,7 @@ func (ps *PingService) HTTPPing(url string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	req.Header.Set("User-Agent", "v2rayN-Go/1.0")
+	// User-Agent 由 httpclient.Transport 自动注入
 
 	resp, err := ps.client.Do(req)
 	if err != nil {

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"v2rayn-go/database"
+	"v2rayn-go/httpclient"
 	"v2rayn-go/parser"
 )
 
@@ -24,9 +25,7 @@ type Service struct {
 // NewService 创建订阅服务
 func NewService() *Service {
 	return &Service{
-		client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		client: httpclient.NewClient(30 * time.Second),
 	}
 }
 
@@ -41,12 +40,7 @@ func (s *Service) UpdateGroupSubscription(group *database.NodeGroup, useProxy bo
 	// 创建 HTTP 客户端
 	client := s.client
 	if useProxy {
-		client = &http.Client{
-			Timeout: 60 * time.Second,
-			Transport: &http.Transport{
-				Proxy: http.ProxyFromEnvironment,
-			},
-		}
+		client = httpclient.NewClientWithProxy(60 * time.Second)
 	}
 
 	// 拉取订阅内容
@@ -192,9 +186,8 @@ func (s *Service) fetchContentWithClient(client *http.Client, rawURL string, use
 
 	if userAgent != "" {
 		req.Header.Set("User-Agent", userAgent)
-	} else {
-		req.Header.Set("User-Agent", "v2rayN-Go/1.0")
 	}
+	// 当 userAgent 为空时，由 httpclient.Transport 自动注入默认 User-Agent
 	req.Header.Set("Accept", "*/*")
 
 	resp, err := client.Do(req)
