@@ -21,6 +21,9 @@ type AppConfig struct {
 	LogDir string `json:"-"`
 
 	// === 可配置的网络参数 ===
+	// 注意：以下字段不使用 omitzero，因为用户可能显式设置为零值
+	//（如 WebPort=0 表示禁用 Web UI），omitzero 会导致这些设置
+	// 在保存时丢失，下次加载时被 DefaultConfig() 覆盖。
 
 	// WebPort Web 界面端口
 	WebPort int `json:"web_port"`
@@ -32,18 +35,10 @@ type AppConfig struct {
 	HTTPPort int `json:"http_port"`
 	// OutboundIP 出站绑定 IP
 	OutboundIP string `json:"outbound_ip"`
-	// GitHubMirror GitHub 下载镜像地址
-	GitHubMirror string `json:"github_mirror"`
-}
 
-// configJSON 用于从 JSON 文件加载的中间结构
-type configJSON struct {
-	WebPort      int    `json:"web_port"`
-	ListenIP     string `json:"listen_ip"`
-	SocksPort    int    `json:"socks_port"`
-	HTTPPort     int    `json:"http_port"`
-	OutboundIP   string `json:"outbound_ip"`
-	GitHubMirror string `json:"github_mirror"`
+	// GitHubMirror GitHub 下载镜像地址
+	// 默认值为空字符串，omitzero 不会造成信息损失
+	GitHubMirror string `json:"github_mirror,omitzero"`
 }
 
 // DefaultConfig 返回默认配置
@@ -98,6 +93,7 @@ func (c *AppConfig) LoadWithPriority() error {
 }
 
 // loadJSONConfig 从应用目录下的 config.json 加载配置
+// json.Unmarshal 只覆盖 JSON 中存在的字段，缺失字段保留 DefaultConfig() 的值
 func (c *AppConfig) loadJSONConfig() {
 	configPath := filepath.Join(c.AppDir, "config.json")
 
@@ -110,30 +106,9 @@ func (c *AppConfig) loadJSONConfig() {
 		return
 	}
 
-	var fileCfg configJSON
-	if err := json.Unmarshal(data, &fileCfg); err != nil {
+	if err := json.Unmarshal(data, c); err != nil {
 		log.Printf("Warning: failed to parse config.json: %v", err)
 		return
-	}
-
-	// 仅覆盖非零值
-	if fileCfg.WebPort > 0 {
-		c.WebPort = fileCfg.WebPort
-	}
-	if fileCfg.ListenIP != "" {
-		c.ListenIP = fileCfg.ListenIP
-	}
-	if fileCfg.SocksPort > 0 {
-		c.SocksPort = fileCfg.SocksPort
-	}
-	if fileCfg.HTTPPort > 0 {
-		c.HTTPPort = fileCfg.HTTPPort
-	}
-	if fileCfg.OutboundIP != "" {
-		c.OutboundIP = fileCfg.OutboundIP
-	}
-	if fileCfg.GitHubMirror != "" {
-		c.GitHubMirror = fileCfg.GitHubMirror
 	}
 
 	log.Printf("Loaded config from %s", configPath)
@@ -173,17 +148,9 @@ func (c *AppConfig) parseCLIFlags() {
 }
 
 // SaveJSONConfig 将当前配置保存到 config.json
+// json:"-" 的字段自动隐藏；GitHubMirror 为零值时 omitzero 自动省略
 func (c *AppConfig) SaveJSONConfig() error {
-	fileCfg := configJSON{
-		WebPort:      c.WebPort,
-		ListenIP:     c.ListenIP,
-		SocksPort:    c.SocksPort,
-		HTTPPort:     c.HTTPPort,
-		OutboundIP:   c.OutboundIP,
-		GitHubMirror: c.GitHubMirror,
-	}
-
-	data, err := json.MarshalIndent(fileCfg, "", "  ")
+	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
