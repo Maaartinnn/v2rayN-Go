@@ -1,4 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
+import { Switch, Route, useLocation } from 'wouter'
 import { Sidebar } from './components/Sidebar'
 import { HomeView } from './components/HomeView'
 import { NodesView } from './components/NodesView'
@@ -18,18 +19,6 @@ const CoresView = lazy(() => import('./components/CoresView').then(m => ({ defau
 const RoutingView = lazy(() => import('./components/RoutingView').then(m => ({ default: m.RoutingView })))
 const StrategyGroupView = lazy(() => import('./components/StrategyGroupView').then(m => ({ default: m.StrategyGroupView })))
 
-const views: { [key: string]: React.LazyExoticComponent<React.FC> | React.FC } = {
-  home: HomeView,
-  nodes: NodesView,
-  import: ImportView,
-  groups: GroupsView,
-  logs: LogConsole,
-  settings: SettingsView,
-  updater: CoresView,
-  routing: RoutingView,
-  strategy: StrategyGroupView,
-}
-
 function PageLoader() {
   return (
     <div className="flex items-center justify-center h-64">
@@ -46,8 +35,9 @@ function PageLoader() {
 
 export default function App() {
   useWebSocket()
-  const { currentView, isConnected, activeProfile, setCoreStatuses } = useStore()
+  const { isConnected, activeProfile, setCoreStatuses } = useStore()
   const t = useT()
+  const [location] = useLocation()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   // Initialize theme on mount
@@ -64,19 +54,17 @@ export default function App() {
     })
   }, [setCoreStatuses])
 
-  const View = views[currentView] || HomeView
-
-  // Map view IDs to page titles
-  const viewTitles: Record<string, string> = {
-    home: t('nav.home'),
-    nodes: t('nav.nodes'),
-    import: t('nav.import'),
-    groups: t('groups.title'),
-    logs: t('nav.logs'),
-    settings: t('nav.settings'),
-    updater: t('nav.cores'),
-    routing: t('nav.routing'),
-    strategy: t('strategy.title'),
+  // Map pathnames to page titles
+  const pathTitles: Record<string, string> = {
+    '/': t('nav.home'),
+    '/nodes': t('nav.nodes'),
+    '/import': t('nav.import'),
+    '/groups': t('groups.title'),
+    '/logs': t('nav.logs'),
+    '/settings': t('nav.settings'),
+    '/cores': t('nav.cores'),
+    '/routing': t('nav.routing'),
+    '/strategy': t('strategy.title'),
   }
 
   return (
@@ -98,7 +86,7 @@ export default function App() {
           className="text-sm font-medium"
           style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
         >
-          {viewTitles[currentView] || ''}
+          {pathTitles[location] || ''}
         </h2>
 
         {/* Right side: minimal status indicator */}
@@ -142,7 +130,7 @@ export default function App() {
         <div className="p-6">
           <AnimatePresence mode="wait">
             <motion.div
-              key={currentView}
+              key={location}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
@@ -150,7 +138,18 @@ export default function App() {
             >
               <ErrorBoundary>
                 <Suspense fallback={<PageLoader />}>
-                  <View />
+                  <Switch>
+                    <Route path="/" component={HomeView} />
+                    <Route path="/nodes" component={NodesView} />
+                    <Route path="/import" component={ImportView} />
+                    <Route path="/groups" component={GroupsView} />
+                    <Route path="/logs" component={LogConsole} />
+                    <Route path="/settings" component={SettingsView} />
+                    <Route path="/cores" component={CoresView} />
+                    <Route path="/routing" component={RoutingView} />
+                    <Route path="/strategy" component={StrategyGroupView} />
+                    <Route component={HomeView} />
+                  </Switch>
                 </Suspense>
               </ErrorBoundary>
             </motion.div>

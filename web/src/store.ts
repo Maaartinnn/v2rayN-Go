@@ -100,8 +100,6 @@ interface AppState {
   clearLogs: () => void
 
   // UI
-  currentView: string
-  setCurrentView: (v: string) => void
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -163,7 +161,4 @@ export const useStore = create<AppState>((set) => ({
   })),
   clearLogs: () => set({ logs: [] }),
 
-  // UI
-  currentView: 'home',
-  setCurrentView: (v) => set({ currentView: v }),
 }))

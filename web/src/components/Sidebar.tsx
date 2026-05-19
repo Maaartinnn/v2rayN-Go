@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
+import { Link, useLocation } from 'wouter'
 import { Home, Server, FileText, Settings, Download, Route, ChevronLeft, ChevronRight, Shuffle, FolderOpen, ArrowUpFromLine } from 'lucide-react'
 import { useStore } from '../store'
 import { useT } from '../lib/i18n'
@@ -9,19 +10,20 @@ interface SidebarProps {
 }
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
-  const { currentView, setCurrentView, isConnected } = useStore()
+  const { isConnected } = useStore()
   const t = useT()
+  const [location] = useLocation()
 
   const navItems = [
-    { id: 'home', icon: Home, label: t('nav.home') },
-    { id: 'nodes', icon: Server, label: t('nav.nodes') },
-    { id: 'import', icon: ArrowUpFromLine, label: t('nav.import') },
-    { id: 'groups', icon: FolderOpen, label: t('groups.title') },
-    { id: 'routing', icon: Route, label: t('nav.routing') },
-    { id: 'strategy', icon: Shuffle, label: t('strategy.title') },
-    { id: 'updater', icon: Download, label: t('nav.cores') },
-    { id: 'logs', icon: FileText, label: t('nav.logs') },
-    { id: 'settings', icon: Settings, label: t('nav.settings') },
+    { href: '/', icon: Home, label: t('nav.home') },
+    { href: '/nodes', icon: Server, label: t('nav.nodes') },
+    { href: '/import', icon: ArrowUpFromLine, label: t('nav.import') },
+    { href: '/groups', icon: FolderOpen, label: t('groups.title') },
+    { href: '/routing', icon: Route, label: t('nav.routing') },
+    { href: '/strategy', icon: Shuffle, label: t('strategy.title') },
+    { href: '/cores', icon: Download, label: t('nav.cores') },
+    { href: '/logs', icon: FileText, label: t('nav.logs') },
+    { href: '/settings', icon: Settings, label: t('nav.settings') },
   ]
 
   return (
@@ -88,48 +90,48 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       <div className="flex-1 flex flex-col gap-0.5 px-3 mt-4 overflow-y-auto">
         {navItems.map((item) => {
           const Icon = item.icon
-          const isActive = currentView === item.id
+          const isActive = location === item.href
           return (
-            <motion.button
-              key={item.id}
-              onClick={() => setCurrentView(item.id)}
-              className="relative flex items-center h-9 rounded-lg transition-colors cursor-pointer"
-              style={{
-                backgroundColor: isActive ? 'var(--color-accent-dim)' : 'transparent',
-                color: isActive ? 'var(--color-accent-warm)' : 'var(--color-muted-foreground)',
-                justifyContent: collapsed ? 'center' : 'flex-start',
-                paddingLeft: collapsed ? 0 : '12px',
-                paddingRight: collapsed ? 0 : '12px',
-              }}
-              whileHover={{
-                backgroundColor: isActive ? undefined : 'var(--color-muted)',
-              }}
-              whileTap={{ scale: 0.97 }}
-              title={collapsed ? item.label : undefined}
-            >
-              {isActive && (
-                <motion.div
-                  layoutId="sidebar-active"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-0.75 h-4 rounded-r-full"
-                  style={{ backgroundColor: 'var(--color-primary)' }}
-                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                />
-              )}
-              <Icon size={17} strokeWidth={1.6} className="shrink-0" />
-              <AnimatePresence>
-                {!collapsed && (
-                  <motion.span
-                    initial={{ opacity: 0, width: 0 }}
-                    animate={{ opacity: 1, width: 'auto' }}
-                    exit={{ opacity: 0, width: 0 }}
-                    className="ml-2.5 text-[13px] font-medium whitespace-nowrap overflow-hidden"
-                    style={{ fontFamily: 'var(--font-heading)' }}
-                  >
-                    {item.label}
-                  </motion.span>
+            <Link key={item.href} href={item.href}>
+              <motion.div
+                className="relative flex items-center h-9 rounded-lg transition-colors cursor-pointer"
+                style={{
+                  backgroundColor: isActive ? 'var(--color-accent-dim)' : 'transparent',
+                  color: isActive ? 'var(--color-accent-warm)' : 'var(--color-muted-foreground)',
+                  justifyContent: collapsed ? 'center' : 'flex-start',
+                  paddingLeft: collapsed ? 0 : '12px',
+                  paddingRight: collapsed ? 0 : '12px',
+                }}
+                whileHover={{
+                  backgroundColor: isActive ? undefined : 'var(--color-muted)',
+                }}
+                whileTap={{ scale: 0.97 }}
+                title={collapsed ? item.label : undefined}
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="sidebar-active"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 w-0.75 h-4 rounded-r-full"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                  />
                 )}
-              </AnimatePresence>
-            </motion.button>
+                <Icon size={17} strokeWidth={1.6} className="shrink-0" />
+                <AnimatePresence>
+                  {!collapsed && (
+                    <motion.span
+                      initial={{ opacity: 0, width: 0 }}
+                      animate={{ opacity: 1, width: 'auto' }}
+                      exit={{ opacity: 0, width: 0 }}
+                      className="ml-2.5 text-[13px] font-medium whitespace-nowrap overflow-hidden"
+                      style={{ fontFamily: 'var(--font-heading)' }}
+                    >
+                      {item.label}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            </Link>
           )
         })}
       </div>
