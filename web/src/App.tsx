@@ -128,7 +128,7 @@ export default function App() {
         }}
       >
         <div className="p-6">
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="popLayout">
             <motion.div
               key={location}
               initial={{ opacity: 0, y: 12 }}
