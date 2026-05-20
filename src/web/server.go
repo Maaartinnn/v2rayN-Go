@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -93,8 +94,8 @@ func (s *Server) Start() error {
 		http.FileServerFS(staticFS).ServeHTTP(w, r)
 	})
 
-	// 5. 启动日志广播
-	go wsHandler.LogBroadcaster()
+	// 5. 启动日志广播（使用 context.Background 支持优雅退出）
+	go wsHandler.LogBroadcaster(context.Background())
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
