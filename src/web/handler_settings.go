@@ -1,7 +1,6 @@
 package web
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"v2rayn-go/config"
@@ -38,8 +37,7 @@ func (h *SettingsHandler) handleGetSettings(w http.ResponseWriter, r *http.Reque
 
 func (h *SettingsHandler) handleSaveSettings(w http.ResponseWriter, r *http.Request) {
 	var req service.UpdateSettingsRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 	if err := h.settingsSvc.UpdateSettings(&req); err != nil {
@@ -58,8 +56,7 @@ func (h *SettingsHandler) handleSetSystemProxy(w http.ResponseWriter, r *http.Re
 		Enabled bool `json:"enabled"`
 		Port    int  `json:"port"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 	jsonOK(w, map[string]interface{}{"enabled": req.Enabled, "port": req.Port})

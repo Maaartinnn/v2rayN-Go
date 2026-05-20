@@ -1,7 +1,6 @@
 package web
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 
@@ -44,8 +43,7 @@ func (h *GroupHandler) handleList(w http.ResponseWriter, r *http.Request) {
 
 func (h *GroupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	var group database.NodeGroup
-	if err := json.NewDecoder(r.Body).Decode(&group); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &group) {
 		return
 	}
 	if err := h.groupSvc.Create(&group); err != nil {
@@ -61,8 +59,7 @@ func (h *GroupHandler) handleReorder(w http.ResponseWriter, r *http.Request) {
 		BeforeUUID string `json:"before_uuid"`
 		AfterUUID  string `json:"after_uuid"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 
@@ -88,8 +85,7 @@ func (h *GroupHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 func (h *GroupHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	var updated database.NodeGroup
-	if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &updated) {
 		return
 	}
 	result, err := h.groupSvc.Update(uuid, &updated)

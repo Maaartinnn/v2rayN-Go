@@ -1,7 +1,6 @@
 package web
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"v2rayn-go/database"
@@ -38,8 +37,7 @@ func (h *RoutingRuleHandler) handleList(w http.ResponseWriter, r *http.Request) 
 
 func (h *RoutingRuleHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	var rule database.RoutingRule
-	if err := json.NewDecoder(r.Body).Decode(&rule); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &rule) {
 		return
 	}
 	if err := h.routingSvc.Create(&rule); err != nil {
@@ -52,8 +50,7 @@ func (h *RoutingRuleHandler) handleCreate(w http.ResponseWriter, r *http.Request
 func (h *RoutingRuleHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	var updated database.RoutingRule
-	if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &updated) {
 		return
 	}
 	result, err := h.routingSvc.Update(uuid, &updated)

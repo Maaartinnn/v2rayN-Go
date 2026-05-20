@@ -1,7 +1,6 @@
 package web
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"v2rayn-go/database"
@@ -39,8 +38,7 @@ func (h *StrategyGroupHandler) handleList(w http.ResponseWriter, r *http.Request
 
 func (h *StrategyGroupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	var group database.StrategyGroup
-	if err := json.NewDecoder(r.Body).Decode(&group); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &group) {
 		return
 	}
 	if err := h.strategySvc.Create(&group); err != nil {
@@ -63,8 +61,7 @@ func (h *StrategyGroupHandler) handleGet(w http.ResponseWriter, r *http.Request)
 func (h *StrategyGroupHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	var updated database.StrategyGroup
-	if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &updated) {
 		return
 	}
 	result, err := h.strategySvc.Update(uuid, &updated)

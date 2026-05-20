@@ -1,7 +1,6 @@
 package web
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"sync"
@@ -44,8 +43,7 @@ func (h *CoreHandler) handleCoreStart(w http.ResponseWriter, r *http.Request) {
 		CoreType   string `json:"core_type"`
 		ConfigPath string `json:"config_path"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 
@@ -62,8 +60,7 @@ func (h *CoreHandler) handleCoreStop(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CoreType string `json:"core_type"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 
@@ -102,8 +99,7 @@ func (h *CoreHandler) handleCoreDownload(w http.ResponseWriter, r *http.Request)
 	var req struct {
 		CoreName string `json:"core_name"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 	if req.CoreName == "" {
@@ -141,8 +137,7 @@ func (h *CoreHandler) handleCoreDownloadURL(w http.ResponseWriter, r *http.Reque
 		CoreName    string `json:"core_name"`
 		DownloadURL string `json:"download_url"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 	if req.CoreName == "" || req.DownloadURL == "" {

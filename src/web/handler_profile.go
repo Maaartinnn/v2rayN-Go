@@ -1,7 +1,6 @@
 package web
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 
@@ -51,8 +50,7 @@ func (h *ProfileHandler) handleList(w http.ResponseWriter, r *http.Request) {
 
 func (h *ProfileHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	var profile database.Profile
-	if err := json.NewDecoder(r.Body).Decode(&profile); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &profile) {
 		return
 	}
 	if err := h.profileSvc.Create(&profile); err != nil {
@@ -67,8 +65,7 @@ func (h *ProfileHandler) handleImport(w http.ResponseWriter, r *http.Request) {
 		Links     string `json:"links"`
 		GroupUUID string `json:"group_uuid"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 
@@ -152,8 +149,7 @@ func (h *ProfileHandler) handleDedup(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		GroupUUID string `json:"group_uuid"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 
@@ -187,8 +183,7 @@ func (h *ProfileHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 func (h *ProfileHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	var req map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonError(w, "Invalid request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 	profile, err := h.profileSvc.Update(uuid, req)

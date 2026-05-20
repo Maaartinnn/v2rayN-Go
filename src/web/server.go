@@ -120,3 +120,13 @@ func jsonError(w http.ResponseWriter, msg string, code int) {
 	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(map[string]interface{}{"error": msg, "code": code})
 }
+
+// decodeJSON 从请求体解码 JSON 到 v，失败时自动写入 400 错误响应并返回 false。
+// 调用方只需 `if !decodeJSON(w, r, &req) { return }`。
+func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
+	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+		jsonError(w, "Invalid request", http.StatusBadRequest)
+		return false
+	}
+	return true
+}
