@@ -1,8 +1,12 @@
 package database
 
 import (
+	"errors"
+	"fmt"
 	"log"
 	"reflect"
+
+	"gorm.io/gorm"
 )
 
 // SortStep 排序步长，集中定义方便修改
@@ -50,15 +54,21 @@ func Rebalance(model interface{}) bool {
 	return RebalanceScoped(model, "1 = 1")
 }
 
-// RebalanceScoped 限定范围重排
+// RebalanceScoped 限定范围重排（使用全局 DB）
 func RebalanceScoped(model interface{}, query string, args ...interface{}) bool {
+	return RebalanceScopedTx(DB, model, query, args...)
+}
+
+// RebalanceScopedTx 限定范围重排（使用指定事务/连接）
+// 调用方可传入 DB 或事务内的 tx
+func RebalanceScopedTx(tx *gorm.DB, model interface{}, query string, args ...interface{}) bool {
 	type row struct {
 		ID        uint
 		SortOrder int
 	}
 	var rows []row
 	tableName := getTableName(model)
-	q := DB.Model(model).Table(tableName).Select("id, sort_order").Order("sort_order ASC, id ASC")
+	q := tx.Model(model).Table(tableName).Select("id, sort_order").Order("sort_order ASC, id ASC")
 	if query != "1 = 1" {
 		q = q.Where(query, args...)
 	}
@@ -81,21 +91,15 @@ func RebalanceScoped(model interface{}, query string, args ...interface{}) bool 
 		return false
 	}
 
-	// 执行重排
-	tx := DB.Begin()
+	// 执行重排（在同一个 tx 内，不开子事务）
 	for i, r := range rows {
 		newOrder := (i + 1) * SortStep
 		if r.SortOrder != newOrder {
 			if err := tx.Table(tableName).Where("id = ?", r.ID).Update("sort_order", newOrder).Error; err != nil {
-				tx.Rollback()
 				log.Printf("[WARN] Rebalance failed for %s id=%d: %v", tableName, r.ID, err)
 				return false
 			}
 		}
-	}
-	if err := tx.Commit().Error; err != nil {
-		log.Printf("[WARN] Rebalance commit failed for %s: %v", tableName, err)
-		return false
 	}
 
 	log.Printf("[INFO] Rebalanced sort_order for %s (%d records)", tableName, len(rows))
@@ -192,4 +196,82 @@ func SortNewBatch(model interface{}, query string, count int, args ...interface{
 		seq[i] = maxOrder + (i+1)*SortStep
 	}
 	return seq
+}
+
+// ========== 通用拖拽重排序 ==========
+
+// ReorderEntity 通用拖拽重排序，自动检测整数除法坍缩并触发 rebalance
+// 整个流程在一个事务中完成，保证原子性
+//   - model: 表模型（如 &NodeGroup{}）
+//   - uuid: 被拖拽记录的 UUID
+//   - beforeUUID, afterUUID: 前后邻居的 UUID（可为空串表示首/尾）
+//   - query, args: 限定范围条件，全表传 "1=1"，限定范围传 "group_uuid = ?", groupUUID
+func ReorderEntity(model interface{}, uuid, beforeUUID, afterUUID string, query string, args ...any) (int, error) {
+	if uuid == "" {
+		return 0, fmt.Errorf("reorder: uuid is required")
+	}
+
+	tableName := getTableName(model)
+
+	var newOrder int
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		// 1. 查询被拖拽记录是否存在
+		var target struct{ ID uint }
+		if err := tx.Table(tableName).Where("uuid = ?", uuid).Select("id").First(&target).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("reorder: record %s not found", uuid)
+			}
+			return fmt.Errorf("reorder: failed to query target: %w", err)
+		}
+
+		// 2. 查询前后邻居的 sort_order
+		var beforeOrder, afterOrder *int
+		if beforeUUID != "" {
+			var v int
+			if err := tx.Table(tableName).Where("uuid = ?", beforeUUID).Select("sort_order").Scan(&v).Error; err == nil {
+				beforeOrder = &v
+			}
+		}
+		if afterUUID != "" {
+			var v int
+			if err := tx.Table(tableName).Where("uuid = ?", afterUUID).Select("sort_order").Scan(&v).Error; err == nil {
+				afterOrder = &v
+			}
+		}
+
+		// 3. 计算插入位置，检测冲突
+		result, conflict := SortInsertSafe(beforeOrder, afterOrder)
+		if conflict {
+			// 整数除法坍缩 → 在事务内 rebalance → 重新查询 → 重新计算
+			RebalanceScopedTx(tx, model, query, args...)
+
+			// 重新查询邻居
+			if beforeUUID != "" {
+				var v int
+				if err := tx.Table(tableName).Where("uuid = ?", beforeUUID).Select("sort_order").Scan(&v).Error; err == nil {
+					beforeOrder = &v
+				}
+			}
+			if afterUUID != "" {
+				var v int
+				if err := tx.Table(tableName).Where("uuid = ?", afterUUID).Select("sort_order").Scan(&v).Error; err == nil {
+					afterOrder = &v
+				}
+			}
+			result, _ = SortInsertSafe(beforeOrder, afterOrder) // rebalance 后不会再冲突
+		}
+
+		// 4. 更新目标记录
+		if err := tx.Table(tableName).Where("id = ?", target.ID).Update("sort_order", result).Error; err != nil {
+			return fmt.Errorf("reorder: failed to update sort_order: %w", err)
+		}
+
+		newOrder = result
+		return nil
+	})
+
+	if err != nil {
+		return 0, err
+	}
+	return newOrder, nil
 }

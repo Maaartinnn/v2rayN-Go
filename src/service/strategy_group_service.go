@@ -66,3 +66,12 @@ func (s *StrategyGroupService) Delete(uuid string) error {
 	}
 	return nil
 }
+
+// Reorder 重排序策略组，返回新的 sort_order
+func (s *StrategyGroupService) Reorder(uuid, beforeUUID, afterUUID string) (int, error) {
+	newOrder, err := database.ReorderEntity(&database.StrategyGroup{}, uuid, beforeUUID, afterUUID, "1=1")
+	if err != nil {
+		return 0, NewValidation("reorder failed", err)
+	}
+	return newOrder, nil
+}

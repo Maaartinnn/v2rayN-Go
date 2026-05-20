@@ -66,3 +66,12 @@ func (s *RoutingRuleService) Delete(uuid string) error {
 	}
 	return nil
 }
+
+// Reorder 重排序路由规则，返回新的 sort_order
+func (s *RoutingRuleService) Reorder(uuid, beforeUUID, afterUUID string) (int, error) {
+	newOrder, err := database.ReorderEntity(&database.RoutingRule{}, uuid, beforeUUID, afterUUID, "1=1")
+	if err != nil {
+		return 0, NewValidation("reorder failed", err)
+	}
+	return newOrder, nil
+}

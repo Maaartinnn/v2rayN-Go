@@ -21,6 +21,7 @@ func NewRoutingRuleHandler(routingSvc *service.RoutingRuleService) *RoutingRuleH
 func (h *RoutingRuleHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET    /api/routing-rules/{$}", h.handleList)
 	mux.HandleFunc("POST   /api/routing-rules/{$}", h.handleCreate)
+	mux.HandleFunc("PUT    /api/routing-rules/reorder", h.handleReorder)
 
 	mux.HandleFunc("PUT    /api/routing-rules/{uuid}", h.handleUpdate)
 	mux.HandleFunc("DELETE /api/routing-rules/{uuid}", h.handleDelete)
@@ -68,4 +69,19 @@ func (h *RoutingRuleHandler) handleDelete(w http.ResponseWriter, r *http.Request
 		return
 	}
 	jsonOK(w, map[string]string{"status": "deleted"})
+}
+
+func (h *RoutingRuleHandler) handleReorder(w http.ResponseWriter, r *http.Request) {
+	var req ReorderRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+
+	newOrder, err := h.routingSvc.Reorder(req.UUID, req.BeforeUUID, req.AfterUUID)
+	if err != nil {
+		mapServiceError(w, err)
+		return
+	}
+
+	jsonOK(w, map[string]interface{}{"status": "reordered", "sort_order": newOrder})
 }

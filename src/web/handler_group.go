@@ -54,11 +54,7 @@ func (h *GroupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *GroupHandler) handleReorder(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		UUID       string `json:"uuid"`
-		BeforeUUID string `json:"before_uuid"`
-		AfterUUID  string `json:"after_uuid"`
-	}
+	var req ReorderRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}

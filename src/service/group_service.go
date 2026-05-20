@@ -142,33 +142,10 @@ func (s *GroupService) Delete(uuid string) error {
 }
 
 // Reorder 重排序分组，返回新的 sort_order
-func (s *GroupService) Reorder(uuid string, beforeUUID, afterUUID string) (int, error) {
-	if uuid == "" {
-		return 0, NewValidation("uuid is required", nil)
+func (s *GroupService) Reorder(uuid, beforeUUID, afterUUID string) (int, error) {
+	newOrder, err := database.ReorderEntity(&database.NodeGroup{}, uuid, beforeUUID, afterUUID, "1=1")
+	if err != nil {
+		return 0, NewValidation("reorder failed", err)
 	}
-
-	var beforeOrder, afterOrder *int
-
-	if beforeUUID != "" {
-		var group database.NodeGroup
-		if err := database.DB.Where("uuid = ?", beforeUUID).First(&group).Error; err == nil {
-			v := group.SortOrder
-			beforeOrder = &v
-		}
-	}
-	if afterUUID != "" {
-		var group database.NodeGroup
-		if err := database.DB.Where("uuid = ?", afterUUID).First(&group).Error; err == nil {
-			v := group.SortOrder
-			afterOrder = &v
-		}
-	}
-
-	newOrder := database.SortInsert(beforeOrder, afterOrder)
-
-	if err := database.DB.Model(&database.NodeGroup{}).Where("uuid = ?", uuid).Update("sort_order", newOrder).Error; err != nil {
-		return 0, fmt.Errorf("failed to reorder: %w", err)
-	}
-
 	return newOrder, nil
 }

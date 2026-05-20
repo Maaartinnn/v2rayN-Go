@@ -21,6 +21,7 @@ func NewStrategyGroupHandler(strategySvc *service.StrategyGroupService) *Strateg
 func (h *StrategyGroupHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET    /api/strategy-groups/{$}", h.handleList)
 	mux.HandleFunc("POST   /api/strategy-groups/{$}", h.handleCreate)
+	mux.HandleFunc("PUT    /api/strategy-groups/reorder", h.handleReorder)
 
 	mux.HandleFunc("GET    /api/strategy-groups/{uuid}", h.handleGet)
 	mux.HandleFunc("PUT    /api/strategy-groups/{uuid}", h.handleUpdate)
@@ -79,4 +80,19 @@ func (h *StrategyGroupHandler) handleDelete(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	jsonOK(w, map[string]string{"status": "deleted"})
+}
+
+func (h *StrategyGroupHandler) handleReorder(w http.ResponseWriter, r *http.Request) {
+	var req ReorderRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+
+	newOrder, err := h.strategySvc.Reorder(req.UUID, req.BeforeUUID, req.AfterUUID)
+	if err != nil {
+		mapServiceError(w, err)
+		return
+	}
+
+	jsonOK(w, map[string]interface{}{"status": "reordered", "sort_order": newOrder})
 }

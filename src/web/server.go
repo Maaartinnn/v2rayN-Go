@@ -111,6 +111,13 @@ func (s *Server) Start() error {
 
 // ========== Helpers ==========
 
+// ReorderRequest 通用重排序请求（三个列表共用）
+type ReorderRequest struct {
+	UUID       string `json:"uuid"`
+	BeforeUUID string `json:"before_uuid"`
+	AfterUUID  string `json:"after_uuid"`
+}
+
 func jsonOK(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
