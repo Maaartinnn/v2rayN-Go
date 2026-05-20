@@ -11,6 +11,8 @@ import (
 
 	"v2rayn-go/database"
 	"v2rayn-go/httpclient"
+
+	"gorm.io/gorm"
 )
 
 // PingResult 测速结果
@@ -112,17 +114,19 @@ func (ps *PingService) PingProfiles(profiles []database.Profile, concurrency int
 func (ps *PingService) PingSingleProfile(profile *database.Profile) PingResult {
 	result := ps.PingProfile(profile)
 
-	if result.Error == "" {
-		database.DB.Model(&database.Profile{}).Where("uuid = ?", result.ProfileUUID).Updates(map[string]interface{}{
-			"test_result":    fmt.Sprintf("%dms", result.Latency),
-			"last_test_time": time.Now(),
-		})
-	} else {
-		database.DB.Model(&database.Profile{}).Where("uuid = ?", result.ProfileUUID).Updates(map[string]interface{}{
-			"test_result":    "timeout",
-			"last_test_time": time.Now(),
-		})
+	// 提取公共变量，消除 if/else 冗余
+	testResult := fmt.Sprintf("%dms", result.Latency)
+	if result.Error != "" {
+		testResult = "timeout"
 	}
+	now := time.Now()
+
+	database.DB.Model(&database.Profile{}).
+		Where("uuid = ?", result.ProfileUUID).
+		Updates(map[string]interface{}{
+			"test_result":    testResult,
+			"last_test_time": now,
+		})
 
 	return result
 }
@@ -143,19 +147,32 @@ func (ps *PingService) PingAllProfiles(ctx context.Context, concurrency int) []P
 	log.Printf("Starting latency test for %d profiles (concurrency: %d)", len(profiles), concurrency)
 	results := ps.PingProfiles(profiles, concurrency)
 
-	// 更新数据库中的测速结果
-	for _, result := range results {
-		if result.Error == "" {
-			database.DB.Model(&database.Profile{}).Where("uuid = ?", result.ProfileUUID).Updates(map[string]interface{}{
-				"test_result":    fmt.Sprintf("%dms", result.Latency),
-				"last_test_time": time.Now(),
-			})
-		} else {
-			database.DB.Model(&database.Profile{}).Where("uuid = ?", result.ProfileUUID).Updates(map[string]interface{}{
-				"test_result":    "timeout",
-				"last_test_time": time.Now(),
-			})
+	// 统一获取当前时间，保证同一批次更新的时间戳完全一致
+	now := time.Now()
+
+	// 使用显式事务包裹整个批量更新，将 N 次隐式事务合并为 1 次，
+	// 对 SQLite 而言将 N 次 fsync 降为 1 次，性能提升数量级。
+	txErr := database.DB.Transaction(func(tx *gorm.DB) error {
+		for _, result := range results {
+			testResult := fmt.Sprintf("%dms", result.Latency)
+			if result.Error != "" {
+				testResult = "timeout"
+			}
+
+			if err := tx.Model(&database.Profile{}).
+				Where("uuid = ?", result.ProfileUUID).
+				Updates(map[string]interface{}{
+					"test_result":    testResult,
+					"last_test_time": now,
+				}).Error; err != nil {
+				return fmt.Errorf("update profile %s failed: %w", result.ProfileUUID, err)
+			}
 		}
+		return nil
+	})
+
+	if txErr != nil {
+		log.Printf("[ERROR] Batch update ping results failed: %v", txErr)
 	}
 
 	// 统计结果
