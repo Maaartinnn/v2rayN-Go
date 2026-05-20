@@ -23,6 +23,7 @@ import (
 	"v2rayn-go/coredef"
 	"v2rayn-go/httpclient"
 
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/sys/cpu"
 )
 
@@ -66,6 +67,7 @@ type Updater struct {
 	client       *http.Client
 	releaseCache map[string]*releaseCacheEntry // repo -> 缓存条目
 	cacheMu      sync.RWMutex                  // 保护 releaseCache 的读写锁
+	requestGroup singleflight.Group            // 防缓存击穿：合并并发请求
 }
 
 // NewUpdater 创建更新管理器
@@ -484,56 +486,84 @@ func (u *Updater) getDownloadBaseURL(originalURL string) string {
 	return originalURL
 }
 
-// getLatestRelease 获取 GitHub 仓库的最新 release（支持镜像降级 + 缓存）
-func (u *Updater) getLatestRelease(repo string) (*GitHubRelease, error) {
-	// 先检查缓存
+// getCachedRelease 从缓存中查找 release，未命中或已过期返回 (nil, false)
+func (u *Updater) getCachedRelease(repo string) (*GitHubRelease, bool) {
 	u.cacheMu.RLock()
+	defer u.cacheMu.RUnlock()
 	if entry, ok := u.releaseCache[repo]; ok {
 		if time.Since(entry.fetchedAt) < releaseCacheTTL {
-			u.cacheMu.RUnlock()
 			log.Printf("Cache hit for %s (age: %s)", repo, time.Since(entry.fetchedAt).Round(time.Second))
-			return entry.release, nil
+			return entry.release, true
 		}
 	}
-	u.cacheMu.RUnlock()
+	return nil, false
+}
 
-	// 构建候选 URL 列表：优先镜像，降级原站
-	var candidateURLs []string
+// setCachedRelease 将 release 写入缓存
+func (u *Updater) setCachedRelease(repo string, release *GitHubRelease) {
+	u.cacheMu.Lock()
+	defer u.cacheMu.Unlock()
+	u.releaseCache[repo] = &releaseCacheEntry{
+		release:   release,
+		fetchedAt: time.Now(),
+	}
+}
+
+// buildReleaseURLs 构建候选 API URL 列表（优先镜像，降级原站）
+func (u *Updater) buildReleaseURLs(repo string) []string {
+	var urls []string
 	mirrorBase := u.getBaseURL()
 	originalBase := "https://api.github.com"
 
 	primaryURL := fmt.Sprintf("%s/repos/%s/releases/latest", mirrorBase, repo)
-	candidateURLs = append(candidateURLs, primaryURL)
+	urls = append(urls, primaryURL)
 
-	// 如果镜像不同于原站，添加原站作为降级
 	originalURL := fmt.Sprintf("%s/repos/%s/releases/latest", originalBase, repo)
 	if primaryURL != originalURL {
-		candidateURLs = append(candidateURLs, originalURL)
+		urls = append(urls, originalURL)
+	}
+	return urls
+}
+
+// getLatestRelease 获取 GitHub 仓库的最新 release（缓存 + singleflight 防击穿 + 镜像降级）
+func (u *Updater) getLatestRelease(repo string) (*GitHubRelease, error) {
+	// 1. 缓存命中直接返回
+	if release, hit := u.getCachedRelease(repo); hit {
+		return release, nil
 	}
 
-	var lastErr error
-	for i, url := range candidateURLs {
-		release, err := u.fetchRelease(url)
-		if err == nil {
-			if i > 0 {
-				log.Printf("GitHub mirror failed, fallback to original succeeded for %s", repo)
-			}
-			// 写入缓存
-			u.cacheMu.Lock()
-			u.releaseCache[repo] = &releaseCacheEntry{
-				release:   release,
-				fetchedAt: time.Now(),
-			}
-			u.cacheMu.Unlock()
+	// 2. singleflight 合并同一 repo 的并发请求
+	v, err, _ := u.requestGroup.Do(repo, func() (interface{}, error) {
+		// 双重检查：等待 singleflight 锁期间，其他协程可能已写入缓存
+		if release, hit := u.getCachedRelease(repo); hit {
 			return release, nil
 		}
-		lastErr = err
-		if i == 0 && len(candidateURLs) > 1 {
-			log.Printf("GitHub mirror request failed for %s: %v, trying original...", repo, err)
-		}
-	}
 
-	return nil, fmt.Errorf("all GitHub API endpoints failed for %s: %w", repo, lastErr)
+		// 3. 遍历候选 URL（镜像 → 原站）
+		urls := u.buildReleaseURLs(repo)
+		var lastErr error
+
+		for i, url := range urls {
+			release, err := u.fetchRelease(url)
+			if err == nil {
+				if i > 0 {
+					log.Printf("GitHub mirror failed, fallback to original succeeded for %s", repo)
+				}
+				u.setCachedRelease(repo, release)
+				return release, nil
+			}
+			lastErr = err
+			if i == 0 && len(urls) > 1 {
+				log.Printf("GitHub mirror request failed for %s: %v, trying original...", repo, err)
+			}
+		}
+		return nil, fmt.Errorf("all GitHub API endpoints failed for %s: %w", repo, lastErr)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return v.(*GitHubRelease), nil
 }
 
 // fetchRelease 从指定 URL 获取 release 信息
