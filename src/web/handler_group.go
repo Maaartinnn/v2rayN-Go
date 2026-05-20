@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"strings"
 
 	"v2rayn-go/database"
 	"v2rayn-go/service"
@@ -37,7 +36,7 @@ func (h *GroupHandler) Register(mux *http.ServeMux) {
 func (h *GroupHandler) handleList(w http.ResponseWriter, r *http.Request) {
 	groups, err := h.groupSvc.List()
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, groups)
@@ -50,7 +49,7 @@ func (h *GroupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.groupSvc.Create(&group); err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, group)
@@ -69,7 +68,7 @@ func (h *GroupHandler) handleReorder(w http.ResponseWriter, r *http.Request) {
 
 	newOrder, err := h.groupSvc.Reorder(req.UUID, req.BeforeUUID, req.AfterUUID)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusBadRequest)
+		mapServiceError(w, err)
 		return
 	}
 
@@ -80,7 +79,7 @@ func (h *GroupHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	group, err := h.groupSvc.Get(uuid)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusNotFound)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, group)
@@ -95,7 +94,7 @@ func (h *GroupHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.groupSvc.Update(uuid, &updated)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, result)
@@ -104,11 +103,7 @@ func (h *GroupHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 func (h *GroupHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	if err := h.groupSvc.Delete(uuid); err != nil {
-		if strings.Contains(err.Error(), "last group") || strings.Contains(err.Error(), "not found") {
-			jsonError(w, err.Error(), http.StatusBadRequest)
-		} else {
-			jsonError(w, err.Error(), http.StatusInternalServerError)
-		}
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, map[string]string{"status": "deleted"})
@@ -118,7 +113,7 @@ func (h *GroupHandler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	group, err := h.groupSvc.Get(uuid)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusNotFound)
+		mapServiceError(w, err)
 		return
 	}
 	if !group.IsSubscription {
@@ -138,7 +133,7 @@ func (h *GroupHandler) handleRefreshProxy(w http.ResponseWriter, r *http.Request
 	uuid := r.PathValue("uuid")
 	group, err := h.groupSvc.Get(uuid)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusNotFound)
+		mapServiceError(w, err)
 		return
 	}
 	if !group.IsSubscription {

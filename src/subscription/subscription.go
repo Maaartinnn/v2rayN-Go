@@ -181,7 +181,7 @@ func (s *Service) checkAndUpdateSubscriptions() {
 func (s *Service) fetchContentWithClient(client *http.Client, rawURL string, userAgent string) (string, error) {
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
 	if userAgent != "" {
@@ -192,7 +192,7 @@ func (s *Service) fetchContentWithClient(client *http.Client, rawURL string, use
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to fetch subscription: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -202,7 +202,7 @@ func (s *Service) fetchContentWithClient(client *http.Client, rawURL string, use
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	return strings.TrimSpace(string(body)), nil

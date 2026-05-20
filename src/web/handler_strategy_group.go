@@ -31,7 +31,7 @@ func (h *StrategyGroupHandler) Register(mux *http.ServeMux) {
 func (h *StrategyGroupHandler) handleList(w http.ResponseWriter, r *http.Request) {
 	groups, err := h.strategySvc.List()
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, groups)
@@ -44,7 +44,7 @@ func (h *StrategyGroupHandler) handleCreate(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if err := h.strategySvc.Create(&group); err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, group)
@@ -54,7 +54,7 @@ func (h *StrategyGroupHandler) handleGet(w http.ResponseWriter, r *http.Request)
 	uuid := r.PathValue("uuid")
 	group, err := h.strategySvc.Get(uuid)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusNotFound)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, group)
@@ -69,7 +69,7 @@ func (h *StrategyGroupHandler) handleUpdate(w http.ResponseWriter, r *http.Reque
 	}
 	result, err := h.strategySvc.Update(uuid, &updated)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusNotFound)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, result)
@@ -78,7 +78,7 @@ func (h *StrategyGroupHandler) handleUpdate(w http.ResponseWriter, r *http.Reque
 func (h *StrategyGroupHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	if err := h.strategySvc.Delete(uuid); err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, map[string]string{"status": "deleted"})

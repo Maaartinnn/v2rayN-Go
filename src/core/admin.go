@@ -3,6 +3,7 @@ package core
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -90,12 +91,12 @@ func (m *CoreAdminManager) StartCore(coreType CoreType, configPath string) error
 
 	// 获取内核可执行文件路径
 	binPath := m.getCoreBinaryPath(coreType)
-	if _, err := os.Stat(binPath); os.IsNotExist(err) {
+	if _, err := os.Stat(binPath); errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("core binary not found: %s", binPath)
 	}
 
 	// 检查配置文件
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+	if _, err := os.Stat(configPath); errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("config file not found: %s", configPath)
 	}
 
@@ -293,6 +294,9 @@ func (m *CoreAdminManager) collectLogs(coreType CoreType, reader io.Reader, logF
 			fmt.Fprintf(logFile, "[%s] %s\n", source, line)
 		}
 		m.emitLog(coreType, "info", line)
+	}
+	if err := scanner.Err(); err != nil {
+		m.emitLog(coreType, "error", fmt.Sprintf("Log scanner error: %v", err))
 	}
 }
 

@@ -29,7 +29,7 @@ func (s *ProfileService) List() ([]database.Profile, error) {
 func (s *ProfileService) Get(uuid string) (*database.Profile, error) {
 	var profile database.Profile
 	if err := database.DB.Where("uuid = ?", uuid).First(&profile).Error; err != nil {
-		return nil, fmt.Errorf("profile not found: %w", err)
+		return nil, NewNotFound("profile not found", err)
 	}
 	return &profile, nil
 }
@@ -37,11 +37,11 @@ func (s *ProfileService) Get(uuid string) (*database.Profile, error) {
 // Create 创建节点（含分组校验、UUID 生成、排序）
 func (s *ProfileService) Create(profile *database.Profile) error {
 	if profile.GroupUUID == "" {
-		return fmt.Errorf("group_uuid is required")
+		return NewValidation("group_uuid is required", nil)
 	}
 	var group database.NodeGroup
 	if err := database.DB.Where("uuid = ?", profile.GroupUUID).First(&group).Error; err != nil {
-		return fmt.Errorf("group not found: %w", err)
+		return NewNotFound("group not found", err)
 	}
 	profile.SortOrder = database.SortNewScoped(&database.Profile{}, "group_uuid = ?", profile.GroupUUID)
 	profile.UUID = database.GenerateUUID()
@@ -54,11 +54,11 @@ func (s *ProfileService) Create(profile *database.Profile) error {
 // ImportLinks 解析链接文本并批量导入到指定分组
 func (s *ProfileService) ImportLinks(linksText string, groupUUID string) (int, error) {
 	if groupUUID == "" {
-		return 0, fmt.Errorf("group_uuid is required")
+		return 0, NewValidation("group_uuid is required", nil)
 	}
 	var group database.NodeGroup
 	if err := database.DB.Where("uuid = ?", groupUUID).First(&group).Error; err != nil {
-		return 0, fmt.Errorf("group not found: %w", err)
+		return 0, NewNotFound("group not found", err)
 	}
 
 	profiles, err := parser.ParseLinks(strings.Split(linksText, "\n"))
@@ -72,11 +72,11 @@ func (s *ProfileService) ImportLinks(linksText string, groupUUID string) (int, e
 // ImportParsedLinks 将已解析的链接列表导入到指定分组（供图片导入等复用）
 func (s *ProfileService) ImportParsedLinks(links []string, groupUUID string) (int, error) {
 	if groupUUID == "" {
-		return 0, fmt.Errorf("group_uuid is required")
+		return 0, NewValidation("group_uuid is required", nil)
 	}
 	var group database.NodeGroup
 	if err := database.DB.Where("uuid = ?", groupUUID).First(&group).Error; err != nil {
-		return 0, fmt.Errorf("group not found: %w", err)
+		return 0, NewNotFound("group not found", err)
 	}
 
 	profiles, err := parser.ParseLinks(links)
@@ -106,7 +106,7 @@ func (s *ProfileService) importParsedProfiles(profiles []*database.Profile, grou
 func (s *ProfileService) Select(uuid string) error {
 	var profile database.Profile
 	if err := database.DB.Where("uuid = ?", uuid).First(&profile).Error; err != nil {
-		return fmt.Errorf("profile not found: %w", err)
+		return NewNotFound("profile not found", err)
 	}
 	if err := database.DB.Model(&database.Profile{}).Where("is_active = ?", true).Update("is_active", false).Error; err != nil {
 		return fmt.Errorf("failed to deactivate profiles: %w", err)
@@ -121,17 +121,17 @@ func (s *ProfileService) Select(uuid string) error {
 func (s *ProfileService) Update(uuid string, updates map[string]interface{}) (*database.Profile, error) {
 	var profile database.Profile
 	if err := database.DB.Where("uuid = ?", uuid).First(&profile).Error; err != nil {
-		return nil, fmt.Errorf("profile not found: %w", err)
+		return nil, NewNotFound("profile not found", err)
 	}
 
 	// 验证分组存在
 	groupUUID, _ := updates["group_uuid"].(string)
 	if groupUUID == "" {
-		return nil, fmt.Errorf("group_uuid is required")
+		return nil, NewValidation("group_uuid is required", nil)
 	}
 	var group database.NodeGroup
 	if err := database.DB.Where("uuid = ?", groupUUID).First(&group).Error; err != nil {
-		return nil, fmt.Errorf("group not found: %w", err)
+		return nil, NewNotFound("group not found", err)
 	}
 
 	// 删除不可修改字段
@@ -154,7 +154,7 @@ func (s *ProfileService) Update(uuid string, updates map[string]interface{}) (*d
 func (s *ProfileService) Delete(uuid string) error {
 	var profile database.Profile
 	if err := database.DB.Where("uuid = ?", uuid).First(&profile).Error; err != nil {
-		return fmt.Errorf("profile not found: %w", err)
+		return NewNotFound("profile not found", err)
 	}
 	if err := database.DB.Delete(&profile).Error; err != nil {
 		return fmt.Errorf("failed to delete profile: %w", err)

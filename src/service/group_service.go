@@ -21,7 +21,7 @@ func NewGroupService() *GroupService {
 func (s *GroupService) List() ([]database.NodeGroup, error) {
 	var groups []database.NodeGroup
 	if err := database.DB.Order("sort_order ASC").Find(&groups).Error; err != nil {
-		return nil, fmt.Errorf("failed to list groups: %w", err)
+		return nil, NewNotFound("failed to list groups", err)
 	}
 	for i := range groups {
 		var count int64
@@ -35,7 +35,7 @@ func (s *GroupService) List() ([]database.NodeGroup, error) {
 func (s *GroupService) Get(uuid string) (*database.NodeGroup, error) {
 	var group database.NodeGroup
 	if err := database.DB.Where("uuid = ?", uuid).First(&group).Error; err != nil {
-		return nil, fmt.Errorf("group not found: %w", err)
+		return nil, NewNotFound("group not found", err)
 	}
 	var count int64
 	database.DB.Model(&database.Profile{}).Where("group_uuid = ?", group.UUID).Count(&count)
@@ -50,7 +50,7 @@ func (s *GroupService) Create(group *database.NodeGroup) error {
 	}
 	group.SortOrder = database.SortNew(&database.NodeGroup{})
 	if err := database.DB.Create(group).Error; err != nil {
-		return fmt.Errorf("failed to create group: %w", err)
+		return NewValidation("failed to create group", err)
 	}
 	return nil
 }
@@ -59,7 +59,7 @@ func (s *GroupService) Create(group *database.NodeGroup) error {
 func (s *GroupService) Update(uuid string, updated *database.NodeGroup) (*database.NodeGroup, error) {
 	var group database.NodeGroup
 	if err := database.DB.Where("uuid = ?", uuid).First(&group).Error; err != nil {
-		return nil, fmt.Errorf("group not found: %w", err)
+		return nil, NewNotFound("group not found", err)
 	}
 	updated.ID = group.ID
 	if updated.UUID == "" {
@@ -76,7 +76,7 @@ func (s *GroupService) Update(uuid string, updated *database.NodeGroup) (*databa
 func (s *GroupService) Delete(uuid string) error {
 	var group database.NodeGroup
 	if err := database.DB.Where("uuid = ?", uuid).First(&group).Error; err != nil {
-		return fmt.Errorf("group not found: %w", err)
+		return NewNotFound("group not found", err)
 	}
 
 	// 检查是否为最后一个分组
@@ -85,7 +85,7 @@ func (s *GroupService) Delete(uuid string) error {
 		return fmt.Errorf("failed to count groups: %w", err)
 	}
 	if count <= 1 {
-		return fmt.Errorf("cannot delete the last group")
+		return NewConflict("cannot delete the last group", nil)
 	}
 
 	// 使用事务保证原子性
@@ -144,7 +144,7 @@ func (s *GroupService) Delete(uuid string) error {
 // Reorder 重排序分组，返回新的 sort_order
 func (s *GroupService) Reorder(uuid string, beforeUUID, afterUUID string) (int, error) {
 	if uuid == "" {
-		return 0, fmt.Errorf("uuid is required")
+		return 0, NewValidation("uuid is required", nil)
 	}
 
 	var beforeOrder, afterOrder *int

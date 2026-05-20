@@ -27,7 +27,7 @@ func (s *RoutingRuleService) List() ([]database.RoutingRule, error) {
 func (s *RoutingRuleService) Get(uuid string) (*database.RoutingRule, error) {
 	var rule database.RoutingRule
 	if err := database.DB.Where("uuid = ?", uuid).First(&rule).Error; err != nil {
-		return nil, fmt.Errorf("rule not found: %w", err)
+		return nil, NewNotFound("rule not found", err)
 	}
 	return &rule, nil
 }
@@ -37,7 +37,7 @@ func (s *RoutingRuleService) Create(rule *database.RoutingRule) error {
 	rule.SortOrder = database.SortNew(&database.RoutingRule{})
 	rule.UUID = database.GenerateUUID()
 	if err := database.DB.Create(rule).Error; err != nil {
-		return fmt.Errorf("failed to create routing rule: %w", err)
+		return NewValidation("failed to create routing rule", err)
 	}
 	return nil
 }
@@ -46,7 +46,7 @@ func (s *RoutingRuleService) Create(rule *database.RoutingRule) error {
 func (s *RoutingRuleService) Update(uuid string, updated *database.RoutingRule) (*database.RoutingRule, error) {
 	var rule database.RoutingRule
 	if err := database.DB.Where("uuid = ?", uuid).First(&rule).Error; err != nil {
-		return nil, fmt.Errorf("rule not found: %w", err)
+		return nil, NewNotFound("rule not found", err)
 	}
 	updated.ID = rule.ID
 	if err := database.DB.Save(updated).Error; err != nil {
@@ -59,7 +59,7 @@ func (s *RoutingRuleService) Update(uuid string, updated *database.RoutingRule) 
 func (s *RoutingRuleService) Delete(uuid string) error {
 	var rule database.RoutingRule
 	if err := database.DB.Where("uuid = ?", uuid).First(&rule).Error; err != nil {
-		return fmt.Errorf("rule not found: %w", err)
+		return NewNotFound("rule not found", err)
 	}
 	if err := database.DB.Delete(&rule).Error; err != nil {
 		return fmt.Errorf("failed to delete rule: %w", err)

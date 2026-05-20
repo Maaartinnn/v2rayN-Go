@@ -50,7 +50,7 @@ func (h *CoreHandler) handleCoreStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.coreSvc.Start(req.CoreType, req.ConfigPath); err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		mapServiceError(w, err)
 		return
 	}
 
@@ -68,7 +68,7 @@ func (h *CoreHandler) handleCoreStop(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.coreSvc.Stop(req.CoreType); err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		mapServiceError(w, err)
 		return
 	}
 
@@ -194,7 +194,7 @@ func (h *CoreHandler) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
 
 	destPath, err := h.coreSvc.Upload(coreName, header.Filename, file)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusBadRequest)
+		mapServiceError(w, err)
 		return
 	}
 

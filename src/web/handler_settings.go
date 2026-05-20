@@ -43,7 +43,7 @@ func (h *SettingsHandler) handleSaveSettings(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if err := h.settingsSvc.UpdateSettings(&req); err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, map[string]string{"status": "saved"})

@@ -56,7 +56,7 @@ func (s *CoreService) Start(coreType string, configPath string) error {
 func (s *CoreService) buildConfig(coreType string) (configPath string, resolvedCoreType string, err error) {
 	var profile database.Profile
 	if err := database.DB.Where("is_active = ?", true).First(&profile).Error; err != nil {
-		return "", "", fmt.Errorf("no active profile selected")
+		return "", "", NewValidation("no active profile selected", nil)
 	}
 
 	if coreType == "" {
@@ -70,7 +70,7 @@ func (s *CoreService) buildConfig(coreType string) (configPath string, resolvedC
 
 	builder, ok := configbuilder.GetBuilder(coreType)
 	if !ok {
-		return "", "", fmt.Errorf("unsupported core type: %s", coreType)
+		return "", "", NewValidation("unsupported core type: "+coreType, nil)
 	}
 
 	configPath, err = builder.Build(&configbuilder.BuildConfigParams{
@@ -150,7 +150,7 @@ func (s *CoreService) Upload(coreName string, filename string, data io.Reader) (
 	coreType := coredef.CoreType(coreName)
 	meta, exists := coredef.Registry[coreType]
 	if !exists {
-		return "", fmt.Errorf("unsupported core: %s", coreName)
+		return "", NewValidation("unsupported core: "+coreName, nil)
 	}
 
 	coreDir := filepath.Join(s.cfg.BinDir, meta.SubDir)

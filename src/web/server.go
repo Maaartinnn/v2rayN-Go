@@ -118,5 +118,5 @@ func jsonOK(w http.ResponseWriter, data interface{}) {
 func jsonError(w http.ResponseWriter, msg string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]string{"error": msg})
+	json.NewEncoder(w).Encode(map[string]interface{}{"error": msg, "code": code})
 }

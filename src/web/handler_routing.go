@@ -30,7 +30,7 @@ func (h *RoutingRuleHandler) Register(mux *http.ServeMux) {
 func (h *RoutingRuleHandler) handleList(w http.ResponseWriter, r *http.Request) {
 	rules, err := h.routingSvc.List()
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, rules)
@@ -43,7 +43,7 @@ func (h *RoutingRuleHandler) handleCreate(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err := h.routingSvc.Create(&rule); err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, rule)
@@ -58,7 +58,7 @@ func (h *RoutingRuleHandler) handleUpdate(w http.ResponseWriter, r *http.Request
 	}
 	result, err := h.routingSvc.Update(uuid, &updated)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusNotFound)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, result)
@@ -67,7 +67,7 @@ func (h *RoutingRuleHandler) handleUpdate(w http.ResponseWriter, r *http.Request
 func (h *RoutingRuleHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	if err := h.routingSvc.Delete(uuid); err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, map[string]string{"status": "deleted"})

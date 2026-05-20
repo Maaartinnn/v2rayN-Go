@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"strings"
 
 	"v2rayn-go/database"
 	"v2rayn-go/parser"
@@ -44,7 +43,7 @@ func (h *ProfileHandler) Register(mux *http.ServeMux) {
 func (h *ProfileHandler) handleList(w http.ResponseWriter, r *http.Request) {
 	profiles, err := h.profileSvc.List()
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, profiles)
@@ -57,11 +56,7 @@ func (h *ProfileHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.profileSvc.Create(&profile); err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			jsonError(w, err.Error(), http.StatusBadRequest)
-		} else {
-			jsonError(w, err.Error(), http.StatusInternalServerError)
-		}
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, profile)
@@ -79,11 +74,7 @@ func (h *ProfileHandler) handleImport(w http.ResponseWriter, r *http.Request) {
 
 	count, err := h.profileSvc.ImportLinks(req.Links, req.GroupUUID)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "required") {
-			jsonError(w, err.Error(), http.StatusBadRequest)
-		} else {
-			jsonError(w, err.Error(), http.StatusInternalServerError)
-		}
+		mapServiceError(w, err)
 		return
 	}
 
@@ -150,11 +141,7 @@ func (h *ProfileHandler) handleImportImage(w http.ResponseWriter, r *http.Reques
 func (h *ProfileHandler) importParsedLinks(w http.ResponseWriter, links []string, groupUUID string) {
 	count, err := h.profileSvc.ImportParsedLinks(links, groupUUID)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "required") {
-			jsonError(w, err.Error(), http.StatusBadRequest)
-		} else {
-			jsonError(w, err.Error(), http.StatusInternalServerError)
-		}
+		mapServiceError(w, err)
 		return
 	}
 
@@ -172,7 +159,7 @@ func (h *ProfileHandler) handleDedup(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.profileSvc.Dedup(req.GroupUUID)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		mapServiceError(w, err)
 		return
 	}
 
@@ -191,7 +178,7 @@ func (h *ProfileHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	profile, err := h.profileSvc.Get(uuid)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusNotFound)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, profile)
@@ -206,11 +193,7 @@ func (h *ProfileHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	profile, err := h.profileSvc.Update(uuid, req)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "required") {
-			jsonError(w, err.Error(), http.StatusBadRequest)
-		} else {
-			jsonError(w, err.Error(), http.StatusInternalServerError)
-		}
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, profile)
@@ -219,7 +202,7 @@ func (h *ProfileHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 func (h *ProfileHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	if err := h.profileSvc.Delete(uuid); err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, map[string]string{"status": "deleted"})
@@ -228,7 +211,7 @@ func (h *ProfileHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 func (h *ProfileHandler) handleSelect(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	if err := h.profileSvc.Select(uuid); err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		mapServiceError(w, err)
 		return
 	}
 	jsonOK(w, map[string]string{"status": "selected"})
@@ -238,7 +221,7 @@ func (h *ProfileHandler) handlePing(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	profile, err := h.profileSvc.Get(uuid)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusNotFound)
+		mapServiceError(w, err)
 		return
 	}
 	go h.pingSvc.PingSingleProfile(profile)

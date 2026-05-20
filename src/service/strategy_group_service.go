@@ -27,7 +27,7 @@ func (s *StrategyGroupService) List() ([]database.StrategyGroup, error) {
 func (s *StrategyGroupService) Get(uuid string) (*database.StrategyGroup, error) {
 	var group database.StrategyGroup
 	if err := database.DB.Where("uuid = ?", uuid).First(&group).Error; err != nil {
-		return nil, fmt.Errorf("strategy group not found: %w", err)
+		return nil, NewNotFound("strategy group not found", err)
 	}
 	return &group, nil
 }
@@ -37,7 +37,7 @@ func (s *StrategyGroupService) Create(group *database.StrategyGroup) error {
 	group.SortOrder = database.SortNew(&database.StrategyGroup{})
 	group.UUID = database.GenerateUUID()
 	if err := database.DB.Create(group).Error; err != nil {
-		return fmt.Errorf("failed to create strategy group: %w", err)
+		return NewValidation("failed to create strategy group", err)
 	}
 	return nil
 }
@@ -46,7 +46,7 @@ func (s *StrategyGroupService) Create(group *database.StrategyGroup) error {
 func (s *StrategyGroupService) Update(uuid string, updated *database.StrategyGroup) (*database.StrategyGroup, error) {
 	var group database.StrategyGroup
 	if err := database.DB.Where("uuid = ?", uuid).First(&group).Error; err != nil {
-		return nil, fmt.Errorf("strategy group not found: %w", err)
+		return nil, NewNotFound("strategy group not found", err)
 	}
 	updated.ID = group.ID
 	if err := database.DB.Save(updated).Error; err != nil {
@@ -59,7 +59,7 @@ func (s *StrategyGroupService) Update(uuid string, updated *database.StrategyGro
 func (s *StrategyGroupService) Delete(uuid string) error {
 	var group database.StrategyGroup
 	if err := database.DB.Where("uuid = ?", uuid).First(&group).Error; err != nil {
-		return fmt.Errorf("strategy group not found: %w", err)
+		return NewNotFound("strategy group not found", err)
 	}
 	if err := database.DB.Delete(&group).Error; err != nil {
 		return fmt.Errorf("failed to delete strategy group: %w", err)
