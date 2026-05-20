@@ -128,7 +128,7 @@ export default function App() {
         }}
       >
         <div className="p-6">
-          <AnimatePresence mode="popLayout">
+          <AnimatePresence mode="wait">
             <motion.div
               key={location}
               initial={{ opacity: 0, y: 12 }}
@@ -138,7 +138,7 @@ export default function App() {
             >
               <ErrorBoundary>
                 <Suspense fallback={<PageLoader />}>
-                  <Switch>
+                  <Switch location={location}>
                     <Route path="/" component={HomeView} />
                     <Route path="/nodes" component={NodesView} />
                     <Route path="/import" component={ImportView} />
