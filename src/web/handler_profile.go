@@ -39,8 +39,11 @@ func (h *ProfileHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST   /api/profiles/{uuid}/ping", h.handlePing)
 }
 
+// handleList 处理 GET /api/profiles，支持 group_uuid 和 q 查询参数进行服务端筛选。
 func (h *ProfileHandler) handleList(w http.ResponseWriter, r *http.Request) {
-	profiles, err := h.profileSvc.List()
+	groupUUID := r.URL.Query().Get("group_uuid")
+	q := r.URL.Query().Get("q")
+	profiles, err := h.profileSvc.List(groupUUID, q)
 	if err != nil {
 		mapServiceError(w, err)
 		return

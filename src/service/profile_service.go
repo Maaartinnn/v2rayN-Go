@@ -18,10 +18,28 @@ func NewProfileService() *ProfileService {
 	return &ProfileService{}
 }
 
-// List 获取所有节点，按 sort_order 排序
-func (s *ProfileService) List() ([]database.Profile, error) {
+// List 按条件查询节点列表，始终按 sort_order ASC 排序。
+// 预留排序扩展点：未来可通过 sortBy 参数支持按名称、延迟等排序。
+//   - groupUUID: 可选，按分组 UUID 精确过滤
+//   - q: 可选，文本搜索，LIKE 匹配 name/proxy_address/proxy_protocol 及关联的 group alias
+func (s *ProfileService) List(groupUUID, q string) ([]database.Profile, error) {
 	var profiles []database.Profile
-	if err := database.DB.Order("sort_order ASC").Find(&profiles).Error; err != nil {
+	tx := database.DB.Model(&database.Profile{})
+
+	// 按分组 UUID 精确过滤
+	if groupUUID != "" {
+		tx = tx.Where("profiles.group_uuid = ?", groupUUID)
+	}
+
+	// 文本搜索：LIKE 匹配 name/proxy_address/proxy_protocol 及关联的 group alias
+	if q != "" {
+		like := "%" + q + "%"
+		tx = tx.Joins("LEFT JOIN node_groups ON node_groups.uuid = profiles.group_uuid").
+			Where("profiles.name LIKE ? OR profiles.proxy_address LIKE ? OR profiles.proxy_protocol LIKE ? OR node_groups.alias LIKE ?",
+				like, like, like, like)
+	}
+
+	if err := tx.Order("sort_order ASC").Find(&profiles).Error; err != nil {
 		return nil, fmt.Errorf("failed to list profiles: %w", err)
 	}
 	return profiles, nil
