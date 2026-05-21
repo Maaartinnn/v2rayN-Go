@@ -39,7 +39,7 @@ func (s *ProfileService) List(groupUUID, q string) ([]database.Profile, error) {
 				like, like, like, like)
 	}
 
-	if err := tx.Order("sort_order ASC").Find(&profiles).Error; err != nil {
+	if err := tx.Order("profiles.sort_order ASC").Find(&profiles).Error; err != nil {
 		return nil, fmt.Errorf("failed to list profiles: %w", err)
 	}
 	return profiles, nil
