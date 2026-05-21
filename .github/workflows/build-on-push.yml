@@ -1,0 +1,101 @@
+name: Build on Push
+
+on:
+  push:
+    branches:
+      - '**'         # 匹配所有分支的推送
+    tags-ignore:
+      - 'v*'         # 忽略打 v* 标签的推送，避免和你的发布流程 (build-and-release.yml) 重复触发
+  pull_request:
+    branches:
+      - '**'         # 匹配所有 PR
+  workflow_dispatch: # 保留手动触发按钮
+
+permissions:
+  contents: read     # 只需要读取代码的权限即可，不需要写入发行版的权限
+
+jobs:
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: web
+        run: npm run build
+
+      - name: Upload frontend dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: src/web/dist/
+          retention-days: 7 # 临时产物，保留 7 天即可
+
+  build-backend:
+    needs: build-frontend
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: windows
+            goarch: amd64
+            suffix: windows-amd64
+          - goos: windows
+            goarch: arm64
+            suffix: windows-arm64
+          - goos: linux
+            goarch: amd64
+            suffix: linux-amd64
+          - goos: linux
+            goarch: arm64
+            suffix: linux-arm64
+          - goos: darwin
+            goarch: amd64
+            suffix: darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            suffix: darwin-arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go.mod
+          cache-dependency-path: src/go.sum
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: src/web/dist/
+
+      - name: Build Go binary
+        working-directory: src
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: |
+          EXTENSION=""
+          if [ "$GOOS" = "windows" ]; then
+            EXTENSION=".exe"
+          fi
+          go build -ldflags="-s -w" -o "v2rayN-Go-${{ matrix.suffix }}${EXTENSION}" .
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: v2rayN-Go-${{ matrix.suffix }}
+          path: src/v2rayN-Go-${{ matrix.suffix }}*
+          retention-days: 7 # 提供给用户下载的测试产物，保留 7 天
