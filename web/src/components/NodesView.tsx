@@ -69,17 +69,55 @@ export function NodesView() {
     }
   }
 
-  // 局部更新单个节点（编辑后替换对应条目，不全量刷新）
-  const handleNodeSaved = (updatedProfile?: Profile) => {
-    if (updatedProfile) {
-      // 编辑模式：用后端返回的数据局部替换
+  // refreshProfiles 统一刷新入口：始终携带当前 UI 视图状态请求后端，确保数据源唯一。
+  // 用于：新建、删除、批量去重等影响数据总量的操作。
+  const refreshProfiles = useCallback(() => {
+    loadProfiles(selectedGroupUUID || undefined, debouncedSearch || undefined)
+  }, [selectedGroupUUID, debouncedSearch])
+
+  // handleNodeSaved 节点保存回调：采用 Visual Culling 策略。
+  //   - 新建模式：数据总量变化，交由后端决定最终列表（refreshProfiles）。
+  //   - 编辑模式（仍在视图内）：局部替换，零网络延迟。
+  //   - 编辑模式（脱离视图）：平滑剔除，AnimatePresence exit 动画自动接管。
+  const handleNodeSaved = useCallback((updatedProfile?: Profile) => {
+    setEditProfile(null)
+
+    if (!updatedProfile) {
+      // 新建模式：数据总量变化，交由后端决定最终列表
+      refreshProfiles()
+      return
+    }
+
+    // 编辑模式：Visual Culling — 前端快速校验节点是否仍属于当前视图
+    let stillInView = true
+
+    // 分组越界校验：节点是否被移到了其他分组？
+    if (selectedGroupUUID && updatedProfile.group_uuid !== selectedGroupUUID) {
+      stillInView = false
+    }
+
+    // 搜索脱离校验：节点改名后是否已不匹配搜索关键词？
+    if (stillInView && debouncedSearch) {
+      const q = debouncedSearch.toLowerCase()
+      const groupAlias = (groups.find(g => g.uuid === updatedProfile.group_uuid)?.alias || '').toLowerCase()
+      const matchesSearch =
+        updatedProfile.name.toLowerCase().includes(q) ||
+        updatedProfile.proxy_address.toLowerCase().includes(q) ||
+        updatedProfile.proxy_protocol.toLowerCase().includes(q) ||
+        groupAlias.includes(q)
+      if (!matchesSearch) {
+        stillInView = false
+      }
+    }
+
+    if (stillInView) {
+      // 仍属于当前视图：局部替换，零网络延迟
       setProfiles(profiles.map(p => p.ID === updatedProfile.ID ? updatedProfile : p))
     } else {
-      // 新建模式（从 NodeEditForm 创建后）：全量刷新
-      loadProfiles()
+      // 已脱离视图：平滑剔除（AnimatePresence 的 exit 动画自动接管）
+      setProfiles(profiles.filter(p => p.ID !== updatedProfile.ID))
     }
-    setEditProfile(null)
-  }
+  }, [selectedGroupUUID, debouncedSearch, groups, profiles, refreshProfiles])
 
   // Activate a node as proxy (clicking WiFi icon)
   const handleActivate = async (profile: Profile, e: React.MouseEvent) => {
@@ -107,7 +145,7 @@ export function NodesView() {
     try {
       await profileApi.delete(uuid)
       setDeleteTargetId(null)
-      await loadProfiles()
+      refreshProfiles()
     } catch (err) {
       console.error('Delete failed:', err)
     }
@@ -147,8 +185,8 @@ export function NodesView() {
       const data = res.data
       setDedupResult(t('nodes.dedup_result', { removed: data.removed, total: data.total }))
       setTimeout(() => setDedupResult(''), 5000)
-      // 去重后按当前筛选条件重新加载
-      await loadProfiles(selectedGroupUUID || undefined, debouncedSearch || undefined)
+      // 去重后统一刷新（数据总量已变化）
+      refreshProfiles()
       await loadGroups()
     } catch (err) {
       console.error('Dedup failed:', err)
