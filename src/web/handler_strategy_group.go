@@ -94,5 +94,5 @@ func (h *StrategyGroupHandler) handleReorder(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	jsonOK(w, map[string]interface{}{"status": "reordered", "sort_order": newOrder})
+	jsonOK(w, map[string]any{"status": "reordered", "sort_order": newOrder})
 }

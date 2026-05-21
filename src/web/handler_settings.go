@@ -48,7 +48,7 @@ func (h *SettingsHandler) handleSaveSettings(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *SettingsHandler) handleGetSystemProxy(w http.ResponseWriter, r *http.Request) {
-	jsonOK(w, map[string]interface{}{"enabled": false, "port": h.cfg.SocksPort})
+	jsonOK(w, map[string]any{"enabled": false, "port": h.cfg.SocksPort})
 }
 
 func (h *SettingsHandler) handleSetSystemProxy(w http.ResponseWriter, r *http.Request) {
@@ -59,5 +59,5 @@ func (h *SettingsHandler) handleSetSystemProxy(w http.ResponseWriter, r *http.Re
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	jsonOK(w, map[string]interface{}{"enabled": req.Enabled, "port": req.Port})
+	jsonOK(w, map[string]any{"enabled": req.Enabled, "port": req.Port})
 }

@@ -141,7 +141,7 @@ func (s *ProfileService) Select(uuid string) error {
 }
 
 // Update 更新节点
-func (s *ProfileService) Update(uuid string, updates map[string]interface{}) (*database.Profile, error) {
+func (s *ProfileService) Update(uuid string, updates map[string]any) (*database.Profile, error) {
 	var profile database.Profile
 	if err := database.DB.Where("uuid = ?", uuid).First(&profile).Error; err != nil {
 		return nil, NewNotFound("profile not found", err)

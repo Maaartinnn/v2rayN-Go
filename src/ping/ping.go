@@ -123,7 +123,7 @@ func (ps *PingService) PingSingleProfile(profile *database.Profile) PingResult {
 
 	database.DB.Model(&database.Profile{}).
 		Where("uuid = ?", result.ProfileUUID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"test_result":    testResult,
 			"last_test_time": now,
 		})
@@ -161,7 +161,7 @@ func (ps *PingService) PingAllProfiles(ctx context.Context, concurrency int) []P
 
 			if err := tx.Model(&database.Profile{}).
 				Where("uuid = ?", result.ProfileUUID).
-				Updates(map[string]interface{}{
+				Updates(map[string]any{
 					"test_result":    testResult,
 					"last_test_time": now,
 				}).Error; err != nil {

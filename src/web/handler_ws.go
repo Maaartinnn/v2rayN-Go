@@ -19,7 +19,7 @@ import (
 // StatusBroadcaster WebSocket 广播接口，供其他 Handler 注入使用
 type StatusBroadcaster interface {
 	BroadcastStatus()
-	Broadcast(msg interface{})
+	Broadcast(msg any)
 }
 
 // ========== 泛型环形缓冲区 ==========
@@ -88,9 +88,9 @@ func (r *ringBuffer[T]) Snapshot() []T {
 // 所有写操作都通过 sendCh 串行化到 writePump goroutine，实现无锁并发安全。
 type wsConn struct {
 	conn      *websocket.Conn
-	sendCh    chan interface{} // 业务消息缓冲通道
-	done      chan struct{}    // 关闭信号
-	closeOnce sync.Once        // 保证关闭操作幂等执行
+	sendCh    chan any      // 业务消息缓冲通道
+	done      chan struct{} // 关闭信号
+	closeOnce sync.Once     // 保证关闭操作幂等执行
 }
 
 // close 幂等关闭连接。
@@ -174,7 +174,7 @@ func (h *WSHandler) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// 初始化连接对象，sendCh 缓冲区满时发送方会被丢弃（非阻塞）
 	wc := &wsConn{
 		conn:   conn,
-		sendCh: make(chan interface{}, sendChanSize),
+		sendCh: make(chan any, sendChanSize),
 		done:   make(chan struct{}),
 	}
 
@@ -192,8 +192,8 @@ func (h *WSHandler) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// 通过 sendCh 投递初始状态（核心运行状态 + 最近日志快照）
 	statuses := h.coreSvc.GetAllStatus()
-	wc.sendCh <- map[string]interface{}{"type": "status", "payload": statuses}
-	wc.sendCh <- map[string]interface{}{"type": "log_snapshot", "payload": h.logBuffer.Snapshot()}
+	wc.sendCh <- map[string]any{"type": "status", "payload": statuses}
+	wc.sendCh <- map[string]any{"type": "log_snapshot", "payload": h.logBuffer.Snapshot()}
 
 	// Read 循环：设置初始 ReadDeadline，等待客户端消息或超时
 	conn.SetReadDeadline(time.Now().Add(pongWait * time.Second))
@@ -221,13 +221,13 @@ func (h *WSHandler) removeClient(clientID string, wc *wsConn) {
 // BroadcastStatus 广播核心状态（实现 StatusBroadcaster 接口）
 func (h *WSHandler) BroadcastStatus() {
 	statuses := h.coreSvc.GetAllStatus()
-	h.Broadcast(map[string]interface{}{"type": "status", "payload": statuses})
+	h.Broadcast(map[string]any{"type": "status", "payload": statuses})
 }
 
 // Broadcast 向所有连接非阻塞投递消息。
 // sendCh 满时认为该客户端为慢客户端，主动踢出以保护其他连接不受影响。
-func (h *WSHandler) Broadcast(msg interface{}) {
-	h.clients.Range(func(key, value interface{}) bool {
+func (h *WSHandler) Broadcast(msg any) {
+	h.clients.Range(func(key, value any) bool {
 		wc := value.(*wsConn)
 		select {
 		case wc.sendCh <- msg:
@@ -256,7 +256,7 @@ func (h *WSHandler) LogBroadcaster(ctx context.Context) {
 				return // 日志通道已关闭
 			}
 			h.logBuffer.Add(entry)
-			h.Broadcast(map[string]interface{}{"type": "log", "payload": entry})
+			h.Broadcast(map[string]any{"type": "log", "payload": entry})
 		}
 	}
 }

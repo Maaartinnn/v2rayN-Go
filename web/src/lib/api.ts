@@ -17,7 +17,14 @@ export const coreApi = {
 
 // ========== Profile API ==========
 export const profileApi = {
-  list: () => api.get('/profiles'),
+  // list 获取节点列表，支持按分组和关键词筛选（服务端过滤）。
+  list: (groupUuid?: string, q?: string) => {
+    const params = new URLSearchParams()
+    if (groupUuid) params.set('group_uuid', groupUuid)
+    if (q) params.set('q', q)
+    const qs = params.toString()
+    return api.get(`/profiles${qs ? '?' + qs : ''}`)
+  },
   get: (uuid: string) => api.get(`/profiles/${uuid}`),
   create: (data: any) => api.post('/profiles', data),
   update: (uuid: string, data: any) => api.put(`/profiles/${uuid}`, data),

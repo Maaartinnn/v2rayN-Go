@@ -34,8 +34,8 @@ type XrayAPI struct {
 }
 
 type XrayDNS struct {
-	Servers []interface{} `json:"servers"`
-	Tag     string        `json:"tag,omitempty"`
+	Servers []any  `json:"servers"`
+	Tag     string `json:"tag,omitempty"`
 }
 
 type XrayInbound struct {
@@ -172,10 +172,10 @@ type XrayMux struct {
 }
 
 type XrayRouting struct {
-	DomainStrategy string        `json:"domainStrategy"`
-	DomainMatcher  string        `json:"domainMatcher,omitempty"`
-	Rules          []XrayRule    `json:"rules"`
-	Balancers      []interface{} `json:"balancers,omitempty"`
+	DomainStrategy string     `json:"domainStrategy"`
+	DomainMatcher  string     `json:"domainMatcher,omitempty"`
+	Rules          []XrayRule `json:"rules"`
+	Balancers      []any      `json:"balancers,omitempty"`
 }
 
 type XrayRule struct {
@@ -547,23 +547,23 @@ func buildXrayRouting(rules []database.RoutingRule, configDir string) *XrayRouti
 }
 
 // buildXrayBalancers 根据策略组构�?Xray balancers
-func buildXrayBalancers(groups []database.StrategyGroup) []interface{} {
-	var balancers []interface{}
+func buildXrayBalancers(groups []database.StrategyGroup) []any {
+	var balancers []any
 	for _, g := range groups {
 		if !g.Enabled {
 			continue
 		}
-		balancer := map[string]interface{}{
+		balancer := map[string]any{
 			"tag":      g.Name,
 			"selector": []string{g.Name},
 		}
 		switch g.Type {
 		case "urltest":
-			balancer["strategy"] = map[string]interface{}{
+			balancer["strategy"] = map[string]any{
 				"type": "urlTest",
 			}
 		case "fallback":
-			balancer["strategy"] = map[string]interface{}{
+			balancer["strategy"] = map[string]any{
 				"type": "fallback",
 			}
 		case "loadbalance":
@@ -574,11 +574,11 @@ func buildXrayBalancers(groups []database.StrategyGroup) []interface{} {
 			case "least-load":
 				strategyType = "leastLoad"
 			}
-			balancer["strategy"] = map[string]interface{}{
+			balancer["strategy"] = map[string]any{
 				"type": strategyType,
 			}
 		default: // selector
-			balancer["strategy"] = map[string]interface{}{
+			balancer["strategy"] = map[string]any{
 				"type": "random",
 			}
 		}
@@ -588,7 +588,7 @@ func buildXrayBalancers(groups []database.StrategyGroup) []interface{} {
 }
 
 // buildXrayRoutingWithBalancers 构建�?balancer 的路由规�?
-func buildXrayRoutingWithBalancers(rules []database.RoutingRule, balancers []interface{}, configDir string) *XrayRouting {
+func buildXrayRoutingWithBalancers(rules []database.RoutingRule, balancers []any, configDir string) *XrayRouting {
 	routing := &XrayRouting{
 		DomainStrategy: "IPIfNonMatch",
 		Balancers:      balancers,

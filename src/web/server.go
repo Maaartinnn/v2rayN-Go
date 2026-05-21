@@ -118,7 +118,7 @@ type ReorderRequest struct {
 	AfterUUID  string `json:"after_uuid"`
 }
 
-func jsonOK(w http.ResponseWriter, data interface{}) {
+func jsonOK(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
 }
@@ -126,7 +126,7 @@ func jsonOK(w http.ResponseWriter, data interface{}) {
 func jsonError(w http.ResponseWriter, msg string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]interface{}{"error": msg, "code": code})
+	json.NewEncoder(w).Encode(map[string]any{"error": msg, "code": code})
 }
 
 // decodeJSON 从请求体解码 JSON 到 v，失败时自动写入 400 错误响应并返回 false。

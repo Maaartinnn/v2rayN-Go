@@ -16,13 +16,13 @@ const SortStep = 10
 // ========== 新增记录 ==========
 
 // SortNew 全局追加：max(sort_order) + SortStep
-func SortNew(model interface{}) int {
+func SortNew(model any) int {
 	return SortNewScoped(model, "1 = 1")
 }
 
 // SortNewScoped 限定范围追加：max(sort_order) + SortStep
 // query 可以是 "group_uuid = ?" 之类的条件
-func SortNewScoped(model interface{}, query string, args ...interface{}) int {
+func SortNewScoped(model any, query string, args ...any) int {
 	var maxOrder int
 	tableName := getTableName(model)
 	databaseQuery := DB.Model(model).Table(tableName).Select("COALESCE(MAX(sort_order), 0)")
@@ -42,7 +42,7 @@ func SortBetween(before, after int) int {
 // SortSequence 批量生成步长序列 [10, 20, 30, ...]
 func SortSequence(count int) []int {
 	seq := make([]int, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		seq[i] = mustAdd(0, (i+1)*SortStep)
 	}
 	return seq
@@ -52,18 +52,18 @@ func SortSequence(count int) []int {
 
 // Rebalance 全表重排：检查当前 sort_order 是否已符合 (i+1)*SortStep，
 // 全部一致则不动数据库，返回 false；有不一致则批量 UPDATE，返回 true。
-func Rebalance(model interface{}) bool {
+func Rebalance(model any) bool {
 	return RebalanceScoped(model, "1 = 1")
 }
 
 // RebalanceScoped 限定范围重排（使用全局 DB）
-func RebalanceScoped(model interface{}, query string, args ...interface{}) bool {
+func RebalanceScoped(model any, query string, args ...any) bool {
 	return RebalanceScopedTx(DB, model, query, args...)
 }
 
 // RebalanceScopedTx 限定范围重排（使用指定事务/连接）
 // 调用方可传入 DB 或事务内的 tx
-func RebalanceScopedTx(tx *gorm.DB, model interface{}, query string, args ...interface{}) bool {
+func RebalanceScopedTx(tx *gorm.DB, model any, query string, args ...any) bool {
 	type row struct {
 		ID        uint
 		SortOrder int
@@ -125,14 +125,14 @@ func RebalanceAll() {
 // ========== 内部辅助 ==========
 
 // getTableName 通过反射或 GORM 获取表名
-func getTableName(model interface{}) string {
+func getTableName(model any) string {
 	// 优先使用 GORM Tabler 接口
 	if t, ok := model.(interface{ TableName() string }); ok {
 		return t.TableName()
 	}
 	// 通过反射取类型名并转 snake_case
 	t := reflect.TypeOf(model)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	return toSnakeCase(t.Name()) + "s"
@@ -185,7 +185,7 @@ func SortInsertSafe(before, after *int) (int, bool) {
 }
 
 // SortNewBatch 批量追加：为 count 个新记录生成排序值，起始值 = max + SortStep
-func SortNewBatch(model interface{}, query string, count int, args ...interface{}) []int {
+func SortNewBatch(model any, query string, count int, args ...any) []int {
 	var maxOrder int
 	tableName := getTableName(model)
 	databaseQuery := DB.Model(model).Table(tableName).Select("COALESCE(MAX(sort_order), 0)")
@@ -195,7 +195,7 @@ func SortNewBatch(model interface{}, query string, count int, args ...interface{
 	databaseQuery.Scan(&maxOrder)
 
 	seq := make([]int, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		seq[i] = mustAdd(maxOrder, (i+1)*SortStep)
 	}
 	return seq
@@ -249,7 +249,7 @@ func safeSub(a, b int) (int, bool) {
 //   - uuid: 被拖拽记录的 UUID
 //   - beforeUUID, afterUUID: 前后邻居的 UUID（可为空串表示首/尾）
 //   - query, args: 限定范围条件，全表传 "1=1"，限定范围传 "group_uuid = ?", groupUUID
-func ReorderEntity(model interface{}, uuid, beforeUUID, afterUUID string, query string, args ...any) (int, error) {
+func ReorderEntity(model any, uuid, beforeUUID, afterUUID string, query string, args ...any) (int, error) {
 	if uuid == "" {
 		return 0, fmt.Errorf("reorder: uuid is required")
 	}

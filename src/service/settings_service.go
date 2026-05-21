@@ -17,8 +17,8 @@ func NewSettingsService(cfg *config.AppConfig) *SettingsService {
 }
 
 // GetSettings 获取当前配置
-func (s *SettingsService) GetSettings() map[string]interface{} {
-	return map[string]interface{}{
+func (s *SettingsService) GetSettings() map[string]any {
+	return map[string]any{
 		"listen_ip":     s.cfg.ListenIP,
 		"web_port":      s.cfg.WebPort,
 		"socks_port":    s.cfg.SocksPort,

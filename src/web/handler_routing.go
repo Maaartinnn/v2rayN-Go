@@ -83,5 +83,5 @@ func (h *RoutingRuleHandler) handleReorder(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	jsonOK(w, map[string]interface{}{"status": "reordered", "sort_order": newOrder})
+	jsonOK(w, map[string]any{"status": "reordered", "sort_order": newOrder})
 }

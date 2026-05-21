@@ -11,7 +11,7 @@ import (
 
 // purgeDeleted 启动时物理删除所有软删除残留记录，防止历史数据堆积
 func purgeDeleted() {
-	models := []interface{}{
+	models := []any{
 		&Profile{},
 		&NodeGroup{},
 		&RoutingRule{},

@@ -10,21 +10,21 @@ import (
 
 // vmessJSON VMess 标准格式 (V2RayN 标准)
 type vmessJSON struct {
-	V    string      `json:"v"`
-	Ps   string      `json:"ps"`
-	Add  string      `json:"add"`
-	Port interface{} `json:"port"`
-	ID   string      `json:"id"`
-	Aid  interface{} `json:"aid"`
-	Scy  string      `json:"scy"`
-	Net  string      `json:"net"`
-	Type string      `json:"type"`
-	Host string      `json:"host"`
-	Path string      `json:"path"`
-	TLS  string      `json:"tls"`
-	SNI  string      `json:"sni"`
-	ALPN string      `json:"alpn"`
-	Fp   string      `json:"fp"`
+	V    string `json:"v"`
+	Ps   string `json:"ps"`
+	Add  string `json:"add"`
+	Port any    `json:"port"`
+	ID   string `json:"id"`
+	Aid  any    `json:"aid"`
+	Scy  string `json:"scy"`
+	Net  string `json:"net"`
+	Type string `json:"type"`
+	Host string `json:"host"`
+	Path string `json:"path"`
+	TLS  string `json:"tls"`
+	SNI  string `json:"sni"`
+	ALPN string `json:"alpn"`
+	Fp   string `json:"fp"`
 }
 
 // parseVmess 解析 vmess:// 链接
@@ -75,12 +75,12 @@ func parseVmessJSON(jsonStr string, rawLink string) (*database.Profile, error) {
 	}
 
 	profile := &database.Profile{
-		UUID:          database.GenerateUUID(),
-		Name:        vj.Ps,
+		UUID:             database.GenerateUUID(),
+		Name:             vj.Ps,
 		ProxyAddress:     vj.Add,
 		ProxyPort:        port,
 		ProxyProtocol:    "vmess",
-		ProxyCredential:        vj.ID,
+		ProxyCredential:  vj.ID,
 		ProxyAlterID:     aid,
 		ProxySecurity:    vj.Scy,
 		ProxyNetwork:     vj.Net,
@@ -89,7 +89,7 @@ func parseVmessJSON(jsonStr string, rawLink string) (*database.Profile, error) {
 		ProxyFingerprint: vj.Fp,
 		ProxyHost:        vj.Host,
 		ProxyPath:        vj.Path,
-		RawLink:     rawLink,
+		RawLink:          rawLink,
 	}
 
 	if profile.ProxySecurity == "" {
@@ -128,12 +128,12 @@ func parseVmessURI(decoded string, rawLink string) (*database.Profile, error) {
 
 	q := u.Query()
 	profile := &database.Profile{
-		UUID:          database.GenerateUUID(),
-		Name:        name,
+		UUID:             database.GenerateUUID(),
+		Name:             name,
 		ProxyAddress:     host,
 		ProxyPort:        port,
 		ProxyProtocol:    "vmess",
-		ProxyCredential:        u.User.Username(),
+		ProxyCredential:  u.User.Username(),
 		ProxySecurity:    q.Get("security"),
 		ProxyNetwork:     q.Get("type"),
 		ProxyTLS:         q.Get("tls"),
@@ -141,7 +141,7 @@ func parseVmessURI(decoded string, rawLink string) (*database.Profile, error) {
 		ProxyFingerprint: q.Get("fp"),
 		ProxyHost:        q.Get("host"),
 		ProxyPath:        q.Get("path"),
-		RawLink:     rawLink,
+		RawLink:          rawLink,
 	}
 
 	if profile.ProxySecurity == "" {

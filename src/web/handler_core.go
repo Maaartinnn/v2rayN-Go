@@ -85,12 +85,12 @@ func (h *CoreHandler) handleCores(w http.ResponseWriter, r *http.Request) {
 
 func (h *CoreHandler) handleCoresCheckUpdates(w http.ResponseWriter, r *http.Request) {
 	latestVersions := h.coreSvc.CheckUpdates()
-	jsonOK(w, map[string]interface{}{"latest_versions": latestVersions})
+	jsonOK(w, map[string]any{"latest_versions": latestVersions})
 }
 
 func (h *CoreHandler) handleCoresDetectVersions(w http.ResponseWriter, r *http.Request) {
 	h.coreSvc.DetectVersions(func(versions map[string]string) {
-		h.broadcaster.Broadcast(map[string]interface{}{"type": "core_versions", "payload": versions})
+		h.broadcaster.Broadcast(map[string]any{"type": "core_versions", "payload": versions})
 	})
 	jsonOK(w, map[string]string{"status": "detecting"})
 }
@@ -117,15 +117,15 @@ func (h *CoreHandler) handleCoreDownload(w http.ResponseWriter, r *http.Request)
 		defer h.downloads.Delete(req.CoreName)
 		err := h.coreSvc.Download(req.CoreName, func(downloaded, total int64) {
 			state.Update(downloaded, total)
-			h.broadcaster.Broadcast(map[string]interface{}{"type": "download_progress", "payload": state})
+			h.broadcaster.Broadcast(map[string]any{"type": "download_progress", "payload": state})
 		})
 		if err != nil {
 			state.SetError(err.Error())
 			log.Printf("Failed to download core %s: %v", req.CoreName, err)
-			h.broadcaster.Broadcast(map[string]interface{}{"type": "download_complete", "payload": map[string]interface{}{"core_name": req.CoreName, "success": false, "error": err.Error()}})
+			h.broadcaster.Broadcast(map[string]any{"type": "download_complete", "payload": map[string]any{"core_name": req.CoreName, "success": false, "error": err.Error()}})
 		} else {
 			state.SetComplete()
-			h.broadcaster.Broadcast(map[string]interface{}{"type": "download_complete", "payload": map[string]interface{}{"core_name": req.CoreName, "success": true}})
+			h.broadcaster.Broadcast(map[string]any{"type": "download_complete", "payload": map[string]any{"core_name": req.CoreName, "success": true}})
 		}
 	}()
 
@@ -155,15 +155,15 @@ func (h *CoreHandler) handleCoreDownloadURL(w http.ResponseWriter, r *http.Reque
 		defer h.downloads.Delete(req.CoreName)
 		err := h.coreSvc.DownloadFromURL(req.CoreName, req.DownloadURL, func(downloaded, total int64) {
 			state.Update(downloaded, total)
-			h.broadcaster.Broadcast(map[string]interface{}{"type": "download_progress", "payload": state})
+			h.broadcaster.Broadcast(map[string]any{"type": "download_progress", "payload": state})
 		})
 		if err != nil {
 			state.SetError(err.Error())
 			log.Printf("Failed to download core %s from URL: %v", req.CoreName, err)
-			h.broadcaster.Broadcast(map[string]interface{}{"type": "download_complete", "payload": map[string]interface{}{"core_name": req.CoreName, "success": false, "error": err.Error()}})
+			h.broadcaster.Broadcast(map[string]any{"type": "download_complete", "payload": map[string]any{"core_name": req.CoreName, "success": false, "error": err.Error()}})
 		} else {
 			state.SetComplete()
-			h.broadcaster.Broadcast(map[string]interface{}{"type": "download_complete", "payload": map[string]interface{}{"core_name": req.CoreName, "success": true}})
+			h.broadcaster.Broadcast(map[string]any{"type": "download_complete", "payload": map[string]any{"core_name": req.CoreName, "success": true}})
 		}
 	}()
 

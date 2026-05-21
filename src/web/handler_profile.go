@@ -162,7 +162,7 @@ func (h *ProfileHandler) handleDedup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jsonOK(w, map[string]interface{}{
+	jsonOK(w, map[string]any{
 		"removed": result.Removed,
 		"total":   result.Total,
 	})
@@ -185,7 +185,7 @@ func (h *ProfileHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 
 func (h *ProfileHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
-	var req map[string]interface{}
+	var req map[string]any
 	if !decodeJSON(w, r, &req) {
 		return
 	}

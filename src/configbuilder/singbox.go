@@ -28,7 +28,7 @@ type SingboxLog struct {
 
 type SingboxDNS struct {
 	Servers  []SingboxDNSServer `json:"servers,omitempty"`
-	Rules    []interface{}      `json:"rules,omitempty"`
+	Rules    []any              `json:"rules,omitempty"`
 	Final    string             `json:"final,omitempty"`
 	Strategy string             `json:"strategy,omitempty"`
 }
@@ -226,8 +226,8 @@ func buildSingboxOutbound(p *database.Profile) (*SingboxOutbound, error) {
 		outbound.Type = "wireguard"
 		outbound.Server = p.ProxyAddress
 		outbound.ServerPort = p.ProxyPort
-		outbound.UUID = p.ProxyCredential     // Private key
-		outbound.Password = p.ProxyHost // Interface address (e.g. 10.0.0.2/32)
+		outbound.UUID = p.ProxyCredential // Private key
+		outbound.Password = p.ProxyHost   // Interface address (e.g. 10.0.0.2/32)
 		// PublicKey and Reserved stored in extra fields
 		outbound.Security = p.ProxyPublicKey // Reuse Security field for public_key
 		outbound.Network = p.ProxyPath       // Reuse Network field for reserved bytes
@@ -242,14 +242,14 @@ func buildSingboxOutbound(p *database.Profile) (*SingboxOutbound, error) {
 		outbound.Type = "socks"
 		outbound.Server = p.ProxyAddress
 		outbound.ServerPort = p.ProxyPort
-		outbound.UUID = p.ProxyCredential         // Username
+		outbound.UUID = p.ProxyCredential   // Username
 		outbound.Password = p.ProxySecurity // Password (reuse Security field)
 
 	case "http":
 		outbound.Type = "http"
 		outbound.Server = p.ProxyAddress
 		outbound.ServerPort = p.ProxyPort
-		outbound.UUID = p.ProxyCredential         // Username
+		outbound.UUID = p.ProxyCredential   // Username
 		outbound.Password = p.ProxySecurity // Password (reuse Security field)
 
 	default:

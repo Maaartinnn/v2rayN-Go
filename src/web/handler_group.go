@@ -65,7 +65,7 @@ func (h *GroupHandler) handleReorder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jsonOK(w, map[string]interface{}{"status": "reordered", "sort_order": newOrder})
+	jsonOK(w, map[string]any{"status": "reordered", "sort_order": newOrder})
 }
 
 func (h *GroupHandler) handleGet(w http.ResponseWriter, r *http.Request) {

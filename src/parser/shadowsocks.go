@@ -46,12 +46,12 @@ func parseShadowsocksURI(data string, atIdx int, name string, rawLink string) (*
 	}
 
 	// method:password
-	colonIdx := strings.Index(decoded, ":")
-	if colonIdx < 0 {
+	before, after, ok := strings.Cut(decoded, ":")
+	if !ok {
 		return nil, fmt.Errorf("invalid ss userinfo format")
 	}
-	method := decoded[:colonIdx]
-	password := decoded[colonIdx+1:]
+	method := before
+	password := after
 
 	// 解析 host:port?params
 	fullHost := hostPart
@@ -69,14 +69,14 @@ func parseShadowsocksURI(data string, atIdx int, name string, rawLink string) (*
 	}
 
 	profile := &database.Profile{
-		UUID:          database.GenerateUUID(),
-		Name:     name,
-		ProxyAddress:  host,
-		ProxyPort:     port,
-		ProxyProtocol: "shadowsocks",
-		ProxySecurity: method,
-		ProxyCredential:     password,
-		RawLink:  rawLink,
+		UUID:            database.GenerateUUID(),
+		Name:            name,
+		ProxyAddress:    host,
+		ProxyPort:       port,
+		ProxyProtocol:   "shadowsocks",
+		ProxySecurity:   method,
+		ProxyCredential: password,
+		RawLink:         rawLink,
 	}
 
 	// 解析插件参数
@@ -105,13 +105,13 @@ func parseShadowsocksDecoded(decoded string, name string, rawLink string) (*data
 	userPart := decoded[:atIdx]
 	hostPart := decoded[atIdx+1:]
 
-	colonIdx := strings.Index(userPart, ":")
-	if colonIdx < 0 {
+	before, after, ok := strings.Cut(userPart, ":")
+	if !ok {
 		return nil, fmt.Errorf("invalid ss format: missing method:password")
 	}
 
-	method := userPart[:colonIdx]
-	password := userPart[colonIdx+1:]
+	method := before
+	password := after
 
 	host := hostPart
 	port := 8388
@@ -121,14 +121,14 @@ func parseShadowsocksDecoded(decoded string, name string, rawLink string) (*data
 	}
 
 	profile := &database.Profile{
-		UUID:          database.GenerateUUID(),
-		Name:     name,
-		ProxyAddress:  host,
-		ProxyPort:     port,
-		ProxyProtocol: "shadowsocks",
-		ProxySecurity: method,
-		ProxyCredential:     password,
-		RawLink:  rawLink,
+		UUID:            database.GenerateUUID(),
+		Name:            name,
+		ProxyAddress:    host,
+		ProxyPort:       port,
+		ProxyProtocol:   "shadowsocks",
+		ProxySecurity:   method,
+		ProxyCredential: password,
+		RawLink:         rawLink,
 	}
 
 	if profile.Name == "" {
@@ -152,9 +152,9 @@ func parseShadowsocksR(link string) (*database.Profile, error) {
 	// 分离参数部分
 	mainPart := decoded
 	queryPart := ""
-	if qIdx := strings.Index(decoded, "/?"); qIdx >= 0 {
-		mainPart = decoded[:qIdx]
-		queryPart = decoded[qIdx+2:]
+	if before, after, ok := strings.Cut(decoded, "/?"); ok {
+		mainPart = before
+		queryPart = after
 	}
 
 	// 解析主体: host:port:protocol:method:obfs:base64pass
@@ -176,16 +176,16 @@ func parseShadowsocksR(link string) (*database.Profile, error) {
 	}
 
 	profile := &database.Profile{
-		UUID:          database.GenerateUUID(),
-		Name:     name,
-		ProxyAddress:  host,
-		ProxyPort:     port,
-		ProxyProtocol: "shadowsocksr",
-		ProxySecurity: method,
-		ProxyCredential:     password,
-		ProxyNetwork:  protocol,
-		ProxyPath:     obfs,
-		RawLink:  link,
+		UUID:            database.GenerateUUID(),
+		Name:            name,
+		ProxyAddress:    host,
+		ProxyPort:       port,
+		ProxyProtocol:   "shadowsocksr",
+		ProxySecurity:   method,
+		ProxyCredential: password,
+		ProxyNetwork:    protocol,
+		ProxyPath:       obfs,
+		RawLink:         link,
 	}
 
 	// 解析附加参数
@@ -217,8 +217,8 @@ func parseShadowsocksR(link string) (*database.Profile, error) {
 // parseQueryString 解析简单的 key=value&key2=value2 格式
 func parseQueryString(query string) map[string]string {
 	result := make(map[string]string)
-	pairs := strings.Split(query, "&")
-	for _, pair := range pairs {
+	pairs := strings.SplitSeq(query, "&")
+	for pair := range pairs {
 		kv := strings.SplitN(pair, "=", 2)
 		if len(kv) == 2 {
 			result[kv[0]] = kv[1]

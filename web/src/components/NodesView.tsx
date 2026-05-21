@@ -9,6 +9,17 @@ import { DeleteConfirmBanner } from './ui/DeleteConfirmBanner'
 import { NodeEditForm } from './NodeEditForm'
 import { RightDrawer } from './ui/RightDrawer'
 
+// useDebounce 防抖 Hook：延迟更新值，避免频繁触发后端请求。
+// 用于搜索输入框，用户停止输入 250ms 后才发起 API 请求。
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+  return debounced
+}
+
 interface NodeGroupItem {
   ID: number
   uuid: string
@@ -33,14 +44,25 @@ export function NodesView() {
 
   const t = useT()
 
+  // 防抖搜索：用户停止输入 250ms 后才触发后端请求，避免频繁 API 调用。
+  const debouncedSearch = useDebounce(searchQuery, 250)
+
+  // 初始加载：获取分组列表
   useEffect(() => {
-    loadProfiles()
     loadGroups()
   }, [])
 
-  const loadProfiles = async () => {
+  // 后端驱动筛选：分组或搜索关键词变化时重新请求后端。
+  // 后端返回什么，前端就显示什么，不再做客户端过滤。
+  useEffect(() => {
+    loadProfiles(selectedGroupUUID || undefined, debouncedSearch || undefined)
+  }, [selectedGroupUUID, debouncedSearch])
+
+  // loadProfiles 请求后端获取节点列表，支持按分组和关键词筛选。
+  // 预留排序扩展点：未来可通过 sortBy 参数支持按名称、延迟等排序。
+  const loadProfiles = async (groupUuid?: string, q?: string) => {
     try {
-      const res = await profileApi.list()
+      const res = await profileApi.list(groupUuid, q)
       setProfiles(res.data || [])
     } catch {
       setProfiles([])
@@ -125,26 +147,13 @@ export function NodesView() {
       const data = res.data
       setDedupResult(t('nodes.dedup_result', { removed: data.removed, total: data.total }))
       setTimeout(() => setDedupResult(''), 5000)
-      await loadProfiles()
+      // 去重后按当前筛选条件重新加载
+      await loadProfiles(selectedGroupUUID || undefined, debouncedSearch || undefined)
       await loadGroups()
     } catch (err) {
       console.error('Dedup failed:', err)
     }
   }
-
-  const filteredProfiles = profiles.filter((p) => {
-    const matchesSearch = !searchQuery || (() => {
-      const q = searchQuery.toLowerCase()
-      return (
-        p.name.toLowerCase().includes(q) ||
-        p.proxy_address.toLowerCase().includes(q) ||
-        p.proxy_protocol.toLowerCase().includes(q) ||
-        (groups.find(gr => gr.uuid === p.group_uuid)?.alias || '').toLowerCase().includes(q)
-      )
-    })()
-    const matchesGroup = !selectedGroupUUID || p.group_uuid === selectedGroupUUID
-    return matchesSearch && matchesGroup
-  })
 
   // Row click: select node (Ctrl/Shift for multi-select)
   const handleRowClick = useCallback((profile: Profile, e: React.MouseEvent) => {
@@ -164,7 +173,7 @@ export function NodesView() {
       })
     } else if (e.shiftKey && lastClickedId !== null) {
       // Shift+click: range selection
-      const ids = filteredProfiles.map(p => p.ID)
+      const ids = profiles.map(p => p.ID)
       const from = ids.indexOf(lastClickedId)
       const to = ids.indexOf(profile.ID)
       if (from !== -1 && to !== -1) {
@@ -180,7 +189,7 @@ export function NodesView() {
       setSelectedIds(new Set([profile.ID]))
     }
     setLastClickedId(profile.ID)
-  }, [filteredProfiles, lastClickedId])
+  }, [profiles, lastClickedId])
 
   // Ctrl+A: select all visible nodes
   useEffect(() => {
@@ -190,12 +199,12 @@ export function NodesView() {
         const tag = (e.target as HTMLElement)?.tagName
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
         e.preventDefault()
-        setSelectedIds(new Set(filteredProfiles.map(p => p.ID)))
+        setSelectedIds(new Set(profiles.map(p => p.ID)))
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [filteredProfiles])
+  }, [profiles])
 
   const displayName = (g: NodeGroupItem) => g.alias || t('groups.default_name')
 
@@ -290,7 +299,7 @@ export function NodesView() {
           if (e.target === e.currentTarget) setSelectedIds(new Set())
         }}>
           <AnimatePresence>
-            {filteredProfiles.length === 0 ? (
+            {profiles.length === 0 ? (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -309,7 +318,7 @@ export function NodesView() {
                 </p>
               </motion.div>
             ) : (
-              filteredProfiles.map((profile) => {
+              profiles.map((profile) => {
                 const protoColor = getProtocolColor(profile.proxy_protocol)
                 return (
                   <motion.div

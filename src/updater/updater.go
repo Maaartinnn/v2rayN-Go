@@ -241,8 +241,8 @@ var versionRegex = regexp.MustCompile(`v?(\d+\.\d+[\.\d]*)`)
 
 // parseVersionFromOutput 从命令输出中解析版本号（统一去掉 v 前缀）
 func parseVersionFromOutput(output string) string {
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(output, "\n")
+	for line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
@@ -533,7 +533,7 @@ func (u *Updater) getLatestRelease(repo string) (*GitHubRelease, error) {
 	}
 
 	// 2. singleflight 合并同一 repo 的并发请求
-	v, err, _ := u.requestGroup.Do(repo, func() (interface{}, error) {
+	v, err, _ := u.requestGroup.Do(repo, func() (any, error) {
 		// 双重检查：等待 singleflight 锁期间，其他协程可能已写入缓存
 		if release, hit := u.getCachedRelease(repo); hit {
 			return release, nil
