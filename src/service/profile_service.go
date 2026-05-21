@@ -6,6 +6,8 @@ import (
 
 	"v2rayn-go/database"
 	"v2rayn-go/parser"
+
+	"gorm.io/gorm"
 )
 
 // ProfileService 节点业务逻辑层
@@ -103,18 +105,21 @@ func (s *ProfileService) importParsedProfiles(profiles []*database.Profile, grou
 }
 
 // Select 选择指定节点为活跃节点（先取消全部，再激活目标）
+// 使用事务保证 deactivate-all + activate-one 的原子性，防止并发 Select 导致多个节点同时 is_active=true
 func (s *ProfileService) Select(uuid string) error {
-	var profile database.Profile
-	if err := database.DB.Where("uuid = ?", uuid).First(&profile).Error; err != nil {
-		return NewNotFound("profile not found", err)
-	}
-	if err := database.DB.Model(&database.Profile{}).Where("is_active = ?", true).Update("is_active", false).Error; err != nil {
-		return fmt.Errorf("failed to deactivate profiles: %w", err)
-	}
-	if err := database.DB.Model(&profile).Update("is_active", true).Error; err != nil {
-		return fmt.Errorf("failed to activate profile: %w", err)
-	}
-	return nil
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		var profile database.Profile
+		if err := tx.Where("uuid = ?", uuid).First(&profile).Error; err != nil {
+			return NewNotFound("profile not found", err)
+		}
+		if err := tx.Model(&database.Profile{}).Where("is_active = ?", true).Update("is_active", false).Error; err != nil {
+			return fmt.Errorf("failed to deactivate profiles: %w", err)
+		}
+		if err := tx.Model(&profile).Update("is_active", true).Error; err != nil {
+			return fmt.Errorf("failed to activate profile: %w", err)
+		}
+		return nil
+	})
 }
 
 // Update 更新节点

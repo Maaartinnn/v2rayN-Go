@@ -309,6 +309,20 @@ func ReorderEntity(model interface{}, uuid, beforeUUID, afterUUID string, query 
 			return fmt.Errorf("reorder: failed to update sort_order: %w", err)
 		}
 
+		// 5. 并发安全校验：检查 sort_order 是否已被其他并发事务占用
+		// SQLite 写串行化 + busy_timeout 保证第二个事务会等到第一个完成后才执行，
+		// 但如果两个 ReorderEntity 对同一表几乎同时提交，Rebalance 后的计算结果可能相同。
+		// 此处做 post-write 唯一性校验，冲突时 rollback 并返回错误，由调用方重试。
+		var dupCount int64
+		dupQuery := tx.Table(tableName).Where("sort_order = ? AND id != ?", result, target.ID)
+		if query != "1=1" {
+			dupQuery = dupQuery.Where(query, args...)
+		}
+		dupQuery.Count(&dupCount)
+		if dupCount > 0 {
+			return fmt.Errorf("reorder: sort_order %d conflict detected, retry needed", result)
+		}
+
 		newOrder = result
 		return nil
 	})
