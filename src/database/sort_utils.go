@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"reflect"
 
 	"gorm.io/gorm"
@@ -29,19 +30,20 @@ func SortNewScoped(model interface{}, query string, args ...interface{}) int {
 		databaseQuery = databaseQuery.Where(query, args...)
 	}
 	databaseQuery.Scan(&maxOrder)
-	return maxOrder + SortStep
+	return mustAdd(maxOrder, SortStep)
 }
 
 // SortBetween 拖拽插入：插入到两条记录之间
+// 使用 before + (after-before)/2 避免 before+after 整数溢出
 func SortBetween(before, after int) int {
-	return (before + after) / 2
+	return before + (after-before)/2
 }
 
 // SortSequence 批量生成步长序列 [10, 20, 30, ...]
 func SortSequence(count int) []int {
 	seq := make([]int, count)
 	for i := 0; i < count; i++ {
-		seq[i] = (i + 1) * SortStep
+		seq[i] = mustAdd(0, (i+1)*SortStep)
 	}
 	return seq
 }
@@ -155,14 +157,15 @@ func toSnakeCase(s string) string {
 // SortInsert 根据前后元素的排序值计算插入位置
 // before == nil 表示拖到第一个位置：after - SortStep
 // after == nil 表示拖到最后一个位置：before + SortStep
-// 都非 nil 表示插入中间：(before + after) / 2
+// 都非 nil 表示插入中间：SortBetween(before, after)
+// 溢出时返回 SortStep（由调用方触发 rebalance 重建间距）
 func SortInsert(before, after *int) int {
 	if before == nil && after == nil {
 		return SortStep // 只有一个元素，给默认值
 	} else if before == nil {
-		return *after - SortStep
+		return mustSub(*after, SortStep)
 	} else if after == nil {
-		return *before + SortStep
+		return mustAdd(*before, SortStep)
 	}
 	return SortBetween(*before, *after)
 }
@@ -193,9 +196,49 @@ func SortNewBatch(model interface{}, query string, count int, args ...interface{
 
 	seq := make([]int, count)
 	for i := 0; i < count; i++ {
-		seq[i] = maxOrder + (i+1)*SortStep
+		seq[i] = mustAdd(maxOrder, (i+1)*SortStep)
 	}
 	return seq
+}
+
+// ========== 整数安全运算 ==========
+
+// mustAdd 安全加法，溢出时返回 0（由调用方触发 rebalance）
+func mustAdd(a, b int) int {
+	if result, ok := safeAdd(a, b); ok {
+		return result
+	}
+	return 0
+}
+
+// mustSub 安全减法，溢出时返回 0（由调用方触发 rebalance）
+func mustSub(a, b int) int {
+	if result, ok := safeSub(a, b); ok {
+		return result
+	}
+	return 0
+}
+
+// safeAdd 安全加法，返回 (结果, 是否合法)
+func safeAdd(a, b int) (int, bool) {
+	if b > 0 && a > math.MaxInt-b {
+		return 0, false
+	}
+	if b < 0 && a < math.MinInt-b {
+		return 0, false
+	}
+	return a + b, true
+}
+
+// safeSub 安全减法，返回 (结果, 是否合法)
+func safeSub(a, b int) (int, bool) {
+	if b < 0 && a > math.MaxInt+b {
+		return 0, false
+	}
+	if b > 0 && a < math.MinInt+b {
+		return 0, false
+	}
+	return a - b, true
 }
 
 // ========== 通用拖拽重排序 ==========
