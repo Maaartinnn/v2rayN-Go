@@ -73,7 +73,7 @@ interface AppState {
   // Profiles
   profiles: Profile[]
   activeProfile: Profile | null
-  setProfiles: (p: Profile[]) => void
+  setProfiles: (p: Profile[] | ((prev: Profile[]) => Profile[])) => void
   setActiveProfile: (p: Profile | null) => void
 
   // Metrics
@@ -115,7 +115,9 @@ export const useStore = create<AppState>((set) => ({
   // Profiles
   profiles: [],
   activeProfile: null,
-  setProfiles: (p) => set({ profiles: p }),
+  setProfiles: (p) => set((state) => ({
+    profiles: typeof p === 'function' ? (p as (prev: Profile[]) => Profile[])(state.profiles) : p
+  })),
   setActiveProfile: (p) => set({ activeProfile: p }),
 
   // Metrics

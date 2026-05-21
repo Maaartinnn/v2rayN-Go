@@ -112,12 +112,12 @@ export function NodesView() {
 
     if (stillInView) {
       // 仍属于当前视图：局部替换，零网络延迟
-      setProfiles(profiles.map(p => p.ID === updatedProfile.ID ? updatedProfile : p))
+      setProfiles(prev => prev.map(p => p.ID === updatedProfile.ID ? updatedProfile : p))
     } else {
       // 已脱离视图：平滑剔除（AnimatePresence 的 exit 动画自动接管）
-      setProfiles(profiles.filter(p => p.ID !== updatedProfile.ID))
+      setProfiles(prev => prev.filter(p => p.ID !== updatedProfile.ID))
     }
-  }, [selectedGroupUUID, debouncedSearch, groups, profiles, refreshProfiles])
+  }, [selectedGroupUUID, debouncedSearch, groups, refreshProfiles])
 
   // Activate a node as proxy (clicking WiFi icon)
   const handleActivate = async (profile: Profile, e: React.MouseEvent) => {
