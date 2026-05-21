@@ -68,6 +68,7 @@ type coreInstance struct {
 	cmd     *exec.Cmd
 	cancel  context.CancelFunc
 	logFile *os.File
+	done    chan struct{} // 监控 goroutine 完成后关闭，用于 StopCore 解锁等待
 }
 
 // NewCoreAdminManager 创建新的内核管理器
@@ -138,6 +139,7 @@ func (m *CoreAdminManager) StartCore(coreType CoreType, configPath string) error
 		cmd:     cmd,
 		cancel:  cancel,
 		logFile: logFile,
+		done:    make(chan struct{}), // 监控 goroutine 结束时关闭此通道
 	}
 	m.cores[coreType] = inst
 
@@ -157,13 +159,16 @@ func (m *CoreAdminManager) StartCore(coreType CoreType, configPath string) error
 	go m.collectLogs(coreType, stdoutPipe, logFile, "stdout")
 	go m.collectLogs(coreType, stderrPipe, logFile, "stderr")
 
-	// 启动进程监控 goroutine
+	// 启动进程监控 goroutine（唯一的 cmd.Wait 调用点和 logFile.Close 点）
 	go func() {
-		err := cmd.Wait()
+		err := cmd.Wait() // 阻塞直到进程退出；StopCore 不再另开 Wait
+
 		m.mu.Lock()
 		defer m.mu.Unlock()
+		defer close(inst.done) // 通知 StopCore：清理完成，可以安全返回
 
 		if inst, ok := m.cores[coreType]; ok {
+			// 只有监控 goroutine 更新进程退出状态，避免与 StopCore 竞争写入
 			if err != nil {
 				inst.info.Status = StatusError
 				inst.info.ErrorMsg = err.Error()
@@ -172,6 +177,7 @@ func (m *CoreAdminManager) StartCore(coreType CoreType, configPath string) error
 				inst.info.Status = StatusStopped
 				m.emitLog(coreType, "info", "Core exited normally")
 			}
+			// logFile 只在此处关闭，StopCore 不再重复关闭
 			if inst.logFile != nil {
 				inst.logFile.Close()
 			}
@@ -183,39 +189,36 @@ func (m *CoreAdminManager) StartCore(coreType CoreType, configPath string) error
 }
 
 // StopCore 停止指定类型的内核
+// 设计要点：
+//   - 锁只用于读取实例引用和发送取消信号，不持有锁等待进程退出，避免死锁
+//   - 不调用 cmd.Wait() 或 Process.Wait()，由 StartCore 的监控 goroutine 唯一负责
+//   - 通过 inst.done 通道等待监控 goroutine 完成清理（状态更新 + logFile.Close）
 func (m *CoreAdminManager) StopCore(coreType CoreType) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	inst, ok := m.cores[coreType]
 	if !ok || inst.info.Status != StatusRunning {
+		m.mu.Unlock()
 		return fmt.Errorf("core %s is not running", coreType)
 	}
-
-	// 通过 cancel 发送优雅关闭信号
+	// 保存引用，立即释放锁，避免阻塞监控 goroutine
 	inst.cancel()
+	done := inst.done
+	m.mu.Unlock()
 
-	// 等待进程退出（最多 5 秒）
-	done := make(chan struct{})
-	go func() {
-		if inst.cmd.Process != nil {
-			inst.cmd.Process.Wait()
-		}
-		close(done)
-	}()
-
+	// 在锁外等待进程退出（监控 goroutine 完成 cmd.Wait 后关闭 done 通道）
 	select {
 	case <-done:
+		// 监控 goroutine 已完成状态更新和 logFile.Close
 		m.emitLog(coreType, "info", "Core stopped gracefully")
 	case <-time.After(5 * time.Second):
-		// 超时后强制杀死进程
+		// 超时后强制杀死进程，但不自行 Wait/Close，仍等待监控 goroutine 处理
 		if inst.cmd.Process != nil {
 			inst.cmd.Process.Kill()
 		}
 		m.emitLog(coreType, "warn", "Core force killed after timeout")
+		<-done // 等待监控 goroutine 完成最终清理
 	}
 
-	inst.info.Status = StatusStopped
 	return nil
 }
 
