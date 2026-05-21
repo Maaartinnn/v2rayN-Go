@@ -29,8 +29,8 @@ var DB *gorm.DB
 
 // Init 初始化 SQLite 数据库连接并自动迁移表结构
 func Init(cfg *config.AppConfig) error {
-	var err error
-	DB, err = gorm.Open(sqlite.Open(cfg.DBPath), &gorm.Config{
+	var err error //增加 busy_timeout 参数，让 SQLite 在遇到锁冲突时，先在底层默默排队等待（5000 毫秒），而不是立刻抛出 database is locked 错误让上层事务失败
+	DB, err = gorm.Open(sqlite.Open(cfg.DBPath+"?_pragma=busy_timeout(5000)"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {
