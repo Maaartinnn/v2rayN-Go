@@ -6,7 +6,9 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white" alt="Go">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" alt="React">
+  <img src="https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite&logoColor=white" alt="SQLite">
   <img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License">
+  <img src="https://img.shields.io/github/release/Maaartinnn/v2rayN-Go" alt="Release">
 </p>
 
 > **[English](README-en.md)** | 中文
@@ -113,6 +115,13 @@ v2rayN-Go/
     │   ├── wireguard.go           # WireGuard 协议解析
     │   ├── qrcode.go              # 二维码解码
     │   └── utils.go               # Base64 解码 / URL 解析 / 名称提取等工具函数
+    ├── service/                   # 业务逻辑层（Service 层）
+    │   ├── profile.go             # 节点 CRUD / 激活 / 去重 / 排序 / 分组移动
+    │   ├── group.go               # 分组 CRUD / 排序 / 订阅配置
+    │   ├── strategygroup.go       # 策略组 CRUD
+    │   ├── routingrule.go         # 路由规则 CRUD
+    │   ├── core.go                # 内核管理（启动/停止/下载/上传/状态）
+    │   └── settings.go            # 应用设置读写
     ├── subscription/              # 订阅管理服务
     │   ├── subscription.go        # 订阅拉取/解析/过滤/更新，自动更新调度器
     │   └── ping.go                # TCP Ping + HTTP Ping 批量并发测速服务
@@ -317,6 +326,34 @@ dev-build.cmd
 - **命令面板**: cmdk
 - **图标**: Lucide Icons
 - **HTTP 客户端**: Axios
+
+---
+
+## 🤝 贡献指南
+
+欢迎贡献代码！请遵循以下流程：
+
+1. **Fork** 本仓库
+2. 创建功能分支：`git checkout -b feature/my-feature`
+3. 提交更改：`git commit -m "feat: add my feature"`
+4. 推送分支：`git push origin feature/my-feature`
+5. 创建 **Pull Request**
+
+### 代码规范
+
+- **后端 (Go)**：遵循 `gofmt` 格式化，使用 `golangci-lint` 检查
+- **前端 (TypeScript)**：遵循项目 ESLint 配置，使用 Prettier 格式化
+- **提交信息**：建议使用 [Conventional Commits](https://www.conventionalcommits.org/) 格式（`feat:` / `fix:` / `docs:` / `refactor:` 等）
+
+### 开发环境
+
+```bash
+# 后端热重载（需安装 air）
+cd src && air
+
+# 前端开发服务器（带 HMR）
+cd web && npm run dev
+```
 
 ---
 

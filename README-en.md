@@ -6,7 +6,9 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white" alt="Go">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" alt="React">
+  <img src="https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite&logoColor=white" alt="SQLite">
   <img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License">
+  <img src="https://img.shields.io/github/release/Maaartinnn/v2rayN-Go" alt="Release">
 </p>
 
 > English | **[中文](README.md)**
@@ -113,6 +115,13 @@ v2rayN-Go/
     │   ├── wireguard.go           # WireGuard protocol parser
     │   ├── qrcode.go              # QR code decoding
     │   └── utils.go               # Base64 decode / URL parse / name extraction utilities
+    ├── service/                   # Business logic layer (Service layer)
+    │   ├── profile.go             # Node CRUD / activate / dedup / sort / group move
+    │   ├── group.go               # Group CRUD / sort / subscription config
+    │   ├── strategygroup.go       # Strategy group CRUD
+    │   ├── routingrule.go         # Routing rule CRUD
+    │   ├── core.go                # Core management (start/stop/download/upload/status)
+    │   └── settings.go            # Application settings read/write
     ├── subscription/              # Subscription management service
     │   ├── subscription.go        # Subscription fetch/parse/filter/update, auto-update scheduler
     │   └── ping.go                # TCP Ping + HTTP Ping batch concurrent latency testing
@@ -317,6 +326,34 @@ dev-build.cmd
 - **Command Palette**: cmdk
 - **Icons**: Lucide Icons
 - **HTTP Client**: Axios
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please follow this workflow:
+
+1. **Fork** this repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Commit your changes: `git commit -m "feat: add my feature"`
+4. Push the branch: `git push origin feature/my-feature`
+5. Create a **Pull Request**
+
+### Code Standards
+
+- **Backend (Go)**: Follow `gofmt` formatting, use `golangci-lint` for linting
+- **Frontend (TypeScript)**: Follow project ESLint config, use Prettier for formatting
+- **Commit Messages**: Use [Conventional Commits](https://www.conventionalcommits.org/) format (`feat:` / `fix:` / `docs:` / `refactor:`, etc.)
+
+### Development Environment
+
+```bash
+# Backend hot reload (requires air)
+cd src && air
+
+# Frontend dev server (with HMR)
+cd web && npm run dev
+```
 
 ---
 
