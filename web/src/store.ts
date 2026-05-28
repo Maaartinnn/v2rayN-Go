@@ -1,5 +1,30 @@
 import { create } from 'zustand'
 
+// 颜色对（背景色 + 文字色），由后端计算返回
+export interface ColorPair {
+  bg: string
+  text: string
+}
+
+// ProfileListItem 节点列表精简数据，由 GET /api/profiles 返回。
+// 仅包含前端列表展示和操作所需字段，编辑时通过 GET /api/profiles/{uuid} 获取完整数据。
+export interface ProfileListItem {
+  uuid: string
+  name: string
+  proxy_protocol: string
+  proxy_address: string
+  proxy_port: number
+  core_type: string
+  test_result: string
+  is_active: boolean
+  group_uuid: string
+  protocol_color: ColorPair   // 后端计算的协议徽标颜色
+  core_color: ColorPair       // 后端计算的内核徽标颜色
+  latency_color: string       // 后端计算的延迟指示灯颜色（CSS 变量）
+}
+
+// Profile 完整节点数据，由 GET /api/profiles/{uuid} 返回。
+// 仅在编辑节点时按需获取，列表页面不使用此类型。
 export interface Profile {
   ID: number
   uuid: string
@@ -70,11 +95,13 @@ interface AppState {
   setConnected: (v: boolean) => void
   setCoreStatuses: (s: CoreStatus[]) => void
 
-  // Profiles
-  profiles: Profile[]
-  activeProfile: Profile | null
-  setProfiles: (p: Profile[] | ((prev: Profile[]) => Profile[])) => void
-  setActiveProfile: (p: Profile | null) => void
+  // Profile List（精简数据，用于列表展示）
+  profileList: ProfileListItem[]
+  setProfileList: (p: ProfileListItem[] | ((prev: ProfileListItem[]) => ProfileListItem[])) => void
+
+  // Active Profile（仅存 uuid，避免存储完整 Profile 数据）
+  activeProfileUUID: string | null
+  setActiveProfileUUID: (uuid: string | null) => void
 
   // Metrics
   metrics: Metrics
@@ -112,13 +139,15 @@ export const useStore = create<AppState>((set) => ({
     isConnected: s.some(c => c.status === 'running'),
   }),
 
-  // Profiles
-  profiles: [],
-  activeProfile: null,
-  setProfiles: (p) => set((state) => ({
-    profiles: typeof p === 'function' ? (p as (prev: Profile[]) => Profile[])(state.profiles) : p
+  // Profile List（精简数据，用于列表展示）
+  profileList: [],
+  setProfileList: (p) => set((state) => ({
+    profileList: typeof p === 'function' ? (p as (prev: ProfileListItem[]) => ProfileListItem[])(state.profileList) : p
   })),
-  setActiveProfile: (p) => set({ activeProfile: p }),
+
+  // Active Profile（仅存 uuid）
+  activeProfileUUID: null,
+  setActiveProfileUUID: (uuid) => set({ activeProfileUUID: uuid }),
 
   // Metrics
   metrics: { upload_speed: 0, download_speed: 0, upload_total: 0, download_total: 0 },

@@ -6,7 +6,11 @@ import { coreApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 
 export function HomeView() {
-  const { isConnected, activeProfile, metrics } = useStore()
+  const { isConnected, profileList, activeProfileUUID, metrics } = useStore()
+  // 从精简列表中查找当前激活节点
+  const activeProfile = activeProfileUUID
+    ? profileList.find(p => p.uuid === activeProfileUUID) || null
+    : null
   const t = useT()
   const [error, setError] = useState<string | null>(null)
 
@@ -37,7 +41,7 @@ export function HomeView() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="w-[420px] rounded-2xl border p-8"
+        className="w-105 rounded-2xl border p-8"
         style={{
           backgroundColor: 'var(--color-card)',
           borderColor: 'var(--color-border)',

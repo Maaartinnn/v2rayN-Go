@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Wifi, WifiOff, RefreshCw, Trash2, Search, Layers, FolderOpen, Link, Edit3 } from 'lucide-react'
 import { useStore } from '../store'
-import type { Profile } from '../store'
+import type { Profile, ProfileListItem } from '../store'
 import { profileApi, profileEnhancedApi, groupsApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 import { DeleteConfirmBanner } from './ui/DeleteConfirmBanner'
@@ -29,18 +29,20 @@ interface NodeGroupItem {
 }
 
 export function NodesView() {
-  const { profiles, setProfiles, activeProfile, setActiveProfile } = useStore()
+  // 列表使用精简数据（ProfileListItem），编辑时按需获取完整 Profile
+  const { profileList, setProfileList, activeProfileUUID, setActiveProfileUUID } = useStore()
   const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedGroupUUID, setSelectedGroupUUID] = useState<string>('')
   const [groups, setGroups] = useState<NodeGroupItem[]>([])
   const [dedupResult, setDedupResult] = useState<string>('')
-  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
+  const [deleteTargetUUID, setDeleteTargetUUID] = useState<string | null>(null)
   const [editProfile, setEditProfile] = useState<Profile | null>(null)
+  const [editLoading, setEditLoading] = useState(false)
 
-  // Multi-selection state
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
-  const [lastClickedId, setLastClickedId] = useState<number | null>(null)
+  // Multi-selection state（统一使用 uuid 标识）
+  const [selectedUUIDs, setSelectedUUIDs] = useState<Set<string>>(new Set())
+  const [lastClickedUUID, setLastClickedUUID] = useState<string | null>(null)
 
   const t = useT()
 
@@ -58,14 +60,13 @@ export function NodesView() {
     loadProfiles(selectedGroupUUID || undefined, debouncedSearch || undefined)
   }, [selectedGroupUUID, debouncedSearch])
 
-  // loadProfiles 请求后端获取节点列表，支持按分组和关键词筛选。
-  // 预留排序扩展点：未来可通过 sortBy 参数支持按名称、延迟等排序。
+  // loadProfiles 请求后端获取精简节点列表（ProfileListItem），含后端计算的颜色。
   const loadProfiles = async (groupUuid?: string, q?: string) => {
     try {
       const res = await profileApi.list(groupUuid, q)
-      setProfiles(res.data || [])
+      setProfileList(res.data || [])
     } catch {
-      setProfiles([])
+      setProfileList([])
     }
   }
 
@@ -111,20 +112,20 @@ export function NodesView() {
     }
 
     if (stillInView) {
-      // 仍属于当前视图：局部替换，零网络延迟
-      setProfiles(prev => prev.map(p => p.ID === updatedProfile.ID ? updatedProfile : p))
+      // 仍属于当前视图：刷新列表（重新请求以获取最新的颜色等后端计算数据）
+      refreshProfiles()
     } else {
-      // 已脱离视图：平滑剔除（AnimatePresence 的 exit 动画自动接管）
-      setProfiles(prev => prev.filter(p => p.ID !== updatedProfile.ID))
+      // 已脱离视图：从列表中移除（AnimatePresence 的 exit 动画自动接管）
+      setProfileList(prev => prev.filter(p => p.uuid !== updatedProfile.uuid))
     }
   }, [selectedGroupUUID, debouncedSearch, groups, refreshProfiles])
 
-  // Activate a node as proxy (clicking WiFi icon)
-  const handleActivate = async (profile: Profile, e: React.MouseEvent) => {
+  // handleActivate 激活节点为当前代理
+  const handleActivate = async (item: ProfileListItem, e: React.MouseEvent) => {
     e.stopPropagation()
     try {
-      await profileApi.select(profile.uuid)
-      setActiveProfile(profile)
+      await profileApi.select(item.uuid)
+      setActiveProfileUUID(item.uuid)
     } catch (err) {
       console.error('Activate failed:', err)
     }
@@ -144,30 +145,21 @@ export function NodesView() {
   const handleDelete = async (uuid: string) => {
     try {
       await profileApi.delete(uuid)
-      setDeleteTargetId(null)
+      setDeleteTargetUUID(null)
+      // 如果删除的是当前激活节点，清除激活状态
+      if (activeProfileUUID === uuid) {
+        setActiveProfileUUID(null)
+      }
+      // 如果删除的节点在多选集中，清除它
+      setSelectedUUIDs(prev => {
+        const next = new Set(prev)
+        next.delete(uuid)
+        return next
+      })
       refreshProfiles()
     } catch (err) {
       console.error('Delete failed:', err)
     }
-  }
-
-  const getProtocolColor = (protocol: string) => {
-    const colors: Record<string, { bg: string; text: string }> = {
-      vmess: { bg: 'rgba(106, 155, 204, 0.12)', text: '#6A9BCC' },
-      vless: { bg: 'rgba(217, 119, 87, 0.12)', text: '#D97757' },
-      trojan: { bg: 'rgba(201, 148, 58, 0.12)', text: '#C9943A' },
-      shadowsocks: { bg: 'rgba(107, 143, 71, 0.12)', text: '#6B8F47' },
-      hysteria2: { bg: 'rgba(192, 69, 58, 0.12)', text: '#C0453A' },
-    }
-    return colors[protocol] || { bg: 'var(--color-muted)', text: 'var(--color-muted-foreground)' }
-  }
-
-  const getLatencyDot = (result: string) => {
-    if (!result || result === 'timeout') return 'var(--color-error)'
-    const ms = parseInt(result)
-    if (ms < 100) return 'var(--color-success)'
-    if (ms < 300) return 'var(--color-warning)'
-    return 'var(--color-error)'
   }
 
   const loadGroups = async () => {
@@ -193,8 +185,22 @@ export function NodesView() {
     }
   }
 
-  // Row click: select node (Ctrl/Shift for multi-select)
-  const handleRowClick = useCallback((profile: Profile, e: React.MouseEvent) => {
+  // handleEditClick 点击编辑按钮：先通过 API 获取完整 Profile 数据，再打开编辑抽屉
+  const handleEditClick = async (item: ProfileListItem, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditLoading(true)
+    try {
+      const res = await profileApi.get(item.uuid)
+      setEditProfile(res.data)
+    } catch (err) {
+      console.error('Failed to load profile for editing:', err)
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
+  // handleRowClick 行点击：选择节点（支持 Ctrl/Shift 多选）
+  const handleRowClick = useCallback((item: ProfileListItem, e: React.MouseEvent) => {
     // Prevent text selection on Shift+click
     if (e.shiftKey) {
       e.preventDefault()
@@ -203,31 +209,31 @@ export function NodesView() {
 
     if (e.ctrlKey || e.metaKey) {
       // Ctrl+click: toggle selection
-      setSelectedIds(prev => {
+      setSelectedUUIDs(prev => {
         const next = new Set(prev)
-        if (next.has(profile.ID)) next.delete(profile.ID)
-        else next.add(profile.ID)
+        if (next.has(item.uuid)) next.delete(item.uuid)
+        else next.add(item.uuid)
         return next
       })
-    } else if (e.shiftKey && lastClickedId !== null) {
+    } else if (e.shiftKey && lastClickedUUID !== null) {
       // Shift+click: range selection
-      const ids = profiles.map(p => p.ID)
-      const from = ids.indexOf(lastClickedId)
-      const to = ids.indexOf(profile.ID)
+      const uuids = profileList.map(p => p.uuid)
+      const from = uuids.indexOf(lastClickedUUID)
+      const to = uuids.indexOf(item.uuid)
       if (from !== -1 && to !== -1) {
         const [start, end] = from < to ? [from, to] : [to, from]
-        setSelectedIds(prev => {
+        setSelectedUUIDs(prev => {
           const next = new Set(prev)
-          for (let i = start; i <= end; i++) next.add(ids[i])
+          for (let i = start; i <= end; i++) next.add(uuids[i])
           return next
         })
       }
     } else {
       // Normal click: single select
-      setSelectedIds(new Set([profile.ID]))
+      setSelectedUUIDs(new Set([item.uuid]))
     }
-    setLastClickedId(profile.ID)
-  }, [profiles, lastClickedId])
+    setLastClickedUUID(item.uuid)
+  }, [profileList, lastClickedUUID])
 
   // Ctrl+A: select all visible nodes
   useEffect(() => {
@@ -237,12 +243,12 @@ export function NodesView() {
         const tag = (e.target as HTMLElement)?.tagName
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
         e.preventDefault()
-        setSelectedIds(new Set(profiles.map(p => p.ID)))
+        setSelectedUUIDs(new Set(profileList.map(p => p.uuid)))
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [profiles])
+  }, [profileList])
 
   const displayName = (g: NodeGroupItem) => g.alias || t('groups.default_name')
 
@@ -334,10 +340,10 @@ export function NodesView() {
         {/* Node list */}
         <div className="space-y-1.5" key={selectedGroupUUID} onDoubleClick={(e) => {
           // Double-click blank area to deselect all
-          if (e.target === e.currentTarget) setSelectedIds(new Set())
+          if (e.target === e.currentTarget) setSelectedUUIDs(new Set())
         }}>
           <AnimatePresence>
-            {profiles.length === 0 ? (
+            {profileList.length === 0 ? (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -356,30 +362,28 @@ export function NodesView() {
                 </p>
               </motion.div>
             ) : (
-              profiles.map((profile) => {
-                const protoColor = getProtocolColor(profile.proxy_protocol)
-                return (
+              profileList.map((item) => (
                   <motion.div
-                    key={profile.ID}
+                    key={item.uuid}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                   >
                     <div
-                      onClick={(e) => handleRowClick(profile, e)}
-                      onDoubleClick={(e) => { e.stopPropagation(); handleActivate(profile, e) }}
+                      onClick={(e) => handleRowClick(item, e)}
+                      onDoubleClick={(e) => { e.stopPropagation(); handleActivate(item, e) }}
                       onMouseDown={(e) => { if (e.shiftKey) e.preventDefault() }}
                       className="rounded-xl border px-4 py-3 cursor-pointer transition-colors select-none"
                       style={{
-                        backgroundColor: activeProfile?.ID === profile.ID
+                        backgroundColor: activeProfileUUID === item.uuid
                           ? 'var(--color-accent-dim)'
-                          : selectedIds.has(profile.ID)
+                          : selectedUUIDs.has(item.uuid)
                             ? 'color-mix(in srgb, var(--color-primary) 6%, var(--color-card))'
                             : 'var(--color-card)',
-                        borderColor: activeProfile?.ID === profile.ID
+                        borderColor: activeProfileUUID === item.uuid
                           ? 'var(--color-primary)'
-                          : selectedIds.has(profile.ID)
+                          : selectedUUIDs.has(item.uuid)
                             ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)'
                             : 'var(--color-border)',
                         boxShadow: 'var(--shadow-card)',
@@ -389,7 +393,7 @@ export function NodesView() {
                         <div className="flex items-center gap-3 min-w-0">
                           <div
                             className="w-2 h-2 rounded-full shrink-0"
-                            style={{ backgroundColor: getLatencyDot(profile.test_result) }}
+                            style={{ backgroundColor: item.latency_color }}
                           />
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
@@ -397,26 +401,39 @@ export function NodesView() {
                                 className="text-sm font-medium truncate"
                                 style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
                               >
-                                {profile.name}
+                                {item.name}
                               </span>
                               <span
                                 className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
                                 style={{
-                                  backgroundColor: protoColor.bg,
-                                  color: protoColor.text,
+                                  backgroundColor: item.protocol_color.bg,
+                                  color: item.protocol_color.text,
                                   fontFamily: 'var(--font-heading)',
                                 }}
                               >
-                                {profile.proxy_protocol}
+                                {item.proxy_protocol}
                               </span>
+                              {/* 内核徽标：仅在手动指定内核时显示 */}
+                              {item.core_type && (
+                                <span
+                                  className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                                  style={{
+                                    backgroundColor: item.core_color.bg,
+                                    color: item.core_color.text,
+                                    fontFamily: 'var(--font-heading)',
+                                  }}
+                                >
+                                  {item.core_type}
+                                </span>
+                              )}
                             </div>
                             <p
                               className="text-xs mt-0.5 truncate"
                               style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
                             >
-                              {profile.proxy_address}:{profile.proxy_port}
-                              {profile.group_uuid && (() => {
-                                const g = groups.find(gr => gr.uuid === profile.group_uuid)
+                              {item.proxy_address}:{item.proxy_port}
+                              {item.group_uuid && (() => {
+                                const g = groups.find(gr => gr.uuid === item.group_uuid)
                                 return g ? <span style={{ fontFamily: 'var(--font-heading)' }}> · {g.alias}</span> : null
                               })()}
                             </p>
@@ -424,19 +441,19 @@ export function NodesView() {
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
-                          {profile.test_result && (
+                          {item.test_result && (
                             <span
                               className="text-xs"
                               style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
                             >
-                              {profile.test_result}
+                              {item.test_result}
                             </span>
                           )}
                           <motion.button
-                            onClick={(e) => handleActivate(profile, e)}
+                            onClick={(e) => handleActivate(item, e)}
                             className="p-1 rounded-md transition-colors cursor-pointer"
                             style={{
-                              color: activeProfile?.ID === profile.ID
+                              color: activeProfileUUID === item.uuid
                                 ? 'var(--color-success)'
                                 : 'var(--color-text-muted)',
                             }}
@@ -445,23 +462,24 @@ export function NodesView() {
                               e.currentTarget.style.backgroundColor = 'var(--color-success-dim)'
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.color = activeProfile?.ID === profile.ID
+                              e.currentTarget.style.color = activeProfileUUID === item.uuid
                                 ? 'var(--color-success)'
                                 : 'var(--color-text-muted)'
                               e.currentTarget.style.backgroundColor = 'transparent'
                             }}
                             whileHover={{ scale: 1.15 }}
                             whileTap={{ scale: 0.9 }}
-                            title={activeProfile?.ID === profile.ID ? '当前激活' : '点击激活'}
+                            title={activeProfileUUID === item.uuid ? '当前激活' : '点击激活'}
                           >
-                            {activeProfile?.ID === profile.ID ? (
+                            {activeProfileUUID === item.uuid ? (
                               <Wifi size={14} />
                             ) : (
                               <WifiOff size={14} />
                             )}
                           </motion.button>
                           <button
-                            onClick={(e) => { e.stopPropagation(); setEditProfile(profile) }}
+                            onClick={(e) => handleEditClick(item, e)}
+                            disabled={editLoading}
                             className="p-1 rounded-md transition-colors cursor-pointer"
                             style={{ color: 'var(--color-text-muted)' }}
                             onMouseEnter={(e) => {
@@ -476,7 +494,7 @@ export function NodesView() {
                             <Edit3 size={12} />
                           </button>
                           <button
-                            onClick={(e) => { e.stopPropagation(); setDeleteTargetId(profile.uuid) }}
+                            onClick={(e) => { e.stopPropagation(); setDeleteTargetUUID(item.uuid) }}
                             className="p-1 rounded-md transition-colors cursor-pointer"
                             style={{ color: 'var(--color-text-muted)' }}
                             onMouseEnter={(e) => {
@@ -495,14 +513,13 @@ export function NodesView() {
                     </div>
                     {/* Delete confirm banner */}
                     <DeleteConfirmBanner
-                      visible={deleteTargetId === profile.uuid}
-                      message={t('nodes.delete_confirm', { name: profile.name })}
-                      onConfirm={() => handleDelete(profile.uuid)}
-                      onCancel={() => setDeleteTargetId(null)}
+                      visible={deleteTargetUUID === item.uuid}
+                      message={t('nodes.delete_confirm', { name: item.name })}
+                      onConfirm={() => handleDelete(item.uuid)}
+                      onCancel={() => setDeleteTargetUUID(null)}
                     />
                   </motion.div>
-                )
-              })
+                ))
             )}
           </AnimatePresence>
         </div>
@@ -553,7 +570,7 @@ export function NodesView() {
                   className="text-[9px] shrink-0"
                   style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}
                 >
-                  {profiles.length}
+                  {profileList.length}
                 </span>
               </motion.button>
 

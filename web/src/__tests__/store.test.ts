@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useStore, type Profile, type CoreStatus } from '../store'
+import { useStore, type ProfileListItem, type CoreStatus } from '../store'
 
 describe('useStore', () => {
   beforeEach(() => {
@@ -7,8 +7,8 @@ describe('useStore', () => {
     useStore.setState({
       isConnected: false,
       coreStatuses: [],
-      profiles: [],
-      activeProfile: null,
+      profileList: [],
+      activeProfileUUID: null,
       metrics: { upload_speed: 0, download_speed: 0, upload_total: 0, download_total: 0 },
       coreVersions: {},
       downloadProgress: {},
@@ -59,65 +59,52 @@ describe('useStore', () => {
     })
   })
 
-  // ==================== Profiles ====================
+  // ==================== Profile List ====================
 
-  describe('setProfiles', () => {
-    it('should set profiles array directly', () => {
-      const profiles: Profile[] = [
+  describe('setProfileList', () => {
+    it('should set profileList array directly', () => {
+      const items: ProfileListItem[] = [
         {
-          ID: 1, uuid: 'test-uuid', name: 'TestNode',
-          proxy_address: 'host.com', proxy_port: 443, proxy_protocol: 'vless',
-          proxy_credential: '', proxy_alter_id: 0, proxy_security: '', proxy_network: 'tcp',
-          proxy_tls: '', proxy_sni: '', proxy_fingerprint: '', proxy_allow_insecure: false,
-          proxy_host: '', proxy_path: '', proxy_seed: '', proxy_flow: '',
-          proxy_public_key: '', proxy_short_id: '', proxy_sider_sni: '',
-          proxy_dialer_proxy: '', raw_link: '', test_result: '', last_test_time: '',
-          is_active: false, sort_order: 10, core_type: '', group_uuid: 'group-1',
+          uuid: 'test-uuid', name: 'TestNode',
+          proxy_protocol: 'vless', proxy_address: 'host.com', proxy_port: 443,
+          core_type: '', test_result: '', is_active: false, group_uuid: 'group-1',
+          protocol_color: { bg: '#fff', text: '#000' },
+          core_color: { bg: '#eee', text: '#333' },
+          latency_color: 'var(--color-error)',
         },
       ]
-      useStore.getState().setProfiles(profiles)
-      expect(useStore.getState().profiles).toHaveLength(1)
-      expect(useStore.getState().profiles[0].name).toBe('TestNode')
+      useStore.getState().setProfileList(items)
+      expect(useStore.getState().profileList).toHaveLength(1)
+      expect(useStore.getState().profileList[0].name).toBe('TestNode')
     })
 
     it('should accept function updater', () => {
-      useStore.getState().setProfiles([])
-      useStore.getState().setProfiles((prev) => [
+      useStore.getState().setProfileList([])
+      useStore.getState().setProfileList((prev) => [
         ...prev,
         {
-          ID: 1, uuid: 'test', name: 'New',
-          proxy_address: '', proxy_port: 0, proxy_protocol: 'vless',
-          proxy_credential: '', proxy_alter_id: 0, proxy_security: '', proxy_network: '',
-          proxy_tls: '', proxy_sni: '', proxy_fingerprint: '', proxy_allow_insecure: false,
-          proxy_host: '', proxy_path: '', proxy_seed: '', proxy_flow: '',
-          proxy_public_key: '', proxy_short_id: '', proxy_sider_sni: '',
-          proxy_dialer_proxy: '', raw_link: '', test_result: '', last_test_time: '',
-          is_active: false, sort_order: 10, core_type: '', group_uuid: '',
+          uuid: 'test', name: 'New',
+          proxy_protocol: 'vless', proxy_address: '', proxy_port: 0,
+          core_type: '', test_result: '', is_active: false, group_uuid: '',
+          protocol_color: { bg: '#fff', text: '#000' },
+          core_color: { bg: '#eee', text: '#333' },
+          latency_color: 'var(--color-error)',
         },
       ])
-      expect(useStore.getState().profiles).toHaveLength(1)
+      expect(useStore.getState().profileList).toHaveLength(1)
     })
   })
 
-  describe('setActiveProfile', () => {
-    it('should set active profile', () => {
-      const profile: Profile = {
-        ID: 1, uuid: 'test', name: 'Active',
-        proxy_address: '', proxy_port: 0, proxy_protocol: 'vless',
-        proxy_credential: '', proxy_alter_id: 0, proxy_security: '', proxy_network: '',
-        proxy_tls: '', proxy_sni: '', proxy_fingerprint: '', proxy_allow_insecure: false,
-        proxy_host: '', proxy_path: '', proxy_seed: '', proxy_flow: '',
-        proxy_public_key: '', proxy_short_id: '', proxy_sider_sni: '',
-        proxy_dialer_proxy: '', raw_link: '', test_result: '', last_test_time: '',
-        is_active: true, sort_order: 10, core_type: '', group_uuid: '',
-      }
-      useStore.getState().setActiveProfile(profile)
-      expect(useStore.getState().activeProfile?.name).toBe('Active')
+  describe('setActiveProfileUUID', () => {
+    it('should set active profile UUID', () => {
+      useStore.getState().setActiveProfileUUID('test-uuid')
+      expect(useStore.getState().activeProfileUUID).toBe('test-uuid')
     })
 
-    it('should clear active profile', () => {
-      useStore.getState().setActiveProfile(null)
-      expect(useStore.getState().activeProfile).toBeNull()
+    it('should clear active profile UUID', () => {
+      useStore.getState().setActiveProfileUUID('test-uuid')
+      useStore.getState().setActiveProfileUUID(null)
+      expect(useStore.getState().activeProfileUUID).toBeNull()
     })
   })
 
