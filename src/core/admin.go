@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -76,7 +76,7 @@ func NewCoreAdminManager(cfg *config.AppConfig) *CoreAdminManager {
 	return &CoreAdminManager{
 		cfg:     cfg,
 		cores:   make(map[CoreType]*coreInstance),
-		logChan: make(chan LogEntry, 100),
+		logChan: make(chan LogEntry, coredef.CoreLogChannelBuffer),
 	}
 }
 
@@ -210,7 +210,7 @@ func (m *CoreAdminManager) StopCore(coreType CoreType) error {
 	case <-done:
 		// 监控 goroutine 已完成状态更新和 logFile.Close
 		m.emitLog(coreType, "info", "Core stopped gracefully")
-	case <-time.After(5 * time.Second):
+	case <-time.After(coredef.CoreStopTimeout):
 		// 超时后强制杀死进程，但不自行 Wait/Close，仍等待监控 goroutine 处理
 		if inst.cmd.Process != nil {
 			inst.cmd.Process.Kill()
@@ -235,7 +235,7 @@ func (m *CoreAdminManager) StopAll() {
 
 	for _, t := range types {
 		if err := m.StopCore(t); err != nil {
-			log.Printf("Failed to stop core %s: %v", t, err)
+			slog.Error("failed to stop core", "core", string(t), "error", err)
 		}
 	}
 }

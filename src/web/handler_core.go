@@ -1,10 +1,11 @@
 package web
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 
+	"v2rayn-go/coredef"
 	"v2rayn-go/service"
 )
 
@@ -121,7 +122,7 @@ func (h *CoreHandler) handleCoreDownload(w http.ResponseWriter, r *http.Request)
 		})
 		if err != nil {
 			state.SetError(err.Error())
-			log.Printf("Failed to download core %s: %v", req.CoreName, err)
+			slog.Error("failed to download core", "core", req.CoreName, "error", err)
 			h.broadcaster.Broadcast(map[string]any{"type": "download_complete", "payload": map[string]any{"core_name": req.CoreName, "success": false, "error": err.Error()}})
 		} else {
 			state.SetComplete()
@@ -159,7 +160,7 @@ func (h *CoreHandler) handleCoreDownloadURL(w http.ResponseWriter, r *http.Reque
 		})
 		if err != nil {
 			state.SetError(err.Error())
-			log.Printf("Failed to download core %s from URL: %v", req.CoreName, err)
+			slog.Error("failed to download core from URL", "core", req.CoreName, "error", err)
 			h.broadcaster.Broadcast(map[string]any{"type": "download_complete", "payload": map[string]any{"core_name": req.CoreName, "success": false, "error": err.Error()}})
 		} else {
 			state.SetComplete()
@@ -171,7 +172,7 @@ func (h *CoreHandler) handleCoreDownloadURL(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *CoreHandler) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(200 << 20); err != nil {
+	if err := r.ParseMultipartForm(coredef.MultipartMaxMemoryCore); err != nil {
 		jsonError(w, "Failed to parse form: "+err.Error(), http.StatusBadRequest)
 		return
 	}

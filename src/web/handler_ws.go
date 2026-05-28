@@ -3,7 +3,7 @@ package web
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -167,7 +167,7 @@ func (h *WSHandler) Register(mux *http.ServeMux) {
 func (h *WSHandler) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("WebSocket upgrade failed: %v", err)
+		slog.Error("websocket upgrade failed", "error", err)
 		return
 	}
 

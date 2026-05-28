@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 
+	"v2rayn-go/coredef"
 	"v2rayn-go/database"
 	"v2rayn-go/parser"
 	"v2rayn-go/service"
@@ -82,7 +83,7 @@ func (h *ProfileHandler) handleImport(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProfileHandler) handleImportImage(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(10 << 20); err != nil {
+	if err := r.ParseMultipartForm(coredef.MultipartMaxMemoryDefault); err != nil {
 		jsonError(w, "Failed to parse form: "+err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -169,7 +170,7 @@ func (h *ProfileHandler) handleDedup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProfileHandler) handlePingAll(w http.ResponseWriter, r *http.Request) {
-	go h.pingSvc.PingAllProfiles(r.Context(), 20)
+	go h.pingSvc.PingAllProfiles(r.Context(), coredef.PingAllConcurrency)
 	jsonOK(w, map[string]string{"status": "pinging"})
 }
 

@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
+
+	"v2rayn-go/coredef"
 )
 
 // AppConfig 应用全局配置
@@ -44,11 +46,11 @@ type AppConfig struct {
 // DefaultConfig 返回默认配置
 func DefaultConfig() *AppConfig {
 	return &AppConfig{
-		WebPort:    2017,
-		ListenIP:   "127.0.0.1",
-		SocksPort:  10808,
-		HTTPPort:   10809,
-		OutboundIP: "0.0.0.0",
+		WebPort:    coredef.DefaultWebPort,
+		ListenIP:   coredef.DefaultListenIP,
+		SocksPort:  coredef.DefaultSocksPort,
+		HTTPPort:   coredef.DefaultHTTPPort,
+		OutboundIP: coredef.DefaultOutboundIP,
 	}
 }
 
@@ -101,17 +103,17 @@ func (c *AppConfig) loadJSONConfig() {
 	if err != nil {
 		// config.json 不存在不是错误，使用默认值
 		if !os.IsNotExist(err) {
-			log.Printf("Warning: failed to read config.json: %v", err)
+			slog.Warn("failed to read config.json", "error", err)
 		}
 		return
 	}
 
 	if err := json.Unmarshal(data, c); err != nil {
-		log.Printf("Warning: failed to parse config.json: %v", err)
+		slog.Warn("failed to parse config.json", "error", err)
 		return
 	}
 
-	log.Printf("Loaded config from %s", configPath)
+	slog.Info("loaded config", "path", configPath)
 }
 
 // parseCLIFlags 解析命令行参数（最高优先级）

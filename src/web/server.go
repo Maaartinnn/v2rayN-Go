@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -99,13 +99,13 @@ func (s *Server) Start() error {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
-			log.Printf("[API] %s %s", r.Method, r.URL.Path)
+			slog.Info("API request", "method", r.Method, "path", r.URL.Path)
 		}
 		mux.ServeHTTP(w, r)
 	})
 
 	addr := s.cfg.GetListenAddr()
-	log.Printf("Web server starting on http://%s", addr)
+	slog.Info("web server starting", "addr", addr)
 	return http.ListenAndServe(addr, handler)
 }
 

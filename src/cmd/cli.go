@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 
 	"v2rayn-go/config"
@@ -14,7 +14,8 @@ func Run(cfg *config.AppConfig) {
 	// 如果没有参数，直接以前台模式运行
 	if len(os.Args) < 2 {
 		if err := sysmgr.RunDirect(cfg); err != nil {
-			log.Fatalf("Failed to run: %v", err)
+			slog.Error("failed to run", "error", err)
+			os.Exit(1)
 		}
 		return
 	}
@@ -24,38 +25,44 @@ func Run(cfg *config.AppConfig) {
 	switch command {
 	case "install":
 		if err := sysmgr.InstallService(cfg); err != nil {
-			log.Fatalf("Failed to install service: %v", err)
+			slog.Error("failed to install service", "error", err)
+			os.Exit(1)
 		}
 		fmt.Println("Service installed. Use 'v2rayN-Go start' to start it.")
 
 	case "uninstall":
 		if err := sysmgr.UninstallService(cfg); err != nil {
-			log.Fatalf("Failed to uninstall service: %v", err)
+			slog.Error("failed to uninstall service", "error", err)
+			os.Exit(1)
 		}
 		fmt.Println("Service uninstalled.")
 
 	case "start":
 		if err := sysmgr.StartService(cfg); err != nil {
-			log.Fatalf("Failed to start service: %v", err)
+			slog.Error("failed to start service", "error", err)
+			os.Exit(1)
 		}
 		fmt.Println("Service started.")
 
 	case "stop":
 		if err := sysmgr.StopService(cfg); err != nil {
-			log.Fatalf("Failed to stop service: %v", err)
+			slog.Error("failed to stop service", "error", err)
+			os.Exit(1)
 		}
 		fmt.Println("Service stopped.")
 
 	case "restart":
 		if err := sysmgr.RestartService(cfg); err != nil {
-			log.Fatalf("Failed to restart service: %v", err)
+			slog.Error("failed to restart service", "error", err)
+			os.Exit(1)
 		}
 		fmt.Println("Service restarted.")
 
 	case "daemon":
 		// 以系统服务模式运行（由服务管理器调用）
 		if err := sysmgr.RunAsService(cfg); err != nil {
-			log.Fatalf("Failed to run as service: %v", err)
+			slog.Error("failed to run as service", "error", err)
+			os.Exit(1)
 		}
 
 	case "help", "--help", "-h":
