@@ -1,0 +1,73 @@
+# System Patterns
+
+## Architecture
+
+### 分层架构
+```
+Web Handler → Service → Database (GORM/SQLite)
+     ↓
+  Core Service → CoreAdminManager (xray/sing-box/mihomo)
+```
+
+### Go 后端结构
+```
+src/
+├── main.go              # 入口
+├── cmd/cli.go           # CLI 命令行
+├── config/              # 配置管理
+├── configbuilder/       # 代理配置生成器（singbox/xray）
+├── core/                # 内核进程管理
+├── coredef/             # 核心常量定义
+├── database/            # 数据库层（GORM + SQLite）
+├── httpclient/          # HTTP 客户端
+├── parser/              # 协议解析器
+├── ping/                # 测速服务
+├── service/             # 业务逻辑层
+├── subscription/        # 订阅管理
+├── sysmgr/              # 系统管理（系统代理等）
+├── updater/             # 内核更新器
+└── web/                 # Web 服务器 + Handler
+```
+
+### 前端结构
+```
+web/src/
+├── main.tsx             # React 入口
+├── App.tsx              # 根组件（路由）
+├── store.ts             # Zustand 全局状态
+├── api/                 # API 调用层（基于 api.ts）
+├── components/          # UI 组件
+├── hooks/               # 自定义 Hook
+├── lib/                 # 工具库（api/coreMap/i18n/useWebSocket）
+├── pages/               # 页面组件
+└── locales/             # 国际化字典
+```
+
+## Key Design Patterns
+
+### 1. 依赖注入 (DI)
+- Web Server 是纯 DI 容器，显式注入所有 Service 和 Handler
+- Handler 通过构造函数接收 Service，不依赖全局状态
+- 唯一的全局状态：`database.DB`（GORM 连接）
+
+### 2. 排序系统
+- 所有序列表使用 `sort_order` 字段，步长 10
+- `SortBetween` 插值、`Rebalance` 重排、`SortInsertSafe` 冲突检测
+- 整数溢出保护：`safeAdd`/`safeSub` 检测溢出返回 0
+
+### 3. 错误处理
+- Service 层定义三种业务错误：`ErrNotFound`(404)、`ErrValidation`(400)、`ErrConflict`(409)
+- `mapServiceError` 统一映射为 HTTP 状态码
+- 500 错误内部细节写 slog，前端仅收到泛化提示
+
+### 4. 实时通信
+- WebSocket 广播核心状态、日志、流量指标
+- `WSHandler` 实现 `StatusBroadcaster` 接口
+
+### 5. 前端状态管理
+- Zustand 单一 store，通过 `setState` 精确更新
+- 组件通过 selector 避免不必要的重渲染
+
+### 6. 协议解析
+- `ParseLink` 根据协议前缀分发到对应解析器
+- 每种协议一个独立文件，返回统一的 `database.Profile` 结构
