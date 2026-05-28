@@ -5,24 +5,26 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"v2rayn-go/coredef"
 )
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
-	if cfg.WebPort != 2017 {
-		t.Fatalf("expected WebPort 2017, got %d", cfg.WebPort)
+	if cfg.WebPort != coredef.DefaultWebPort {
+		t.Fatalf("expected WebPort %d, got %d", coredef.DefaultWebPort, cfg.WebPort)
 	}
-	if cfg.ListenIP != "127.0.0.1" {
-		t.Fatalf("expected ListenIP '127.0.0.1', got '%s'", cfg.ListenIP)
+	if cfg.ListenIP != coredef.DefaultListenIP {
+		t.Fatalf("expected ListenIP '%s', got '%s'", coredef.DefaultListenIP, cfg.ListenIP)
 	}
-	if cfg.SocksPort != 10808 {
-		t.Fatalf("expected SocksPort 10808, got %d", cfg.SocksPort)
+	if cfg.SocksPort != coredef.DefaultSocksPort {
+		t.Fatalf("expected SocksPort %d, got %d", coredef.DefaultSocksPort, cfg.SocksPort)
 	}
-	if cfg.HTTPPort != 10809 {
-		t.Fatalf("expected HTTPPort 10809, got %d", cfg.HTTPPort)
+	if cfg.HTTPPort != coredef.DefaultHTTPPort {
+		t.Fatalf("expected HTTPPort %d, got %d", coredef.DefaultHTTPPort, cfg.HTTPPort)
 	}
-	if cfg.OutboundIP != "0.0.0.0" {
-		t.Fatalf("expected OutboundIP '0.0.0.0', got '%s'", cfg.OutboundIP)
+	if cfg.OutboundIP != coredef.DefaultOutboundIP {
+		t.Fatalf("expected OutboundIP '%s', got '%s'", coredef.DefaultOutboundIP, cfg.OutboundIP)
 	}
 }
 
