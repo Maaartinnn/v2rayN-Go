@@ -35,7 +35,11 @@ function PageLoader() {
 
 export default function App() {
   useWebSocket()
-  const { isConnected, activeProfile, setCoreStatuses } = useStore()
+  const { isConnected, profileList, activeProfileUUID, setCoreStatuses } = useStore()
+  // 从精简列表中查找当前激活节点（仅用于顶部状态栏显示名称）
+  const activeProfile = activeProfileUUID
+    ? profileList.find(p => p.uuid === activeProfileUUID) || null
+    : null
   const t = useT()
   const [location] = useLocation()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
