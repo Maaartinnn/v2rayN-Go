@@ -96,6 +96,7 @@ func TestProfileHandler_List(t *testing.T) {
 	database.DB.Create(group)
 	database.DB.Create(&database.Profile{
 		UUID: database.GenerateUUID(), Name: "Node1", ProxyProtocol: "vless",
+		ProxyAddress: "example.com", ProxyPort: 443,
 		GroupUUID: group.UUID, SortOrder: 10,
 	})
 
@@ -107,10 +108,27 @@ func TestProfileHandler_List(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 
-	var profiles []database.Profile
-	json.NewDecoder(w.Body).Decode(&profiles)
-	if len(profiles) != 1 {
-		t.Fatalf("expected 1 profile, got %d", len(profiles))
+	// 列表返回精简的 ProfileListItem（不含 raw_link 等大字段）
+	var items []database.ProfileListItem
+	json.NewDecoder(w.Body).Decode(&items)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	if items[0].UUID == "" {
+		t.Fatal("expected UUID to be set")
+	}
+	if items[0].Name != "Node1" {
+		t.Fatalf("expected name 'Node1', got '%s'", items[0].Name)
+	}
+	if items[0].ProxyProtocol != "vless" {
+		t.Fatalf("expected protocol 'vless', got '%s'", items[0].ProxyProtocol)
+	}
+	// 验证颜色字段已填充
+	if items[0].ProtocolColor.Text == "" {
+		t.Fatal("expected protocol color to be populated")
+	}
+	if items[0].LatencyColor == "" {
+		t.Fatal("expected latency color to be populated")
 	}
 }
 
@@ -133,10 +151,14 @@ func TestProfileHandler_List_FilterByGroup(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 
-	var profiles []database.Profile
-	json.NewDecoder(w.Body).Decode(&profiles)
-	if len(profiles) != 1 {
-		t.Fatalf("expected 1 profile, got %d", len(profiles))
+	// 列表返回精简的 ProfileListItem
+	var items []database.ProfileListItem
+	json.NewDecoder(w.Body).Decode(&items)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	if items[0].Name != "P1" {
+		t.Fatalf("expected 'P1', got '%s'", items[0].Name)
 	}
 }
 

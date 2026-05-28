@@ -41,15 +41,17 @@ func (h *ProfileHandler) Register(mux *http.ServeMux) {
 }
 
 // handleList 处理 GET /api/profiles，支持 group_uuid 和 q 查询参数进行服务端筛选。
+// 返回精简的 ProfileListItem 列表（仅展示字段 + 后端计算颜色），减少传输数据量。
+// 编辑节点时通过 GET /api/profiles/{uuid} 按需获取完整数据。
 func (h *ProfileHandler) handleList(w http.ResponseWriter, r *http.Request) {
 	groupUUID := r.URL.Query().Get("group_uuid")
 	q := r.URL.Query().Get("q")
-	profiles, err := h.profileSvc.List(groupUUID, q)
+	items, err := h.profileSvc.ListSummary(groupUUID, q)
 	if err != nil {
 		mapServiceError(w, err)
 		return
 	}
-	jsonOK(w, profiles)
+	jsonOK(w, items)
 }
 
 func (h *ProfileHandler) handleCreate(w http.ResponseWriter, r *http.Request) {

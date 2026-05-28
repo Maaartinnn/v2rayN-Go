@@ -45,6 +45,56 @@ func (s *ProfileService) List(groupUUID, q string) ([]database.Profile, error) {
 	return profiles, nil
 }
 
+// ListSummary 返回精简的节点列表（仅查询展示所需字段 + 后端计算颜色）。
+// 与 List 不同，此方法不返回 raw_link、proxy_credential 等大字段，
+// 适合前端列表页面展示，减少传输数据量。
+func (s *ProfileService) ListSummary(groupUUID, q string) ([]database.ProfileListItem, error) {
+	var profiles []database.Profile
+	tx := database.DB.Model(&database.Profile{})
+
+	// 复用 List 的筛选逻辑：按分组 UUID 精确过滤
+	if groupUUID != "" {
+		tx = tx.Where("profiles.group_uuid = ?", groupUUID)
+	}
+
+	// 文本搜索：LIKE 匹配 name/proxy_address/proxy_protocol 及关联的 group alias
+	if q != "" {
+		like := "%" + q + "%"
+		tx = tx.Joins("LEFT JOIN node_groups ON node_groups.uuid = profiles.group_uuid").
+			Where("profiles.name LIKE ? OR profiles.proxy_address LIKE ? OR profiles.proxy_protocol LIKE ? OR node_groups.alias LIKE ?",
+				like, like, like, like)
+	}
+
+	// 只查询列表展示所需的字段，避免传输 raw_link 等大字段
+	if err := tx.Order("profiles.sort_order ASC").
+		Select("profiles.uuid", "profiles.name", "profiles.proxy_protocol",
+			"profiles.proxy_address", "profiles.proxy_port", "profiles.core_type",
+			"profiles.test_result", "profiles.is_active", "profiles.group_uuid").
+		Find(&profiles).Error; err != nil {
+		return nil, fmt.Errorf("failed to list profiles: %w", err)
+	}
+
+	// 转换为精简 DTO 并计算颜色
+	items := make([]database.ProfileListItem, len(profiles))
+	for i, p := range profiles {
+		items[i] = database.ProfileListItem{
+			UUID:          p.UUID,
+			Name:          p.Name,
+			ProxyProtocol: p.ProxyProtocol,
+			ProxyAddress:  p.ProxyAddress,
+			ProxyPort:     p.ProxyPort,
+			CoreType:      p.CoreType,
+			TestResult:    p.TestResult,
+			IsActive:      p.IsActive,
+			GroupUUID:     p.GroupUUID,
+			ProtocolColor: database.GetProtocolColor(p.ProxyProtocol),
+			CoreColor:     database.GetCoreColor(p.CoreType),
+			LatencyColor:  database.GetLatencyColor(p.TestResult),
+		}
+	}
+	return items, nil
+}
+
 // Get 根据 UUID 获取单个节点
 func (s *ProfileService) Get(uuid string) (*database.Profile, error) {
 	var profile database.Profile
