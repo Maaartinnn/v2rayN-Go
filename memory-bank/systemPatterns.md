@@ -59,15 +59,23 @@ web/src/
 - Service 层定义三种业务错误：`ErrNotFound`(404)、`ErrValidation`(400)、`ErrConflict`(409)
 - `mapServiceError` 统一映射为 HTTP 状态码
 - 500 错误内部细节写 slog，前端仅收到泛化提示
+- 所有 `fmt.Errorf` 使用 `%w` 保留错误链，支持 `errors.Is`/`errors.As`
+- 统一 JSON 错误响应格式：`{"error": "msg", "code": status_code}`
 
-### 4. 实时通信
+### 4. 日志系统
+- 统一使用 `log/slog`，在 `main.go` 入口处通过 `coredef.InitLogger()` 初始化
+- 结构化日志：`slog.Info("msg", "key", value)` 替代 `log.Printf`
+- 日志级别：debug < info < warn < error，可在初始化时配置
+- CLI 用户输出使用 `fmt.Println`，不混入日志流
+
+### 5. 实时通信
 - WebSocket 广播核心状态、日志、流量指标
 - `WSHandler` 实现 `StatusBroadcaster` 接口
 
-### 5. 前端状态管理
+### 6. 前端状态管理
 - Zustand 单一 store，通过 `setState` 精确更新
 - 组件通过 selector 避免不必要的重渲染
 
-### 6. 协议解析
+### 7. 协议解析
 - `ParseLink` 根据协议前缀分发到对应解析器
 - 每种协议一个独立文件，返回统一的 `database.Profile` 结构
