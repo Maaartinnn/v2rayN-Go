@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react'
 import { profileApi } from '../lib/api'
 import { useT } from '../lib/i18n'
-import type { ProfileListItem } from '../store'
+import { isStrategyGroup } from '../lib/constants'
+import type { Profile, ProfileListItem } from '../store'
 import { EditFormCard } from './ui/EditFormCard'
 import { FormField } from './ui/FormField'
 import { FormActions } from './ui/FormActions'
 import { inputStyle } from './ui/formStyles'
 
 interface StrategyEditFormProps {
+  editData?: Profile            // 编辑模式：传入完整 Profile 数据
   onClose: () => void
-  onSaved: () => void
+  onSaved: (updatedProfile?: Profile) => void
   groupUUID?: string
 }
 
@@ -26,8 +28,20 @@ const BALANCE_STRATEGIES = [
   { value: 'random', labelKey: 'strategy.random' },
 ]
 
-export function StrategyEditForm({ onClose, onSaved, groupUUID }: StrategyEditFormProps) {
+// parseMemberUUIDs 从 JSON 字符串解析成员 UUID 列表，容错返回空数组
+function parseMemberUUIDs(json: string | undefined): string[] {
+  if (!json) return []
+  try {
+    const arr = JSON.parse(json)
+    return Array.isArray(arr) ? arr : []
+  } catch {
+    return []
+  }
+}
+
+export function StrategyEditForm({ editData, onClose, onSaved, groupUUID }: StrategyEditFormProps) {
   const t = useT()
+  const isEditMode = !!editData
 
   const [name, setName] = useState('')
   const [strategyType, setStrategyType] = useState('selector')
@@ -35,18 +49,39 @@ export function StrategyEditForm({ onClose, onSaved, groupUUID }: StrategyEditFo
   const [testURL, setTestURL] = useState('https://www.gstatic.com/generate_204')
   const [testInterval, setTestInterval] = useState('300')
   const [balanceStrategy, setBalanceStrategy] = useState('random')
+
   // Available proxy profiles for member selection
   const [allProfiles, setAllProfiles] = useState<ProfileListItem[]>([])
 
+  // 表单回填：监听 editData 变化，确保 Drawer 复用时表单状态正确重置
   useEffect(() => {
-    profileApi.list(groupUUID).then((res) => {
-      // Filter out strategy group nodes (only show proxy nodes)
+    if (editData) {
+      setName(editData.name)
+      setStrategyType(editData.proxy_protocol)
+      setMemberUUIDs(parseMemberUUIDs(editData.strategy_member_uuids))
+      setTestURL(editData.strategy_test_url || 'https://www.gstatic.com/generate_204')
+      setTestInterval(String(editData.strategy_test_interval || 300))
+      setBalanceStrategy(editData.strategy_type || 'random')
+    } else {
+      // 新建模式：重置为默认值
+      setName('')
+      setStrategyType('selector')
+      setMemberUUIDs([])
+      setTestURL('https://www.gstatic.com/generate_204')
+      setTestInterval('300')
+      setBalanceStrategy('random')
+    }
+  }, [editData])
+
+  // 加载可选的代理节点列表（排除策略组节点）
+  useEffect(() => {
+    profileApi.list(groupUUID || editData?.group_uuid).then((res) => {
       const proxyNodes = (res.data || []).filter(
-        (p: ProfileListItem) => !['selector', 'urltest', 'fallback', 'loadbalance'].includes(p.proxy_protocol)
+        (p: ProfileListItem) => !isStrategyGroup(p.proxy_protocol)
       ) as ProfileListItem[]
       setAllProfiles(proxyNodes)
     }).catch(() => {})
-  }, [groupUUID])
+  }, [groupUUID, editData?.group_uuid])
 
   const toggleMember = (uuid: string) => {
     setMemberUUIDs((prev) =>
@@ -57,26 +92,33 @@ export function StrategyEditForm({ onClose, onSaved, groupUUID }: StrategyEditFo
   const handleSubmit = async () => {
     if (!name.trim()) return
 
-    const payload = {
-      group_uuid: groupUUID || '',
+    const payload: Record<string, unknown> = {
       name: name.trim(),
       proxy_protocol: strategyType,
-      proxy_address: '', // strategy nodes have no address
+      proxy_address: '',
       proxy_port: 0,
       strategy_member_uuids: JSON.stringify(memberUUIDs),
       strategy_test_url: testURL,
       strategy_test_interval: parseInt(testInterval) || 300,
       strategy_type: balanceStrategy,
-      is_active: false,
-      sort_order: 0,
     }
 
     try {
-      await profileApi.create(payload)
-      onSaved()
+      if (isEditMode && editData) {
+        // 编辑模式：通过 update API 更新
+        const res = await profileApi.update(editData.uuid, payload)
+        onSaved(res.data)
+      } else {
+        // 新建模式
+        payload.group_uuid = groupUUID || ''
+        payload.is_active = false
+        payload.sort_order = 0
+        await profileApi.create(payload)
+        onSaved()
+      }
       onClose()
     } catch (err) {
-      console.error('Failed to create strategy group:', err)
+      console.error('Failed to save strategy group:', err)
     }
   }
 
@@ -201,8 +243,8 @@ export function StrategyEditForm({ onClose, onSaved, groupUUID }: StrategyEditFo
         onCancel={onClose}
         onSubmit={handleSubmit}
         cancelLabel={t('nodes.cancel')}
-        submitLabel={t('nodes.confirm')}
-        submitDisabled={!name.trim() || !groupUUID}
+        submitLabel={isEditMode ? t('nodes.save') || '保存' : t('nodes.confirm')}
+        submitDisabled={!name.trim() || (!isEditMode && !groupUUID)}
       />
     </EditFormCard>
   )

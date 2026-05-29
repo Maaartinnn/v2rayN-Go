@@ -56,6 +56,12 @@ export interface Profile {
   sort_order: number
   core_type: string
   group_uuid: string
+
+  // 策略组字段（仅 strategy 类型节点有效）
+  strategy_member_uuids: string  // JSON 数组字符串
+  strategy_test_url: string
+  strategy_test_interval: number
+  strategy_type: string          // 负载均衡策略: round-robin, least-load, random
 }
 
 export interface CoreStatus {

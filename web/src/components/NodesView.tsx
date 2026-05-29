@@ -5,8 +5,10 @@ import { useStore } from '../store'
 import type { Profile, ProfileListItem } from '../store'
 import { profileApi, profileEnhancedApi, groupsApi } from '../lib/api'
 import { useT } from '../lib/i18n'
+import { isStrategyGroup } from '../lib/constants'
 import { DeleteConfirmBanner } from './ui/DeleteConfirmBanner'
 import { NodeEditForm } from './NodeEditForm'
+import { StrategyEditForm } from './StrategyEditForm'
 import { RightDrawer } from './ui/RightDrawer'
 
 // useDebounce 防抖 Hook：延迟更新值，避免频繁触发后端请求。
@@ -629,20 +631,28 @@ export function NodesView() {
         </div>
       </div>
 
-      {/* Edit Node Drawer */}
+      {/* Edit Drawer — 单抽屉，根据节点类型动态渲染不同表单 */}
       <RightDrawer
         isOpen={editProfile !== null}
         onClose={() => setEditProfile(null)}
         title={editProfile ? `${t('nodes.edit') || '编辑'}: ${editProfile.name}` : ''}
-        subtitle={editProfile ? `${editProfile.proxy_protocol.toUpperCase()} · ${editProfile.proxy_address}:${editProfile.proxy_port}` : ''}
+        subtitle={editProfile ? editProfile.proxy_protocol.toUpperCase() : ''}
       >
         {editProfile && (
-          <NodeEditForm
-            editData={editProfile}
+          isStrategyGroup(editProfile.proxy_protocol) ? (
+            <StrategyEditForm
+              editData={editProfile}
+              onClose={() => setEditProfile(null)}
+              onSaved={handleNodeSaved}
+            />
+          ) : (
+            <NodeEditForm
+              editData={editProfile}
               groupUUID={editProfile.group_uuid}
-            onClose={() => setEditProfile(null)}
-            onSaved={handleNodeSaved}
-          />
+              onClose={() => setEditProfile(null)}
+              onSaved={handleNodeSaved}
+            />
+          )
         )}
       </RightDrawer>
     </div>
