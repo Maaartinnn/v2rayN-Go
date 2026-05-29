@@ -61,15 +61,6 @@ export const profileEnhancedApi = {
     }),
 }
 
-// ========== Strategy Groups API ==========
-export const strategyGroupsApi = {
-  list: () => api.get('/strategy-groups'),
-  get: (uuid: string) => api.get(`/strategy-groups/${uuid}`),
-  create: (data: any) => api.post('/strategy-groups', data),
-  update: (uuid: string, data: any) => api.put(`/strategy-groups/${uuid}`, data),
-  delete: (uuid: string) => api.delete(`/strategy-groups/${uuid}`),
-}
-
 // ========== Routing API ==========
 export const routingApi = {
   list: () => api.get('/routing-rules'),

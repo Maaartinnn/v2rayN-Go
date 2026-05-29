@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link, useLocation } from 'wouter'
-import { Home, Server, FileText, Settings, Download, Route, ChevronLeft, ChevronRight, Shuffle, FolderOpen, ArrowUpFromLine } from 'lucide-react'
+import { Home, Server, FileText, Settings, Download, Route, ChevronLeft, ChevronRight, FolderOpen, ArrowUpFromLine } from 'lucide-react'
 import { useStore } from '../store'
 import { useT } from '../lib/i18n'
 
@@ -20,7 +20,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { href: '/import', icon: ArrowUpFromLine, label: t('nav.import') },
     { href: '/groups', icon: FolderOpen, label: t('groups.title') },
     { href: '/routing', icon: Route, label: t('nav.routing') },
-    { href: '/strategy', icon: Shuffle, label: t('strategy.title') },
     { href: '/cores', icon: Download, label: t('nav.cores') },
     { href: '/logs', icon: FileText, label: t('nav.logs') },
     { href: '/settings', icon: Settings, label: t('nav.settings') },

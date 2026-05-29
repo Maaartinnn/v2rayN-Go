@@ -18,7 +18,6 @@ const LogConsole = lazy(() => import('./components/LogConsole').then(m => ({ def
 const SettingsView = lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })))
 const CoresView = lazy(() => import('./components/CoresView').then(m => ({ default: m.CoresView })))
 const RoutingView = lazy(() => import('./components/RoutingView').then(m => ({ default: m.RoutingView })))
-const StrategyGroupView = lazy(() => import('./components/StrategyGroupView').then(m => ({ default: m.StrategyGroupView })))
 
 function PageLoader() {
   return (
@@ -69,7 +68,6 @@ export default function App() {
     '/settings': t('nav.settings'),
     '/cores': t('nav.cores'),
     '/routing': t('nav.routing'),
-    '/strategy': t('strategy.title'),
   }
 
   return (
@@ -153,7 +151,6 @@ export default function App() {
                     <Route path="/settings" component={SettingsView} />
                     <Route path="/cores" component={CoresView} />
                     <Route path="/routing" component={RoutingView} />
-                    <Route path="/strategy" component={StrategyGroupView} />
                     <Route component={HomeView} />
                   </Switch>
                 </Suspense>

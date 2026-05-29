@@ -11,6 +11,7 @@ import { groupsApi, profileApi, profileEnhancedApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 import { useStore } from '../store'
 import { NodeEditForm } from './NodeEditForm'
+import { StrategyEditForm } from './StrategyEditForm'
 
 interface NodeGroup {
   ID: number
@@ -26,6 +27,7 @@ export function ImportView() {
   const [selectedGroupUUID, setSelectedGroupUUID] = useState<string>('')
   const [importText, setImportText] = useState('')
   const [showManualAdd, setShowManualAdd] = useState(false)
+  const [showStrategyAdd, setShowStrategyAdd] = useState(false)
   const [importing, setImporting] = useState(false)
   const t = useT()
   const { addToast } = useStore()
@@ -154,7 +156,7 @@ export function ImportView() {
         {/* Action Buttons Row */}
         <div className="flex gap-2 mb-4">
           <motion.button
-            onClick={() => setShowManualAdd(!showManualAdd)}
+            onClick={() => { setShowManualAdd(!showManualAdd); setShowStrategyAdd(false); }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer btn-secondary"
             style={{
               fontFamily: 'var(--font-heading)',
@@ -182,6 +184,17 @@ export function ImportView() {
             <ScanLine size={13} />
             {t('import.qr_code')}
           </motion.button>
+          <motion.button
+            onClick={() => { setShowStrategyAdd(!showStrategyAdd); setShowManualAdd(false); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer btn-secondary"
+            style={{
+              fontFamily: 'var(--font-heading)',
+            }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <FolderOpen size={13} />
+            {t('strategy.add')}
+          </motion.button>
         </div>
 
         {/* Manual Add Form */}
@@ -189,6 +202,17 @@ export function ImportView() {
           {showManualAdd && (
             <NodeEditForm
               onClose={() => setShowManualAdd(false)}
+              onSaved={loadGroups}
+              groupUUID={selectedGroupUUID || undefined}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Strategy Group Add Form */}
+        <AnimatePresence>
+          {showStrategyAdd && (
+            <StrategyEditForm
+              onClose={() => setShowStrategyAdd(false)}
               onSaved={loadGroups}
               groupUUID={selectedGroupUUID || undefined}
             />
