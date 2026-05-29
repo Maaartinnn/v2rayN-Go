@@ -27,7 +27,6 @@ func createTestMux(t *testing.T) *http.ServeMux {
 	profileSvc := service.NewProfileService()
 	groupSvc := service.NewGroupService()
 	routingSvc := service.NewRoutingRuleService()
-	strategySvc := service.NewStrategyGroupService()
 
 	// Create a mock ping service
 	pingSvc := &mockPingService{}
@@ -35,12 +34,10 @@ func createTestMux(t *testing.T) *http.ServeMux {
 	profileHandler := NewProfileHandler(profileSvc, pingSvc)
 	groupHandler := NewGroupHandler(groupSvc)
 	routingHandler := NewRoutingRuleHandler(routingSvc)
-	strategyHandler := NewStrategyGroupHandler(strategySvc)
 
 	profileHandler.Register(mux)
 	groupHandler.Register(mux)
 	routingHandler.Register(mux)
-	strategyHandler.Register(mux)
 
 	return mux
 }

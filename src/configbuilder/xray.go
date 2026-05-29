@@ -3,13 +3,15 @@ package configbuilder
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
+	"v2rayn-go/coredef"
 	"v2rayn-go/database"
 )
 
-// ========== Xray 配置结构�?==========
+// ========== Xray 配置结构 ==========
 
 // XrayConfig Xray 完整配置
 type XrayConfig struct {
@@ -199,8 +201,8 @@ type XrayPolicyLevel struct {
 	DownlinkOnly int `json:"downlinkOnly,omitempty"`
 }
 
-// BuildXrayConfigWithStrategy 根据选中的节点、路由规则和策略组生�?Xray 配置
-func BuildXrayConfigWithStrategy(profile *database.Profile, rules []database.RoutingRule, strategyGroups []database.StrategyGroup, configDir string, socksPort, httpPort int) (*XrayConfig, error) {
+// BuildXrayConfigWithStrategy 根据选中的节点、路由规则和策略组 Profile 生成 Xray 配置
+func BuildXrayConfigWithStrategy(profile *database.Profile, rules []database.RoutingRule, strategyGroups []*database.Profile, profileMap map[string]*database.Profile, configDir string, socksPort, httpPort int) (*XrayConfig, error) {
 	if profile == nil {
 		return nil, fmt.Errorf("profile is nil")
 	}
@@ -232,16 +234,16 @@ func BuildXrayConfigWithStrategy(profile *database.Profile, rules []database.Rou
 		},
 	}
 
-	// 构建�?outbound
+	// 构建 outbound
 	outbound, err := buildXrayOutbound(profile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build outbound: %w", err)
 	}
 	cfg.Outbounds = []XrayOutbound{*outbound}
 
-	// 构建策略�?outbounds �?balancers
+	// 构建策略 outbounds 和 balancers
 	if len(strategyGroups) > 0 {
-		balancers := buildXrayBalancers(strategyGroups)
+		balancers := buildXrayBalancers(strategyGroups, profileMap)
 		cfg.Routing = buildXrayRoutingWithBalancers(rules, balancers, configDir)
 	} else {
 		cfg.Routing = buildXrayRouting(rules, configDir)
@@ -398,7 +400,7 @@ func buildXrayOutbound(p *database.Profile) (*XrayOutbound, error) {
 	return outbound, nil
 }
 
-// buildXrayStreamSettings 构建传输层设�?
+// buildXrayStreamSettings 构建传输层设置
 func buildXrayStreamSettings(p *database.Profile) *XrayStreamSettings {
 	ss := &XrayStreamSettings{
 		Network: p.ProxyNetwork,
@@ -437,7 +439,7 @@ func buildXrayStreamSettings(p *database.Profile) *XrayStreamSettings {
 		ss.Security = "none"
 	}
 
-	// 传输层协议设�?
+	// 传输层协议设置
 	switch p.ProxyNetwork {
 	case "ws":
 		ss.WSSettings = &XrayWSSettings{
@@ -481,7 +483,7 @@ func buildXrayStreamSettings(p *database.Profile) *XrayStreamSettings {
 	return ss
 }
 
-// hasGeoDatFiles 检�?xray 目录下是否存�?geoip.dat �?geosite.dat
+// hasGeoDatFiles 检查 xray 目录下是否存在 geoip.dat 和 geosite.dat
 func hasGeoDatFiles(configDir string) (bool, bool) {
 	binDir := filepath.Join(configDir, "bin", "xray")
 	_, geoipErr := os.Stat(filepath.Join(binDir, "geoip.dat"))
@@ -489,7 +491,7 @@ func hasGeoDatFiles(configDir string) (bool, bool) {
 	return geoipErr == nil, geositeErr == nil
 }
 
-// buildDefaultRoutingRules 构建默认路由规则（根�?dat 文件是否存在决定是否包含 geo 规则�?
+// buildDefaultRoutingRules 构建默认路由规则（根据 dat 文件是否存在决定是否包含 geo 规则）
 func buildDefaultRoutingRules(configDir string) []XrayRule {
 	var rules []XrayRule
 	hasGeoIP, hasGeoSite := hasGeoDatFiles(configDir)
@@ -519,7 +521,7 @@ func buildXrayRouting(rules []database.RoutingRule, configDir string) *XrayRouti
 		Rules:          buildDefaultRoutingRules(configDir),
 	}
 
-	// 添加用户自定义规�?
+	// 添加用户自定义规则
 	for _, rule := range rules {
 		if !rule.Enabled {
 			continue
@@ -546,32 +548,48 @@ func buildXrayRouting(rules []database.RoutingRule, configDir string) *XrayRouti
 	return routing
 }
 
-// buildXrayBalancers 根据策略组构�?Xray balancers
-func buildXrayBalancers(groups []database.StrategyGroup) []any {
+// buildXrayBalancers 根据策略组 Profile 构建 Xray balancers
+func buildXrayBalancers(groups []*database.Profile, profileMap map[string]*database.Profile) []any {
 	var balancers []any
 	for _, g := range groups {
-		if !g.Enabled {
+		if !g.StrategyEnabled {
 			continue
 		}
-		balancer := map[string]any{
-			"tag":      g.Name,
-			"selector": []string{g.Name},
+
+		// 解析成员并过滤孤儿
+		members, orphans := database.ResolveStrategyMembers(g, profileMap)
+		if len(orphans) > 0 {
+			slog.Warn("strategy group has orphan members", "group", g.UUID, "orphans", orphans)
 		}
-		switch g.Type {
-		case "urltest":
+		if len(members) == 0 {
+			continue
+		}
+
+		// 构建成员 tag 列表（使用 UUID 作为 tag）
+		memberTags := make([]string, 0, len(members))
+		for _, m := range members {
+			memberTags = append(memberTags, m.UUID)
+		}
+
+		balancer := map[string]any{
+			"tag":      g.UUID,
+			"selector": memberTags,
+		}
+		switch g.ProxyProtocol {
+		case coredef.ProtocolURLTest:
 			balancer["strategy"] = map[string]any{
 				"type": "urlTest",
 			}
-		case "fallback":
+		case coredef.ProtocolFallback:
 			balancer["strategy"] = map[string]any{
 				"type": "fallback",
 			}
-		case "loadbalance":
+		case coredef.ProtocolLoadBalance:
 			strategyType := "random"
-			switch g.Strategy {
-			case "round-robin":
+			switch g.StrategyType {
+			case coredef.StrategyRoundRobin:
 				strategyType = "roundRobin"
-			case "least-load":
+			case coredef.StrategyLeastLoad:
 				strategyType = "leastLoad"
 			}
 			balancer["strategy"] = map[string]any{
@@ -587,7 +605,7 @@ func buildXrayBalancers(groups []database.StrategyGroup) []any {
 	return balancers
 }
 
-// buildXrayRoutingWithBalancers 构建�?balancer 的路由规�?
+// buildXrayRoutingWithBalancers 构建带 balancer 的路由规则
 func buildXrayRoutingWithBalancers(rules []database.RoutingRule, balancers []any, configDir string) *XrayRouting {
 	routing := &XrayRouting{
 		DomainStrategy: "IPIfNonMatch",
@@ -618,7 +636,7 @@ func buildXrayRoutingWithBalancers(rules []database.RoutingRule, balancers []any
 	return routing
 }
 
-// SaveXrayConfig 生成并保�?Xray 配置文件
+// SaveXrayConfig 生成并保存 Xray 配置文件
 func SaveXrayConfig(profile *database.Profile, rules []database.RoutingRule, configDir string, socksPort, httpPort int) (string, error) {
 	cfg, err := BuildXrayConfig(profile, rules, configDir, socksPort, httpPort)
 	if err != nil {

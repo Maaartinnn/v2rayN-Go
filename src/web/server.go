@@ -21,7 +21,6 @@ type Server struct {
 	// 业务 Service 层
 	profileSvc  *service.ProfileService
 	groupSvc    *service.GroupService
-	strategySvc *service.StrategyGroupService
 	routingSvc  *service.RoutingRuleService
 	coreSvc     *service.CoreService
 	settingsSvc *service.SettingsService
@@ -41,7 +40,6 @@ func NewServer(cfg *config.AppConfig, coreMgr *core.CoreAdminManager) *Server {
 		cfg:         cfg,
 		profileSvc:  service.NewProfileService(),
 		groupSvc:    service.NewGroupService(),
-		strategySvc: service.NewStrategyGroupService(),
 		routingSvc:  service.NewRoutingRuleService(),
 		coreSvc:     coreSvc,
 		settingsSvc: service.NewSettingsService(cfg),
@@ -61,7 +59,6 @@ func (s *Server) Start() error {
 	coreHandler := NewCoreHandler(s.coreSvc, wsHandler)
 	profileHandler := NewProfileHandler(s.profileSvc, s.pingSvc)
 	groupHandler := NewGroupHandler(s.groupSvc)
-	strategyHandler := NewStrategyGroupHandler(s.strategySvc)
 	routingHandler := NewRoutingRuleHandler(s.routingSvc)
 	settingsHandler := NewSettingsHandler(s.settingsSvc, s.cfg)
 
@@ -69,7 +66,6 @@ func (s *Server) Start() error {
 	coreHandler.Register(mux)
 	profileHandler.Register(mux)
 	groupHandler.Register(mux)
-	strategyHandler.Register(mux)
 	routingHandler.Register(mux)
 	settingsHandler.Register(mux)
 	wsHandler.Register(mux)

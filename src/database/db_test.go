@@ -1,6 +1,7 @@
 package database
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -183,36 +184,64 @@ func TestRoutingRule_Create(t *testing.T) {
 
 // ==================== StrategyGroup CRUD ====================
 
-func TestStrategyGroup_Create(t *testing.T) {
+func TestProfile_StrategyGroup_Create(t *testing.T) {
 	setupTestDB(t)
 
-	sg := &StrategyGroup{
-		UUID:         GenerateUUID(),
-		Name:         "AutoSelect",
-		Type:         "urltest",
-		TestURL:      "https://www.gstatic.com/generate_204",
-		TestInterval: 300,
-		Enabled:      true,
-		SortOrder:    10,
+	group := &NodeGroup{UUID: GenerateUUID(), Alias: "Default", SortOrder: 10, Enabled: true}
+	DB.Create(group)
+
+	p := &Profile{
+		UUID:                 GenerateUUID(),
+		Name:                 "AutoSelect",
+		ProxyProtocol:        "urltest",
+		GroupUUID:            group.UUID,
+		StrategyTestURL:      "https://www.gstatic.com/generate_204",
+		StrategyTestInterval: 300,
+		StrategyEnabled:      true,
+		SortOrder:            10,
 	}
-	if err := DB.Create(sg).Error; err != nil {
-		t.Fatalf("failed to create strategy group: %v", err)
+	if err := DB.Create(p).Error; err != nil {
+		t.Fatalf("failed to create strategy group profile: %v", err)
 	}
-	if sg.ID == 0 {
+	if p.ID == 0 {
 		t.Fatal("expected non-zero ID")
 	}
 }
 
-func TestStrategyGroup_UniqueName(t *testing.T) {
+func TestProfile_StrategyGroup_WithMembers(t *testing.T) {
 	setupTestDB(t)
 
-	sg1 := &StrategyGroup{UUID: GenerateUUID(), Name: "Unique", Type: "selector", SortOrder: 10, Enabled: true}
-	DB.Create(sg1)
+	group := &NodeGroup{UUID: GenerateUUID(), Alias: "Default", SortOrder: 10, Enabled: true}
+	DB.Create(group)
 
-	sg2 := &StrategyGroup{UUID: GenerateUUID(), Name: "Unique", Type: "selector", SortOrder: 20, Enabled: true}
-	err := DB.Create(sg2).Error
-	if err == nil {
-		t.Fatal("expected error for duplicate strategy group name")
+	member1 := &Profile{UUID: GenerateUUID(), Name: "Node1", ProxyProtocol: "vmess", GroupUUID: group.UUID, SortOrder: 10}
+	member2 := &Profile{UUID: GenerateUUID(), Name: "Node2", ProxyProtocol: "vless", GroupUUID: group.UUID, SortOrder: 20}
+	DB.Create(member1)
+	DB.Create(member2)
+
+	sg := &Profile{
+		UUID:                GenerateUUID(),
+		Name:                "MyGroup",
+		ProxyProtocol:       "selector",
+		GroupUUID:           group.UUID,
+		StrategyMemberUUIDs: fmt.Sprintf(`["%s","%s"]`, member1.UUID, member2.UUID),
+		StrategyEnabled:     true,
+		SortOrder:           30,
+	}
+	if err := DB.Create(sg).Error; err != nil {
+		t.Fatalf("failed to create strategy group: %v", err)
+	}
+
+	// Verify members can be resolved
+	members, orphans := ResolveStrategyMembers(sg, map[string]*Profile{
+		member1.UUID: member1,
+		member2.UUID: member2,
+	})
+	if len(members) != 2 {
+		t.Fatalf("expected 2 members, got %d", len(members))
+	}
+	if len(orphans) != 0 {
+		t.Fatalf("expected 0 orphans, got %d", len(orphans))
 	}
 }
 
