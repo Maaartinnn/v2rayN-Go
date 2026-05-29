@@ -88,6 +88,22 @@ export interface DownloadProgress {
   error?: string
 }
 
+// ToastAction 操作按钮配置
+export interface ToastAction {
+  label: string          // 按钮文字
+  onClick: () => void    // 点击回调
+}
+
+// Toast 通知配置
+export interface Toast {
+  id: number
+  message: string
+  type: 'success' | 'error' | 'info' | 'warning'
+  color?: { bg: string; text: string }  // 可选：自定义颜色覆盖
+  action?: ToastAction                  // 可选：操作按钮
+  duration?: number                     // 可选：自动消失时间（毫秒），不传则不自动消失
+}
+
 interface AppState {
   // Core
   isConnected: boolean
@@ -117,8 +133,12 @@ interface AppState {
   clearDownloadProgress: (coreName: string) => void
 
   // Toast notifications
-  toasts: Array<{ id: number; message: string; type: 'success' | 'error' | 'info' }>
-  addToast: (message: string, type: 'success' | 'error' | 'info') => void
+  toasts: Toast[]
+  addToast: (message: string, type?: Toast['type'], options?: {
+    color?: Toast['color']
+    action?: Toast['action']
+    duration?: number
+  }) => number
   removeToast: (id: number) => void
 
   // Logs
@@ -167,19 +187,13 @@ export const useStore = create<AppState>((set) => ({
     return { downloadProgress: rest }
   }),
 
-  // Toast notifications
+  // Toast notifications（定时器生命周期由 ToastItem 组件管理，Store 只负责数据）
   toasts: [],
-  addToast: (message, type) => {
+  addToast: (message, type = 'info', options) => {
     const id = Date.now()
-    set((state) => ({
-      toasts: [...state.toasts, { id, message, type }],
-    }))
-    // Auto remove after 5 seconds
-    setTimeout(() => {
-      set((state) => ({
-        toasts: state.toasts.filter((t) => t.id !== id),
-      }))
-    }, 5000)
+    const toast: Toast = { id, message, type, ...options }
+    set((state) => ({ toasts: [...state.toasts, toast] }))
+    return id
   },
   removeToast: (id) => set((state) => ({
     toasts: state.toasts.filter((t) => t.id !== id),

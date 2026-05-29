@@ -144,13 +144,49 @@ describe('useStore', () => {
   // ==================== Toasts ====================
 
   describe('toasts', () => {
-    it('should add and remove toasts', () => {
-      useStore.getState().addToast('Hello', 'success')
+    it('should add toast with type and return id', () => {
+      const id = useStore.getState().addToast('Hello', 'success')
       expect(useStore.getState().toasts).toHaveLength(1)
       expect(useStore.getState().toasts[0].message).toBe('Hello')
       expect(useStore.getState().toasts[0].type).toBe('success')
+      expect(useStore.getState().toasts[0].id).toBe(id)
+    })
 
-      const id = useStore.getState().toasts[0].id
+    it('should default to info type when no type provided', () => {
+      useStore.getState().addToast('Default')
+      expect(useStore.getState().toasts[0].type).toBe('info')
+    })
+
+    it('should add toast with custom color', () => {
+      useStore.getState().addToast('Custom', 'info', {
+        color: { bg: '#f0f', text: '#000' },
+      })
+      expect(useStore.getState().toasts[0].color).toEqual({ bg: '#f0f', text: '#000' })
+    })
+
+    it('should add toast with action', () => {
+      const onClick = () => {}
+      useStore.getState().addToast('With action', 'warning', {
+        action: { label: 'Update', onClick },
+      })
+      expect(useStore.getState().toasts[0].action?.label).toBe('Update')
+      expect(useStore.getState().toasts[0].action?.onClick).toBe(onClick)
+    })
+
+    it('should add toast with duration', () => {
+      useStore.getState().addToast('Timed', 'success', { duration: 2000 })
+      expect(useStore.getState().toasts[0].duration).toBe(2000)
+    })
+
+    it('should not auto-remove (no setTimeout in store)', () => {
+      useStore.getState().addToast('Persistent', 'error')
+      // Toast should still be present after a tick (no auto-removal in store)
+      expect(useStore.getState().toasts).toHaveLength(1)
+    })
+
+    it('should remove toast by id', () => {
+      const id = useStore.getState().addToast('Remove me')
+      expect(useStore.getState().toasts).toHaveLength(1)
       useStore.getState().removeToast(id)
       expect(useStore.getState().toasts).toHaveLength(0)
     })

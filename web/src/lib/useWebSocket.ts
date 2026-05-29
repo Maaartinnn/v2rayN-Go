@@ -35,9 +35,9 @@ export function useWebSocket() {
             break
           case 'download_complete':
             if (data.payload.success) {
-              addToast(`${data.payload.core_name} 下载完成`, 'success')
+              addToast(`${data.payload.core_name} 下载完成`, 'success', { duration: 5000 })
             } else {
-              addToast(`${data.payload.core_name} 下载失败: ${data.payload.error}`, 'error')
+              addToast(`${data.payload.core_name} 下载失败: ${data.payload.error}`, 'error', { duration: 5000 })
             }
             clearDownloadProgress(data.payload.core_name)
             break

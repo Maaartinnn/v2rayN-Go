@@ -9,6 +9,7 @@ import { useStore } from './store'
 import { useT, initTheme } from './lib/i18n'
 import { coreApi } from './lib/api'
 import { motion, AnimatePresence } from 'framer-motion'
+import { ToastContainer } from './components/ui/ToastContainer'
 
 // 动态导入非首屏组件（代码分割）
 const ImportView = lazy(() => import('./components/ImportView').then(m => ({ default: m.ImportView })))
@@ -74,6 +75,7 @@ export default function App() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--color-background)' }}>
       <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
+      <ToastContainer />
 
       {/* Top Header Bar */}
       <header
