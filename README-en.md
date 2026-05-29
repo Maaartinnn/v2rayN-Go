@@ -42,6 +42,8 @@
 - 📡 **WebSocket Real-Time Logs** — Live kernel log streaming with level and source filtering
 - 🧩 **Code Splitting** — Lazy-loaded non-critical components for faster initial load
 - 📦 **Dual Distribution** — Lite (~15MB) and Full (with kernels) editions
+- 🪶 **Compact List Transfer** — Node list only transmits display fields (12 fields), colors computed server-side, full data loaded on-demand when editing
+- 🔔 **Generic Toast Notifications** — Custom colors, action buttons, optional auto-dismiss, responsive layout, accessibility support
 
 ---
 
@@ -70,7 +72,7 @@ v2rayN-Go/
 │       ├── components/            # UI Components
 │       │   ├── Sidebar.tsx        # Collapsible navigation sidebar
 │       │   ├── HomeView.tsx       # Dashboard control panel (traffic stats + quick actions)
-│       │   ├── NodesView.tsx      # Node management (search/group/dedup/latency test/activate)
+│       │   ├── NodesView.tsx      # Node management (compact DTO / backend colors / uuid-based selection / on-demand edit)
 │       │   ├── ImportView.tsx     # Import page (links/QR code/manual add)
 │       │   ├── GroupsView.tsx     # Group management (CRUD / drag-and-drop / subscription config)
 │       │   ├── NodeEditForm.tsx   # Node edit/create form
@@ -80,16 +82,17 @@ v2rayN-Go/
 │       │   ├── SettingsView.tsx   # Settings (language/theme/network/system proxy)
 │       │   ├── LogConsole.tsx     # Log terminal (level/source filtering)
 │       │   ├── ErrorBoundary.tsx  # Error boundary
+│       │   ├── ToastContainer.tsx  # Generic toast notifications (custom color/action/auto-dismiss/responsive/a11y)
 │       │   └── ui/               # Atomic UI components (includes DeleteConfirmBanner, etc.)
 │       ├── lib/
 │       │   ├── api.ts             # API client (Axios)
 │       │   ├── i18n.ts            # i18n + theme management
 │       │   ├── useWebSocket.ts    # WebSocket hook
-│       │   └── coreMap.ts         # Core name mapping utility
+│       │   └── coreMap.ts         # Protocol-core compatibility map + color utilities
 │       ├── locales/               # Standalone locale files
 │       │   ├── zh-CN.ts           # Chinese
 │       │   └── en-US.ts           # English
-│       ├── store.ts               # Zustand global state management
+│       ├── store.ts               # Zustand global state (ProfileListItem/Toast/...)
 │       ├── App.tsx                # Root component (routing + layout)
 │       ├── main.tsx               # Entry point
 │       └── index.css              # Global styles (Tailwind CSS v4)
@@ -105,6 +108,8 @@ v2rayN-Go/
     ├── database/                  # SQLite database (pure Go, no CGO required)
     │   ├── db.go                  # DB initialization / AutoMigrate / soft-delete purge / sort rebalance / default group creation
     │   ├── models.go              # Profile, NodeGroup, RoutingRule, StrategyGroup, AppSetting
+    │   ├── profile_summary.go     # Compact DTO (ProfileListItem/ColorPair)
+    │   ├── profile_colors.go      # Protocol/core/latency color mapping (pure functions, no DB)
     │   └── utils.go               # UUID generation
     ├── parser/                    # Multi-protocol parsers + QR code decoder
     │   ├── parser.go              # Parse entry dispatch + batch parsing + subscription content parsing
@@ -116,7 +121,7 @@ v2rayN-Go/
     │   ├── qrcode.go              # QR code decoding
     │   └── utils.go               # Base64 decode / URL parse / name extraction utilities
     ├── service/                   # Business logic layer (Service layer)
-    │   ├── profile.go             # Node CRUD / activate / dedup / sort / group move
+    │   ├── profile.go             # Node CRUD / activate / dedup / sort / group move / ListSummary compact list
     │   ├── group.go               # Group CRUD / sort / subscription config
     │   ├── strategygroup.go       # Strategy group CRUD
     │   ├── routingrule.go         # Routing rule CRUD

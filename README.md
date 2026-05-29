@@ -42,6 +42,8 @@
 - 📡 **WebSocket 实时日志** — 内核运行日志实时推送，支持按级别和来源筛选
 - 🧩 **代码分割** — 非首屏组件懒加载，首屏加载更快速
 - 📦 **双轨发行** — Lite 版（~15MB）与 Full 版（含内核）供选择
+- 🪶 **精简列表传输** — 节点列表仅传输展示所需字段（12 个），颜色由后端计算返回，编辑时按需加载完整数据
+- 🔔 **通用 Toast 通知** — 支持自定义颜色、操作按钮、可选自动消失、窄屏自适应、无障碍访问
 
 ---
 
@@ -70,7 +72,7 @@ v2rayN-Go/
 │       ├── components/            # UI 组件
 │       │   ├── Sidebar.tsx        # 可折叠侧边导航栏
 │       │   ├── HomeView.tsx       # 首页控制面板（流量统计 + 快捷操作）
-│       │   ├── NodesView.tsx      # 节点管理（搜索/分组/去重/测速/激活切换）
+│       │   ├── NodesView.tsx      # 节点管理（精简 DTO / 后端颜色 / uuid 标识 / 编辑按需加载）
 │       │   ├── ImportView.tsx     # 导入页面（链接/二维码/手动添加）
 │       │   ├── GroupsView.tsx     # 分组管理（CRUD / 拖拽排序 / 订阅配置）
 │       │   ├── NodeEditForm.tsx   # 节点编辑/新建表单
@@ -80,16 +82,17 @@ v2rayN-Go/
 │       │   ├── SettingsView.tsx   # 设置（语言/主题/网络/系统代理）
 │       │   ├── LogConsole.tsx     # 日志终端（级别/来源过滤）
 │       │   ├── ErrorBoundary.tsx  # 错误边界
+│       │   ├── ToastContainer.tsx  # 通用 Toast 通知（自定义颜色/按钮/自动消失/响应式/无障碍）
 │       │   └── ui/               # 通用 UI 原子组件（含 DeleteConfirmBanner 等）
 │       ├── lib/
 │       │   ├── api.ts             # API 客户端 (Axios)
 │       │   ├── i18n.ts            # 多语言 + 主题管理
 │       │   ├── useWebSocket.ts    # WebSocket Hook
-│       │   └── coreMap.ts         # 内核名称映射工具
+│       │   └── coreMap.ts         # 协议-内核兼容映射 + 颜色工具
 │       ├── locales/               # 独立语言包
 │       │   ├── zh-CN.ts           # 中文
 │       │   └── en-US.ts           # English
-│       ├── store.ts               # Zustand 全局状态管理
+│       ├── store.ts               # Zustand 全局状态（ProfileListItem/Toast/...）
 │       ├── App.tsx                # 根组件（路由 + 布局）
 │       ├── main.tsx               # 入口文件
 │       └── index.css              # 全局样式 (Tailwind CSS v4)
@@ -105,6 +108,8 @@ v2rayN-Go/
     ├── database/                  # SQLite 数据库（纯 Go，无需 CGO）
     │   ├── db.go                  # 数据库初始化 / AutoMigrate / 软删除清理 / 排序重平衡 / 默认分组创建
     │   ├── models.go              # Profile, NodeGroup, RoutingRule, StrategyGroup, AppSetting
+    │   ├── profile_summary.go     # 精简 DTO（ProfileListItem/ColorPair）
+    │   ├── profile_colors.go      # 协议/内核/延迟颜色映射纯函数（不入库）
     │   └── utils.go               # UUID 生成
     ├── parser/                    # 多协议解析器 + 二维码解码
     │   ├── parser.go              # 解析入口分发 + 批量解析 + 订阅内容解析
@@ -116,7 +121,7 @@ v2rayN-Go/
     │   ├── qrcode.go              # 二维码解码
     │   └── utils.go               # Base64 解码 / URL 解析 / 名称提取等工具函数
     ├── service/                   # 业务逻辑层（Service 层）
-    │   ├── profile.go             # 节点 CRUD / 激活 / 去重 / 排序 / 分组移动
+    │   ├── profile.go             # 节点 CRUD / 激活 / 去重 / 排序 / 分组移动 / ListSummary 精简列表
     │   ├── group.go               # 分组 CRUD / 排序 / 订阅配置
     │   ├── strategygroup.go       # 策略组 CRUD
     │   ├── routingrule.go         # 路由规则 CRUD

@@ -35,9 +35,16 @@ cd src && go test ./...
 # 前端
 cd web && npm test        # 单次运行
 cd web && npm run test:watch  # 监听模式
+cd web && npm run build   # TypeScript 编译 + Vite 构建
 ```
 
 ## Technical Constraints
 - SQLite 不支持并发写入（通过 busy_timeout 缓解）
 - CGO_ENABLED=0 纯 Go 编译，跨平台无依赖
 - 前端嵌入后端（go:embed），单一二进制分发
+
+## API 设计模式
+- **列表精简传输**：`GET /api/profiles/` 返回 `ProfileListItem[]`（12 字段），不传大字段
+- **按需完整数据**：`GET /api/profiles/{uuid}` 返回完整 `Profile`（30+ 字段）
+- **颜色后端计算**：协议/内核/延迟颜色由后端纯函数计算，随 DTO 返回
+- **WebSocket 广播**：核心状态、日志、流量指标实时推送
