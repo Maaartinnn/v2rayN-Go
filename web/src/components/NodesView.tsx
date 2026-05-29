@@ -30,7 +30,7 @@ interface NodeGroupItem {
 
 export function NodesView() {
   // 列表使用精简数据（ProfileListItem），编辑时按需获取完整 Profile
-  const { profileList, setProfileList, activeProfileUUID, setActiveProfileUUID } = useStore()
+  const { profileList, setProfileList, activeProfileUUID, setActiveProfileUUID, addToast } = useStore()
   const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedGroupUUID, setSelectedGroupUUID] = useState<string>('')
@@ -194,6 +194,7 @@ export function NodesView() {
       setEditProfile(res.data)
     } catch (err) {
       console.error('Failed to load profile for editing:', err)
+      addToast(t('nodes.edit_load_failed'), 'error', { duration: 5000 })
     } finally {
       setEditLoading(false)
     }

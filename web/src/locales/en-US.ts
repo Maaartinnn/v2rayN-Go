@@ -34,6 +34,7 @@ const enUS = {
   'nodes.dedup': 'Deduplicate',
   'nodes.dedup_result': 'Removed {removed} duplicates from {total} nodes',
   'nodes.delete_confirm': 'Delete node "{name}"?',
+  'nodes.edit_load_failed': 'Failed to load node data. Please check if the backend is running.',
 
   // Group Management
   'groups.title': 'Group Management',

@@ -34,6 +34,7 @@ const zhCN = {
   'nodes.dedup': '去重',
   'nodes.dedup_result': '从 {total} 个节点中移除了 {removed} 个重复项',
   'nodes.delete_confirm': '确定删除节点「{name}」？',
+  'nodes.edit_load_failed': '加载节点数据失败，请检查后端是否正常运行',
 
   // 分组管理
   'groups.title': '分组管理',
