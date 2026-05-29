@@ -216,7 +216,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
 
         {/* Row 2: Address + Port */}
         <div className="grid grid-cols-3 gap-3">
-          <FormField label="Address" cols="2/3">
+          <FormField label={t('nodes.address')} cols="2/3">
             <input
               type="text"
               value={address}
@@ -226,7 +226,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
               style={inputStyle}
             />
           </FormField>
-          <FormField label="Port" cols="1/3">
+          <FormField label={t('nodes.port')} cols="1/3">
             <input
               type="text"
               value={port}
@@ -240,7 +240,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
 
         {/* UUID / Password */}
         {(showUUID || showPassword) && (
-          <FormField label={showUUID ? 'UUID / ID' : 'Password'}>
+          <FormField label={showUUID ? t('nodes.uuid') : t('nodes.password')}>
             <input
               type="text"
               value={uuid}
@@ -254,7 +254,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
 
         {/* VMess Security */}
         {showSecurity && (
-          <FormField label="Security">
+          <FormField label={t('nodes.security')}>
             <select
               value={security}
               onChange={(e) => setSecurity(e.target.value)}
@@ -270,14 +270,14 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
 
         {/* VLESS Flow */}
         {showFlow && (
-          <FormField label="Flow">
+          <FormField label={t('nodes.flow')}>
             <select
               value={flow}
               onChange={(e) => setFlow(e.target.value)}
               className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
               style={inputStyle}
             >
-              <option value="">None</option>
+              <option value="">{t('nodes.none')}</option>
               <option value="xtls-rprx-vision">xtls-rprx-vision</option>
             </select>
           </FormField>
@@ -287,7 +287,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
         {showTransport && (
           <>
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Transport" cols="1/2">
+              <FormField label={t('nodes.transport')} cols="1/2">
                 <select
                   value={network}
                   onChange={(e) => setNetwork(e.target.value)}
@@ -299,7 +299,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
                   ))}
                 </select>
               </FormField>
-              <FormField label="TLS" cols="1/2">
+              <FormField label={t('nodes.tls')} cols="1/2">
                 <select
                   value={tls}
                   onChange={(e) => setTls(e.target.value)}
@@ -316,7 +316,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
             {/* Host & Path for ws/h2/grpc */}
             {network !== 'tcp' && (
               <div className="grid grid-cols-2 gap-3">
-                <FormField label="Host" cols="1/2">
+                <FormField label={t('nodes.host')} cols="1/2">
                   <input
                     type="text"
                     value={host}
@@ -326,7 +326,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
                     style={inputStyle}
                   />
                 </FormField>
-                <FormField label="Path" cols="1/2">
+                <FormField label={t('nodes.path')} cols="1/2">
                   <input
                     type="text"
                     value={path}
@@ -342,7 +342,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
             {/* TLS fields */}
             {tls === 'tls' && (
               <div className="grid grid-cols-2 gap-3">
-                <FormField label="SNI" cols="1/2">
+                <FormField label={t('nodes.sni')} cols="1/2">
                   <input
                     type="text"
                     value={sni}
@@ -352,7 +352,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
                     style={inputStyle}
                   />
                 </FormField>
-                <FormField label="Fingerprint" cols="1/2">
+                <FormField label={t('nodes.fingerprint')} cols="1/2">
                   <input
                     type="text"
                     value={fingerprint}
@@ -369,7 +369,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
             {showReality && (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
-                  <FormField label="SNI (ServerName)" cols="1/2">
+                  <FormField label={t('nodes.sni_servername')} cols="1/2">
                     <input
                       type="text"
                       value={sni}
@@ -379,7 +379,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
                       style={inputStyle}
                     />
                   </FormField>
-                  <FormField label="Fingerprint" cols="1/2">
+                  <FormField label={t('nodes.fingerprint')} cols="1/2">
                     <input
                       type="text"
                       value={fingerprint}
@@ -391,7 +391,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
                   </FormField>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <FormField label="Public Key" cols="1/2">
+                  <FormField label={t('nodes.public_key')} cols="1/2">
                     <input
                       type="text"
                       value={publicKey}
@@ -401,7 +401,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
                       style={inputStyle}
                     />
                   </FormField>
-                  <FormField label="Short ID" cols="1/2">
+                  <FormField label={t('nodes.short_id')} cols="1/2">
                     <input
                       type="text"
                       value={shortId}
@@ -425,7 +425,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
                   className="rounded"
                 />
                 <span className="text-xs" style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}>
-                  Allow Insecure (skip certificate verification)
+                  {t('nodes.allow_insecure')}
                 </span>
               </label>
             )}
@@ -436,7 +436,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
         {supportedCores.length > 0 && (
           <>
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="内核选择" cols="1/2">
+              <FormField label={t('nodes.core_selection')} cols="1/2">
                 <button
                   type="button"
                   onClick={() => {
@@ -454,10 +454,10 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
                     borderColor: kernelMode === 'manual' ? 'var(--color-primary)' : 'var(--color-border)',
                   }}
                 >
-                  {kernelMode === 'auto' ? '自动' : '手动'}
+                  {kernelMode === 'auto' ? t('nodes.auto') : t('nodes.manual')}
                 </button>
               </FormField>
-              <FormField label={kernelMode === 'auto' ? '推荐内核' : '手动内核'} cols="1/2">
+              <FormField label={kernelMode === 'auto' ? t('nodes.recommended_core') : t('nodes.manual_core')} cols="1/2">
                 {kernelMode === 'auto' ? (
                   <div
                     className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm"
@@ -471,7 +471,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
                     {recommendedCore ? (
                       <span><strong>{recommendedCore}</strong></span>
                     ) : (
-                      <span>无可用内核</span>
+                      <span>{t('nodes.no_core_available')}</span>
                     )}
                   </div>
                 ) : (
@@ -485,7 +485,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
                       const isInstalled = installedCores.includes(c)
                       return (
                         <option key={c} value={c}>
-                          {c}{isInstalled ? ' ✓' : ' (未安装)'}
+                          {c}{isInstalled ? t('nodes.core_installed_suffix') : t('nodes.core_not_installed_suffix')}
                         </option>
                       )
                     })}
@@ -499,7 +499,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
                 className="text-xs"
                 style={{ color: 'var(--color-muted-foreground)', opacity: 0.6, fontFamily: 'var(--font-heading)' }}
               >
-                此协议也支持: {supportedCores.filter(c => c !== manualCore).join(', ')}
+                {t('nodes.also_supported')} {supportedCores.filter(c => c !== manualCore).join(', ')}
               </p>
             )}
           </>

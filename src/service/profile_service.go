@@ -352,11 +352,11 @@ func (s *ProfileService) buildAddressText(p *database.Profile) string {
 	var strategyDesc string
 	switch p.ProxyProtocol {
 	case coredef.ProtocolSelector:
-		strategyDesc = "手动选择"
+		strategyDesc = "Manual Select"
 	case coredef.ProtocolURLTest:
-		strategyDesc = "自动选择"
+		strategyDesc = "Auto Select"
 	case coredef.ProtocolFallback:
-		strategyDesc = "故障转移"
+		strategyDesc = "Fallback"
 	case coredef.ProtocolLoadBalance:
 		// 负载均衡显示具体策略类型（round-robin/least-load/random）
 		if p.StrategyType != "" {
@@ -366,7 +366,7 @@ func (s *ProfileService) buildAddressText(p *database.Profile) string {
 		}
 	}
 
-	return fmt.Sprintf("%d 个成员 · %s", memberCount, strategyDesc)
+	return fmt.Sprintf("%d members · %s", memberCount, strategyDesc)
 }
 
 // cleanStrategyMemberRefs 清理所有策略组中对被删节点 UUID 的引用

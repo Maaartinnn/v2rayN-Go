@@ -472,7 +472,7 @@ export function NodesView() {
                             }}
                             whileHover={{ scale: 1.15 }}
                             whileTap={{ scale: 0.9 }}
-                            title={activeProfileUUID === item.uuid ? '当前激活' : '点击激活'}
+                            title={activeProfileUUID === item.uuid ? t('nodes.activated') : t('nodes.click_to_activate')}
                           >
                             {activeProfileUUID === item.uuid ? (
                               <Wifi size={14} />
@@ -635,7 +635,7 @@ export function NodesView() {
       <RightDrawer
         isOpen={editProfile !== null}
         onClose={() => setEditProfile(null)}
-        title={editProfile ? `${t('nodes.edit') || '编辑'}: ${editProfile.name}` : ''}
+        title={editProfile ? `${t('nodes.edit')}: ${editProfile.name}` : ''}
         subtitle={editProfile ? editProfile.proxy_protocol.toUpperCase() : ''}
       >
         {editProfile && (
