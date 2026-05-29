@@ -65,9 +65,10 @@ describe('useStore', () => {
     it('should set profileList array directly', () => {
       const items: ProfileListItem[] = [
         {
-          uuid: 'test-uuid', name: 'TestNode',
-          proxy_protocol: 'vless', proxy_address: 'host.com', proxy_port: 443,
-          core_type: '', test_result: '', is_active: false, group_uuid: 'group-1',
+           uuid: 'test-uuid', name: 'TestNode',
+           proxy_protocol: 'vless', address: 'host.com:443',
+           core_type: '', test_result: '', is_active: false, group_uuid: 'group-1',
+           node_type: 'proxy', member_count: 0,
           protocol_color: { bg: '#fff', text: '#000' },
           core_color: { bg: '#eee', text: '#333' },
           latency_color: 'var(--color-error)',
@@ -83,9 +84,10 @@ describe('useStore', () => {
       useStore.getState().setProfileList((prev) => [
         ...prev,
         {
-          uuid: 'test', name: 'New',
-          proxy_protocol: 'vless', proxy_address: '', proxy_port: 0,
-          core_type: '', test_result: '', is_active: false, group_uuid: '',
+           uuid: 'test', name: 'New',
+           proxy_protocol: 'vless', address: '0.0.0.0:0',
+           core_type: '', test_result: '', is_active: false, group_uuid: '',
+           node_type: 'proxy', member_count: 0,
           protocol_color: { bg: '#fff', text: '#000' },
           core_color: { bg: '#eee', text: '#333' },
           latency_color: 'var(--color-error)',
