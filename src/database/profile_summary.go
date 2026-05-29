@@ -23,10 +23,6 @@ type ProfileListItem struct {
 	IsActive   bool   `json:"is_active"`   // 是否激活
 	GroupUUID  string `json:"group_uuid"`  // 所属分组 UUID
 
-	// 策略组相关字段
-	NodeType    string `json:"node_type"`    // "proxy" | 策略组类型（selector/urltest/fallback/loadbalance）
-	MemberCount int    `json:"member_count"` // 策略组成员数量（普通节点 = 0）
-
 	// 后端计算的颜色字段（前端直接使用，无需自行判断）
 	ProtocolColor ColorPair `json:"protocol_color"` // 协议徽标颜色
 	CoreColor     ColorPair `json:"core_color"`     // 内核徽标颜色

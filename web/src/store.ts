@@ -17,8 +17,6 @@ export interface ProfileListItem {
   test_result: string
   is_active: boolean
   group_uuid: string
-  node_type: string           // "proxy" | 策略组类型（selector/urltest/fallback/loadbalance）
-  member_count: number        // 策略组成员数量（普通节点 = 0）
   protocol_color: ColorPair   // 后端计算的协议徽标颜色
   core_color: ColorPair       // 后端计算的内核徽标颜色
   latency_color: string       // 后端计算的延迟指示灯颜色（CSS 变量）
