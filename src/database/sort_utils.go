@@ -112,7 +112,6 @@ func RebalanceScopedTx(tx *gorm.DB, model any, query string, args ...any) bool {
 func RebalanceAll() {
 	Rebalance(&NodeGroup{})
 	Rebalance(&RoutingRule{})
-	Rebalance(&StrategyGroup{})
 
 	// Profile 按每个分组单独重排
 	var groups []NodeGroup

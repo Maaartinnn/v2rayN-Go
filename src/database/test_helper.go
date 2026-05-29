@@ -20,7 +20,6 @@ func InitTestDB() {
 		&Profile{},
 		&NodeGroup{},
 		&RoutingRule{},
-		&StrategyGroup{},
 		&AppSetting{},
 	); err != nil {
 		panic("failed to migrate test db: " + err.Error())

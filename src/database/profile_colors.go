@@ -13,6 +13,12 @@ var protocolColorMap = map[string]ColorPair{
 	"tuic":         {Bg: "rgba(120, 86, 188, 0.12)", Text: "#7856BC"},
 	"wireguard":    {Bg: "rgba(86, 155, 132, 0.12)", Text: "#569B84"},
 	"anytls":       {Bg: "rgba(140, 120, 200, 0.12)", Text: "#8C78C8"},
+
+	// 策略组（虚拟节点）
+	"selector":    {Bg: "rgba(59, 130, 246, 0.12)", Text: "#3B82F6"},
+	"urltest":     {Bg: "rgba(16, 185, 129, 0.12)", Text: "#10B981"},
+	"fallback":    {Bg: "rgba(245, 158, 11, 0.12)", Text: "#F59E0B"},
+	"loadbalance": {Bg: "rgba(139, 92, 246, 0.12)", Text: "#8B5CF6"},
 }
 
 // 默认协议颜色（未知协议）

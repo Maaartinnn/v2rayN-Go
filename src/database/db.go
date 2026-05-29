@@ -15,7 +15,6 @@ func purgeDeleted() {
 		&Profile{},
 		&NodeGroup{},
 		&RoutingRule{},
-		&StrategyGroup{},
 		&AppSetting{},
 	}
 	for _, m := range models {
@@ -42,7 +41,6 @@ func Init(cfg *config.AppConfig) error {
 		&Profile{},
 		&NodeGroup{},
 		&RoutingRule{},
-		&StrategyGroup{},
 		&AppSetting{},
 	); err != nil {
 		return err

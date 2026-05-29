@@ -1,9 +1,12 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
+	"v2rayn-go/coredef"
 	"v2rayn-go/database"
 	"v2rayn-go/parser"
 
@@ -105,6 +108,7 @@ func (s *ProfileService) Get(uuid string) (*database.Profile, error) {
 }
 
 // Create 创建节点（含分组校验、UUID 生成、排序）
+// 策略组节点（proxy_protocol 为策略类型）跳过代理字段验证，校验环路。
 func (s *ProfileService) Create(profile *database.Profile) error {
 	if profile.GroupUUID == "" {
 		return NewValidation("group_uuid is required", nil)
@@ -113,6 +117,14 @@ func (s *ProfileService) Create(profile *database.Profile) error {
 	if err := database.DB.Where("uuid = ?", profile.GroupUUID).First(&group).Error; err != nil {
 		return NewNotFound("group not found", err)
 	}
+
+	// 策略组节点校验：检查环路
+	if coredef.IsStrategyProtocol(profile.ProxyProtocol) {
+		if err := s.validateStrategyCycle(profile); err != nil {
+			return err
+		}
+	}
+
 	profile.SortOrder = database.SortNewScoped(&database.Profile{}, "group_uuid = ?", profile.GroupUUID)
 	profile.UUID = database.GenerateUUID()
 	if err := database.DB.Create(profile).Error; err != nil {
@@ -207,6 +219,18 @@ func (s *ProfileService) Update(uuid string, updates map[string]any) (*database.
 		return nil, NewNotFound("group not found", err)
 	}
 
+	// 策略组节点校验：检查环路
+	if proto, ok := updates["proxy_protocol"].(string); ok && coredef.IsStrategyProtocol(proto) {
+		// 构建临时 Profile 用于环路检测
+		temp := profile
+		if m, ok := updates["strategy_member_uuids"].(string); ok {
+			temp.StrategyMemberUUIDs = m
+		}
+		if err := s.validateStrategyCycle(&temp); err != nil {
+			return nil, err
+		}
+	}
+
 	// 删除不可修改字段
 	delete(updates, "uuid")
 	delete(updates, "sort_order")
@@ -223,12 +247,16 @@ func (s *ProfileService) Update(uuid string, updates map[string]any) (*database.
 	return &profile, nil
 }
 
-// Delete 删除指定节点
+// Delete 删除指定节点（级联清理其他策略组中的引用）
 func (s *ProfileService) Delete(uuid string) error {
 	var profile database.Profile
 	if err := database.DB.Where("uuid = ?", uuid).First(&profile).Error; err != nil {
 		return NewNotFound("profile not found", err)
 	}
+
+	// 清理其他策略组中对被删节点的引用
+	s.cleanStrategyMemberRefs(uuid)
+
 	if err := database.DB.Delete(&profile).Error; err != nil {
 		return fmt.Errorf("failed to delete profile: %w", err)
 	}
@@ -283,4 +311,51 @@ func (s *ProfileService) Dedup(groupUUID string) (*DedupResult, error) {
 		Removed: len(duplicates),
 		Total:   len(profiles),
 	}, nil
+}
+
+// validateStrategyCycle 校验策略组是否存在循环嵌套
+func (s *ProfileService) validateStrategyCycle(profile *database.Profile) error {
+	// 构建 profileMap（查询所有 Profile）
+	var allProfiles []database.Profile
+	if err := database.DB.Find(&allProfiles).Error; err != nil {
+		return fmt.Errorf("failed to load profiles for cycle check: %w", err)
+	}
+	profileMap := make(map[string]*database.Profile, len(allProfiles)+1)
+	for i := range allProfiles {
+		profileMap[allProfiles[i].UUID] = &allProfiles[i]
+	}
+	// 加入当前待创建/更新的 Profile（覆盖 DB 中的旧版本）
+	profileMap[profile.UUID] = profile
+
+	return database.CheckStrategyCycle(profile.UUID, profileMap)
+}
+
+// cleanStrategyMemberRefs 清理所有策略组中对被删节点 UUID 的引用
+func (s *ProfileService) cleanStrategyMemberRefs(deletedUUID string) {
+	var strategyProfiles []database.Profile
+	database.DB.Where("proxy_protocol IN ?",
+		[]string{coredef.ProtocolSelector, coredef.ProtocolURLTest, coredef.ProtocolFallback, coredef.ProtocolLoadBalance}).
+		Find(&strategyProfiles)
+
+	for _, sp := range strategyProfiles {
+		if sp.StrategyMemberUUIDs == "" {
+			continue
+		}
+		var uuids []string
+		if err := json.Unmarshal([]byte(sp.StrategyMemberUUIDs), &uuids); err != nil {
+			continue
+		}
+		var cleaned []string
+		for _, uid := range uuids {
+			if uid != deletedUUID {
+				cleaned = append(cleaned, uid)
+			}
+		}
+		if len(cleaned) != len(uuids) {
+			newJSON, _ := json.Marshal(cleaned)
+			if err := database.DB.Model(&sp).Update("strategy_member_uuids", string(newJSON)).Error; err != nil {
+				slog.Warn("failed to clean strategy member refs", "profile", sp.UUID, "error", err)
+			}
+		}
+	}
 }

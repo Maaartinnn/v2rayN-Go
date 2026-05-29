@@ -51,6 +51,13 @@ type Profile struct {
 
 	// 分组信息
 	GroupUUID string `gorm:"size:36;not null;index" json:"group_uuid"` // 所属分组 UUID
+
+	// === 策略组字段（strategy_ 前缀，仅 proxy_protocol 为策略类型时使用）===
+	StrategyMemberUUIDs  string `gorm:"type:text" json:"strategy_member_uuids"`    // 成员 Profile UUID 列表（JSON 数组）
+	StrategyTestURL      string `gorm:"size:512" json:"strategy_test_url"`         // 测试 URL
+	StrategyTestInterval int    `gorm:"default:300" json:"strategy_test_interval"` // 测试间隔（秒）
+	StrategyType         string `gorm:"size:64" json:"strategy_type"`              // 负载均衡策略: round-robin, least-load, random
+	StrategyEnabled      bool   `gorm:"default:true" json:"strategy_enabled"`      // 启用状态
 }
 
 // NodeGroup 节点分组（统一管理：普通分组 + 订阅分组）
@@ -92,29 +99,6 @@ type RoutingRule struct {
 	Port      string `gorm:"size:128" json:"port"`            // 端口规则
 	Enabled   bool   `gorm:"default:true" json:"enabled"`
 	SortOrder int    `json:"sort_order"` // 排序顺序（越小优先级越高）
-}
-
-// StrategyGroup 策略组
-type StrategyGroup struct {
-	gorm.Model
-
-	UUID        string `gorm:"size:36;uniqueIndex" json:"uuid"`  // 唯一标识
-	Name        string `gorm:"size:256;uniqueIndex" json:"name"` // 策略组名称
-	Type        string `gorm:"size:64" json:"type"`              // 策略组类型: selector, urltest, fallback, loadbalance
-	Description string `gorm:"size:512" json:"description"`      // 描述
-
-	// 成员节点（存 Profile UUID 的 JSON 数组）
-	ProfileUUIDs string `gorm:"type:text" json:"profile_uuids"` // 成员节点 UUID 列表（JSON 数组）
-
-	// 测试设置
-	TestURL      string `gorm:"size:512" json:"test_url"`         // 测试 URL
-	TestInterval int    `gorm:"default:300" json:"test_interval"` // 测试间隔（秒）
-
-	// 负载均衡设置
-	Strategy string `gorm:"size:64" json:"strategy"` // 负载均衡策略: round-robin, least-load, random
-
-	SortOrder int  `json:"sort_order"` // 排序顺序
-	Enabled   bool `gorm:"default:true" json:"enabled"`
 }
 
 // AppSetting 应用设置（KV 存储）

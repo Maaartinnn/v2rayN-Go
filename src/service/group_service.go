@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"v2rayn-go/coredef"
 	"v2rayn-go/database"
 
 	"gorm.io/gorm"
@@ -72,7 +73,7 @@ func (s *GroupService) Update(uuid string, updated *database.NodeGroup) (*databa
 	return updated, nil
 }
 
-// Delete 删除分组（含事务保护：级联删除节点 + 清理策略组脏引用）
+// Delete 删除分组（含事务保护：级联删除节点 + 清理策略组中的成员引用）
 func (s *GroupService) Delete(uuid string) error {
 	var group database.NodeGroup
 	if err := database.DB.Where("uuid = ?", uuid).First(&group).Error; err != nil {
@@ -101,20 +102,22 @@ func (s *GroupService) Delete(uuid string) error {
 			return fmt.Errorf("failed to delete profiles: %w", err)
 		}
 
-		// 3. 清理 StrategyGroup 中的脏引用
+		// 3. 清理策略组 Profile 中对被删节点的成员引用
 		if len(deletedProfileUUIDs) > 0 {
 			deletedSet := make(map[string]bool, len(deletedProfileUUIDs))
 			for _, uid := range deletedProfileUUIDs {
 				deletedSet[uid] = true
 			}
-			var strategyGroups []database.StrategyGroup
-			tx.Find(&strategyGroups)
-			for _, sg := range strategyGroups {
-				if sg.ProfileUUIDs == "" {
+			var strategyProfiles []database.Profile
+			tx.Where("proxy_protocol IN ?",
+				[]string{coredef.ProtocolSelector, coredef.ProtocolURLTest, coredef.ProtocolFallback, coredef.ProtocolLoadBalance}).
+				Find(&strategyProfiles)
+			for _, sp := range strategyProfiles {
+				if sp.StrategyMemberUUIDs == "" {
 					continue
 				}
 				var uuids []string
-				if err := json.Unmarshal([]byte(sg.ProfileUUIDs), &uuids); err != nil {
+				if err := json.Unmarshal([]byte(sp.StrategyMemberUUIDs), &uuids); err != nil {
 					continue
 				}
 				var cleaned []string
@@ -125,8 +128,8 @@ func (s *GroupService) Delete(uuid string) error {
 				}
 				if len(cleaned) != len(uuids) {
 					newJSON, _ := json.Marshal(cleaned)
-					if err := tx.Model(&sg).Update("profile_uuids", string(newJSON)).Error; err != nil {
-						return fmt.Errorf("failed to clean strategy group refs: %w", err)
+					if err := tx.Model(&sp).Update("strategy_member_uuids", string(newJSON)).Error; err != nil {
+						return fmt.Errorf("failed to clean strategy member refs: %w", err)
 					}
 				}
 			}
