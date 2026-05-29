@@ -12,12 +12,13 @@ export interface ProfileListItem {
   uuid: string
   name: string
   proxy_protocol: string
-  proxy_address: string
-  proxy_port: number
+  address: string             // 地址展示文本（普通节点: "host:port"，策略组: "N 个成员 · 策略描述"）
   core_type: string
   test_result: string
   is_active: boolean
   group_uuid: string
+  node_type: string           // "proxy" | 策略组类型（selector/urltest/fallback/loadbalance）
+  member_count: number        // 策略组成员数量（普通节点 = 0）
   protocol_color: ColorPair   // 后端计算的协议徽标颜色
   core_color: ColorPair       // 后端计算的内核徽标颜色
   latency_color: string       // 后端计算的延迟指示灯颜色（CSS 变量）

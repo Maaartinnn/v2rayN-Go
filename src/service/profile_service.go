@@ -69,10 +69,12 @@ func (s *ProfileService) ListSummary(groupUUID, q string) ([]database.ProfileLis
 	}
 
 	// 只查询列表展示所需的字段，避免传输 raw_link 等大字段
+	// 策略组节点还需要 strategy_member_uuids 和 strategy_type 用于构建地址文本
 	if err := tx.Order("profiles.sort_order ASC").
 		Select("profiles.uuid", "profiles.name", "profiles.proxy_protocol",
 			"profiles.proxy_address", "profiles.proxy_port", "profiles.core_type",
-			"profiles.test_result", "profiles.is_active", "profiles.group_uuid").
+			"profiles.test_result", "profiles.is_active", "profiles.group_uuid",
+			"profiles.strategy_member_uuids", "profiles.strategy_type").
 		Find(&profiles).Error; err != nil {
 		return nil, fmt.Errorf("failed to list profiles: %w", err)
 	}
@@ -84,8 +86,7 @@ func (s *ProfileService) ListSummary(groupUUID, q string) ([]database.ProfileLis
 			UUID:          p.UUID,
 			Name:          p.Name,
 			ProxyProtocol: p.ProxyProtocol,
-			ProxyAddress:  p.ProxyAddress,
-			ProxyPort:     p.ProxyPort,
+			Address:       s.buildAddressText(&p),
 			CoreType:      p.CoreType,
 			TestResult:    p.TestResult,
 			IsActive:      p.IsActive,
@@ -328,6 +329,44 @@ func (s *ProfileService) validateStrategyCycle(profile *database.Profile) error 
 	profileMap[profile.UUID] = profile
 
 	return database.CheckStrategyCycle(profile.UUID, profileMap)
+}
+
+// buildAddressText 构建节点列表地址栏展示文本。
+//   - 普通代理节点：返回 "host:port"（如 "1.2.3.4:443"）
+//   - 策略组节点：返回 "N 个成员 · 策略描述"（如 "5 个成员 · 自动选择"）
+func (s *ProfileService) buildAddressText(p *database.Profile) string {
+	// 普通代理节点：直接拼接地址和端口
+	if !coredef.IsStrategyProtocol(p.ProxyProtocol) {
+		return fmt.Sprintf("%s:%d", p.ProxyAddress, p.ProxyPort)
+	}
+
+	// 策略组节点：统计成员数量 + 策略类型描述
+	memberCount := 0
+	if p.StrategyMemberUUIDs != "" {
+		var uuids []string
+		if err := json.Unmarshal([]byte(p.StrategyMemberUUIDs), &uuids); err == nil {
+			memberCount = len(uuids)
+		}
+	}
+
+	var strategyDesc string
+	switch p.ProxyProtocol {
+	case coredef.ProtocolSelector:
+		strategyDesc = "手动选择"
+	case coredef.ProtocolURLTest:
+		strategyDesc = "自动选择"
+	case coredef.ProtocolFallback:
+		strategyDesc = "故障转移"
+	case coredef.ProtocolLoadBalance:
+		// 负载均衡显示具体策略类型（round-robin/least-load/random）
+		if p.StrategyType != "" {
+			strategyDesc = p.StrategyType
+		} else {
+			strategyDesc = coredef.StrategyRoundRobin
+		}
+	}
+
+	return fmt.Sprintf("%d 个成员 · %s", memberCount, strategyDesc)
 }
 
 // cleanStrategyMemberRefs 清理所有策略组中对被删节点 UUID 的引用

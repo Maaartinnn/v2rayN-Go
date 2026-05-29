@@ -432,7 +432,7 @@ export function NodesView() {
                               className="text-xs mt-0.5 truncate"
                               style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)' }}
                             >
-                              {item.proxy_address}:{item.proxy_port}
+                              {item.address}
                               {item.group_uuid && (() => {
                                 const g = groups.find(gr => gr.uuid === item.group_uuid)
                                 return g ? <span style={{ fontFamily: 'var(--font-heading)' }}> · {g.alias}</span> : null

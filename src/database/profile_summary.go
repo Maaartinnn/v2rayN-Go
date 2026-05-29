@@ -15,8 +15,7 @@ type ProfileListItem struct {
 	// 展示字段
 	Name          string `json:"name"`           // 节点名称
 	ProxyProtocol string `json:"proxy_protocol"` // 协议类型
-	ProxyAddress  string `json:"proxy_address"`  // 服务器地址
-	ProxyPort     int    `json:"proxy_port"`     // 服务器端口
+	Address       string `json:"address"`        // 地址展示文本（普通节点: "host:port"，策略组: "N 个成员 · 策略描述"）
 	CoreType      string `json:"core_type"`      // 内核类型（空 = 自动）
 
 	// 状态字段
