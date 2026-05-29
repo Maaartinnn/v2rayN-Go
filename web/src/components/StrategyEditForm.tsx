@@ -5,7 +5,7 @@ import type { ProfileListItem } from '../store'
 import { EditFormCard } from './ui/EditFormCard'
 import { FormField } from './ui/FormField'
 import { FormActions } from './ui/FormActions'
-import { inputStyle, inputHeadingStyle } from './ui/formStyles'
+import { inputStyle } from './ui/formStyles'
 
 interface StrategyEditFormProps {
   onClose: () => void
@@ -35,8 +35,6 @@ export function StrategyEditForm({ onClose, onSaved, groupUUID }: StrategyEditFo
   const [testURL, setTestURL] = useState('https://www.gstatic.com/generate_204')
   const [testInterval, setTestInterval] = useState('300')
   const [balanceStrategy, setBalanceStrategy] = useState('random')
-  const [enabled, setEnabled] = useState(true)
-
   // Available proxy profiles for member selection
   const [allProfiles, setAllProfiles] = useState<ProfileListItem[]>([])
 
@@ -69,7 +67,6 @@ export function StrategyEditForm({ onClose, onSaved, groupUUID }: StrategyEditFo
       strategy_test_url: testURL,
       strategy_test_interval: parseInt(testInterval) || 300,
       strategy_type: balanceStrategy,
-      strategy_enabled: enabled,
       is_active: false,
       sort_order: 0,
     }
@@ -198,17 +195,6 @@ export function StrategyEditForm({ onClose, onSaved, groupUUID }: StrategyEditFo
           </div>
         </FormField>
 
-        {/* Enabled */}
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
-          />
-          <span className="text-xs" style={inputHeadingStyle}>
-            {t('groups.enabled')}
-          </span>
-        </label>
       </div>
 
       <FormActions

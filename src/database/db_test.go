@@ -197,7 +197,6 @@ func TestProfile_StrategyGroup_Create(t *testing.T) {
 		GroupUUID:            group.UUID,
 		StrategyTestURL:      "https://www.gstatic.com/generate_204",
 		StrategyTestInterval: 300,
-		StrategyEnabled:      true,
 		SortOrder:            10,
 	}
 	if err := DB.Create(p).Error; err != nil {
@@ -225,7 +224,6 @@ func TestProfile_StrategyGroup_WithMembers(t *testing.T) {
 		ProxyProtocol:       "selector",
 		GroupUUID:           group.UUID,
 		StrategyMemberUUIDs: fmt.Sprintf(`["%s","%s"]`, member1.UUID, member2.UUID),
-		StrategyEnabled:     true,
 		SortOrder:           30,
 	}
 	if err := DB.Create(sg).Error; err != nil {

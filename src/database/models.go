@@ -57,7 +57,6 @@ type Profile struct {
 	StrategyTestURL      string `gorm:"size:512" json:"strategy_test_url"`         // 测试 URL
 	StrategyTestInterval int    `gorm:"default:300" json:"strategy_test_interval"` // 测试间隔（秒）
 	StrategyType         string `gorm:"size:64" json:"strategy_type"`              // 负载均衡策略: round-robin, least-load, random
-	StrategyEnabled      bool   `gorm:"default:true" json:"strategy_enabled"`      // 启用状态
 }
 
 // NodeGroup 节点分组（统一管理：普通分组 + 订阅分组）

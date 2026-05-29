@@ -552,10 +552,6 @@ func buildXrayRouting(rules []database.RoutingRule, configDir string) *XrayRouti
 func buildXrayBalancers(groups []*database.Profile, profileMap map[string]*database.Profile) []any {
 	var balancers []any
 	for _, g := range groups {
-		if !g.StrategyEnabled {
-			continue
-		}
-
 		// 解析成员并过滤孤儿
 		members, orphans := database.ResolveStrategyMembers(g, profileMap)
 		if len(orphans) > 0 {
