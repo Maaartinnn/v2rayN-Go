@@ -107,3 +107,10 @@ web/src/
 ### 10. 协议解析
 - `ParseLink` 根据协议前缀分发到对应解析器
 - 每种协议一个独立文件，返回统一的 `database.Profile` 结构
+
+### 11. 断电安全防护
+- **原子写入**：`config.AtomicWriteFile` 导出函数，写临时文件 → `f.Sync()` 强制刷盘 → `os.Rename` 原子替换
+- **仅用于命脉配置**：`config.json` 的保存和 `.bak` 恢复使用原子写入；Xray/Sing-box 配置文件是派生数据，使用普通 `os.WriteFile`
+- **`.bak` 容灾回滚**：`loadJSONConfig` 在文件损坏（0KB / JSON 解析失败）时自动从 `config.json.bak` 恢复；`BackupConfig` 仅在应用完整启动后调用，避免脏数据污染
+- **SQLite WAL 模式**：连接参数 `_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)`，断电最多丢失最近一个事务，数据库结构不会损坏
+- **sync.Once 保证**：`BackupConfig` 使用 `sync.Once` 防止重复备份

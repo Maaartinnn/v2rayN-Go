@@ -44,6 +44,7 @@
 - 📦 **双轨发行** — Lite 版（~15MB）与 Full 版（含内核）供选择
 - 🪶 **精简列表传输** — 节点列表仅传输展示所需字段（12 个），颜色由后端计算返回，编辑时按需加载完整数据
 - 🔔 **通用 Toast 通知** — 支持自定义颜色、操作按钮、可选自动消失、窄屏自适应、无障碍访问
+- 🛡️ **断电安全防护** — config.json 原子写入（写临时文件 → Sync 刷盘 → Rename 替换），启动时自动检测损坏并从 .bak 备份恢复，SQLite WAL 模式防数据库损坏
 
 ---
 
@@ -102,10 +103,11 @@ v2rayN-Go/
     │   └── cli.go                 # CLI 命令 + 参数解析
     │                              # 支持：前台运行 install/uninstall/start/stop/restart/daemon/help
     ├── config/
-    │   └── config.go              # AppConfig 定义、JSON 加载、CLI 标志解析、三级优先级加载、设置持久化
+    │   └── config.go              # AppConfig 定义、JSON 加载、CLI 标志解析、三级优先级加载、设置持久化、
+    │                              # AtomicWriteFile 原子写入、.bak 容灾回滚、BackupConfig 备份机制
     ├── coredef/
     │   └── coredef.go             # 内核类型与元数据注册表（唯一事实来源），支持 Xray/Sing-box/Mihomo
-    ├── database/                  # SQLite 数据库（纯 Go，无需 CGO）
+    ├── database/                  # SQLite 数据库（纯 Go，无需 CGO，WAL 模式防断电损坏）
     │   ├── db.go                  # 数据库初始化 / AutoMigrate / 软删除清理 / 排序重平衡 / 默认分组创建
     │   ├── models.go              # Profile, NodeGroup, RoutingRule, StrategyGroup, AppSetting
     │   ├── profile_summary.go     # 精简 DTO（ProfileListItem/ColorPair）

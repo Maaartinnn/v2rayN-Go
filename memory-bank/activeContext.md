@@ -2,9 +2,33 @@
 
 ## Current Work Focus
 
-前端架构优化：节点列表精简传输 + 通用 Toast 通知系统。
+断电安全防护改造已完成，可继续策略组重构或测试扩展。
 
 ## Recent Changes
+
+### 断电安全防护改造（2026-05-31）
+
+**1. 原子写入机制：**
+- 新增 `src/config/config.go` — `AtomicWriteFile` 导出函数：写临时文件 → `f.Sync()` 强制刷盘 → `os.Rename` 原子替换
+- 改造 `SaveJSONConfig` 使用原子写入，防止断电导致 config.json 变成 0KB
+- 仅命脉配置（config.json）使用原子写入；Xray/Sing-box 配置文件是派生数据，保持普通 `os.WriteFile`
+
+**2. `.bak` 容灾回滚：**
+- 改造 `loadJSONConfig`：文件损坏（0KB / JSON 解析失败）时自动从 `config.json.bak` 恢复
+- 新增 `BackupConfig` 方法：仅在应用完整启动后调用，使用 `sync.Once` 防止重复备份
+- 恢复操作统一使用 `AtomicWriteFile`，避免恢复本身引入新的断电风险
+- `tryRestoreFromBackup` 逐字段赋值替代 `*c = probe`，避免复制 `sync.Once`（copylocks 问题）
+
+**3. SQLite WAL 模式：**
+- 修改 `src/database/db.go` — 连接参数追加 `_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)`
+- 断电最多丢失最近一个事务，数据库结构不会损坏；写入性能比默认 FULL 提升数倍
+
+**4. 启动入口集成：**
+- 修改 `src/sysmgr/os_service.go` — `run()` 和 `RunDirect()` 在数据库初始化成功后调用 `cfg.BackupConfig()`
+
+**5. 测试覆盖：**
+- 新增 10 个测试用例（AtomicWriteFile / .bak 回滚 / BackupConfig / Windows 权限跳过）
+- 全项目编译和测试通过
 
 ### 节点列表精简传输重构（2026-05-29）
 

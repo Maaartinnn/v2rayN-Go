@@ -44,6 +44,7 @@
 - 📦 **Dual Distribution** — Lite (~15MB) and Full (with kernels) editions
 - 🪶 **Compact List Transfer** — Node list only transmits display fields (12 fields), colors computed server-side, full data loaded on-demand when editing
 - 🔔 **Generic Toast Notifications** — Custom colors, action buttons, optional auto-dismiss, responsive layout, accessibility support
+- 🛡️ **Power-Failure Safe Storage** — config.json uses atomic write (temp file → Sync to disk → Rename replace), auto-detects corruption on startup and recovers from .bak backup, SQLite WAL mode prevents database corruption
 
 ---
 
@@ -102,10 +103,11 @@ v2rayN-Go/
     │   └── cli.go                 # CLI commands + flag parsing
     │                              # Commands: foreground run, install/uninstall/start/stop/restart/daemon/help
     ├── config/
-    │   └── config.go              # AppConfig definition, JSON loading, CLI parsing, three-tier priority, settings persistence
+    │   └── config.go              # AppConfig definition, JSON loading, CLI parsing, three-tier priority, settings persistence,
+    │                              # AtomicWriteFile, .bak disaster recovery, BackupConfig mechanism
     ├── coredef/
     │   └── coredef.go             # Core type & metadata registry (single source of truth), supports Xray/Sing-box/Mihomo
-    ├── database/                  # SQLite database (pure Go, no CGO required)
+    ├── database/                  # SQLite database (pure Go, no CGO required, WAL mode for power-failure safety)
     │   ├── db.go                  # DB initialization / AutoMigrate / soft-delete purge / sort rebalance / default group creation
     │   ├── models.go              # Profile, NodeGroup, RoutingRule, StrategyGroup, AppSetting
     │   ├── profile_summary.go     # Compact DTO (ProfileListItem/ColorPair)
