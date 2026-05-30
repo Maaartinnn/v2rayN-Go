@@ -2,9 +2,37 @@
 
 ## Current Work Focus
 
-断电安全防护改造已完成，可继续策略组重构或测试扩展。
+无文件落地（Fileless Execution）改造已完成，可继续策略组重构或测试扩展。
 
 ## Recent Changes
+
+### 无文件落地 Fileless Execution（2026-05-31）
+
+**1. core/admin.go — Functional Options + stdin 模式：**
+- 新增 `StartOption` / `startConfig` / `WithStdin(data)` — Functional Options 模式，零侵入扩展
+- 改造 `StartCore` 支持两种模式：文件模式（向后兼容）和 stdin 模式（无文件落地）
+- 新增 `buildStdinArgs` — 按内核类型分发 stdin 参数（Xray/Sing-box/Mihomo）
+- stdin 模式下 `cmd.Dir` 设为内核二进制所在目录（Mihomo 需要加载 geoip.db 等资源）
+
+**2. 跨平台进程安全（build tags 分离）：**
+- 新增 `core/process_unix.go` — Setpgid 进程组 + kill -pid 强杀（Linux/macOS）
+- 新增 `core/process_windows.go` — HideWindow 隐藏黑框 + Process.Kill
+
+**3. configbuilder — BuildBytes 接口：**
+- 改造 `ConfigBuilder` 接口新增 `BuildBytes()` 方法（仅返回 JSON 字节，不写文件）
+- `xray_builder.go` 和 `singbox_builder.go` 各自实现 `BuildBytes`
+- `Build()` 保留给调试落盘模式
+
+**4. service/core_service.go — stdin 注入 + 调试开关：**
+- 改造 `Start()` 方法：默认 stdin 无文件落地，`CoreConfigDebug=true` 时传统文件启动
+- 删除 `buildConfig()` 方法，逻辑内联到 `Start()` 中
+
+**5. config/config.go + settings_service.go：**
+- 新增 `CoreConfigDebug` 配置字段（JSON: `core_config_debug`，omitzero）
+- GetSettings/UpdateSettings 新增 CoreConfigDebug 支持
+
+**6. 测试验证：**
+- 全项目编译和测试通过（5 个包全部 PASS）
 
 ### 断电安全防护改造（2026-05-31）
 

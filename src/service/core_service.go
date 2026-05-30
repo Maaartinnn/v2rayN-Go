@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -37,26 +38,22 @@ func NewCoreService(cfg *config.AppConfig, coreMgr *core.CoreAdminManager) *Core
 }
 
 // Start 启动核心。如果 configPath 为空，自动查询活跃节点和路由规则来生成配置。
+//
+// 默认使用 stdin 无文件落地模式：配置数据直接通过 cmd.Stdin 管道注入内核进程，
+// 全程不触碰物理磁盘。如果 CoreConfigDebug 为 true，则写入配置文件并使用文件模式启动。
 func (s *CoreService) Start(coreType string, configPath string) error {
-	if configPath == "" {
-		var err error
-		configPath, coreType, err = s.buildConfig(coreType)
-		if err != nil {
-			return err
+	// 用户手动指定了配置文件路径 → 传统文件启动
+	if configPath != "" {
+		if err := s.coreMgr.StartCore(core.CoreType(coreType), configPath); err != nil {
+			return fmt.Errorf("failed to start core: %w", err)
 		}
+		return nil
 	}
 
-	if err := s.coreMgr.StartCore(core.CoreType(coreType), configPath); err != nil {
-		return fmt.Errorf("failed to start core: %w", err)
-	}
-	return nil
-}
-
-// buildConfig 根据活跃节点和路由规则生成配置文件
-func (s *CoreService) buildConfig(coreType string) (configPath string, resolvedCoreType string, err error) {
+	// 查询活跃节点和路由规则
 	var profile database.Profile
 	if err := database.DB.Where("is_active = ?", true).First(&profile).Error; err != nil {
-		return "", "", NewValidation("no active profile selected", nil)
+		return NewValidation("no active profile selected", nil)
 	}
 
 	if coreType == "" {
@@ -65,26 +62,45 @@ func (s *CoreService) buildConfig(coreType string) (configPath string, resolvedC
 
 	var rules []database.RoutingRule
 	if err := database.DB.Order("sort_order ASC").Find(&rules).Error; err != nil {
-		return "", "", fmt.Errorf("failed to load routing rules: %w", err)
+		return fmt.Errorf("failed to load routing rules: %w", err)
 	}
 
 	builder, ok := configbuilder.GetBuilder(coreType)
 	if !ok {
-		return "", "", NewValidation("unsupported core type: "+coreType, nil)
+		return NewValidation("unsupported core type: "+coreType, nil)
 	}
 
-	configPath, err = builder.Build(&configbuilder.BuildConfigParams{
+	params := &configbuilder.BuildConfigParams{
 		Profile:   &profile,
 		Rules:     rules,
 		ConfigDir: s.cfg.AppDir,
 		SocksPort: s.cfg.SocksPort,
 		HTTPPort:  s.cfg.HTTPPort,
-	})
-
-	if err != nil {
-		return "", "", fmt.Errorf("failed to build config: %w", err)
 	}
-	return configPath, coreType, nil
+
+	if s.cfg.CoreConfigDebug {
+		// 调试模式：写入文件，传统启动
+		configPath, err := builder.Build(params)
+		if err != nil {
+			return fmt.Errorf("failed to build config: %w", err)
+		}
+		slog.Info("debug mode: kernel config saved to disk", "path", configPath)
+		if err := s.coreMgr.StartCore(core.CoreType(coreType), configPath); err != nil {
+			return fmt.Errorf("failed to start core: %w", err)
+		}
+		return nil
+	}
+
+	// 生产模式：stdin 无文件落地
+	configData, err := builder.BuildBytes(params)
+	if err != nil {
+		return fmt.Errorf("failed to build config: %w", err)
+	}
+	slog.Info("stdin mode: config injected via pipe", "core", coreType, "size", len(configData))
+	if err := s.coreMgr.StartCore(core.CoreType(coreType), "", core.WithStdin(configData)); err != nil {
+		return fmt.Errorf("failed to start core: %w", err)
+	}
+	return nil
 }
 
 // Stop 停止核心

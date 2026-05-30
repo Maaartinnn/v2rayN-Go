@@ -45,6 +45,7 @@
 - 🪶 **Compact List Transfer** — Node list only transmits display fields (12 fields), colors computed server-side, full data loaded on-demand when editing
 - 🔔 **Generic Toast Notifications** — Custom colors, action buttons, optional auto-dismiss, responsive layout, accessibility support
 - 🛡️ **Power-Failure Safe Storage** — config.json uses atomic write (temp file → Sync to disk → Rename replace), auto-detects corruption on startup and recovers from .bak backup, SQLite WAL mode prevents database corruption
+- 🧬 **Fileless Core Launch** — Kernel configs injected via stdin pipe (Xray/Sing-box/Mihomo), zero disk I/O, no sensitive data leaked to filesystem, clean working directory
 
 ---
 

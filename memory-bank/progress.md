@@ -12,6 +12,7 @@
 - 测试编写（19 个 Go 测试 + 3 个前端测试）
 - CI/CD 配置
 - 断电安全防护改造（原子写入 + .bak 容灾回滚 + SQLite WAL 模式）
+- 无文件落地（Fileless Execution）：stdin 管道注入 + 跨平台进程安全 + 调试开关
 
 ### 进行中
 - 策略组重构：将 StrategyGroup 合并进 Profile 表

@@ -43,6 +43,11 @@ type AppConfig struct {
 	// 默认值为空字符串，omitzero 不会造成信息损失
 	GitHubMirror string `json:"github_mirror,omitzero"`
 
+	// CoreConfigDebug 保留内核配置文件到本地（用于调试）。
+	// 默认 false（无文件落地，通过 stdin 管道注入配置给内核进程）。
+	// 开启后会在 bin/{core}/ 目录下保存配置文件，并使用传统的文件模式启动内核。
+	CoreConfigDebug bool `json:"core_config_debug,omitzero"`
+
 	// backupOnce 保证 BackupConfig 在多次调用时只执行一次
 	backupOnce sync.Once
 }

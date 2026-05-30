@@ -19,22 +19,24 @@ func NewSettingsService(cfg *config.AppConfig) *SettingsService {
 // GetSettings 获取当前配置
 func (s *SettingsService) GetSettings() map[string]any {
 	return map[string]any{
-		"listen_ip":     s.cfg.ListenIP,
-		"web_port":      s.cfg.WebPort,
-		"socks_port":    s.cfg.SocksPort,
-		"http_port":     s.cfg.HTTPPort,
-		"outbound_ip":   s.cfg.OutboundIP,
-		"github_mirror": s.cfg.GitHubMirror,
+		"listen_ip":         s.cfg.ListenIP,
+		"web_port":          s.cfg.WebPort,
+		"socks_port":        s.cfg.SocksPort,
+		"http_port":         s.cfg.HTTPPort,
+		"outbound_ip":       s.cfg.OutboundIP,
+		"github_mirror":     s.cfg.GitHubMirror,
+		"core_config_debug": s.cfg.CoreConfigDebug,
 	}
 }
 
 // UpdateSettingsRequest 配置更新请求
 type UpdateSettingsRequest struct {
-	ListenIP     *string `json:"listen_ip"`
-	SocksPort    *int    `json:"socks_port"`
-	HTTPPort     *int    `json:"http_port"`
-	OutboundIP   *string `json:"outbound_ip"`
-	GitHubMirror *string `json:"github_mirror"`
+	ListenIP        *string `json:"listen_ip"`
+	SocksPort       *int    `json:"socks_port"`
+	HTTPPort        *int    `json:"http_port"`
+	OutboundIP      *string `json:"outbound_ip"`
+	GitHubMirror    *string `json:"github_mirror"`
+	CoreConfigDebug *bool   `json:"core_config_debug"`
 }
 
 // UpdateSettings 更新配置
@@ -53,6 +55,9 @@ func (s *SettingsService) UpdateSettings(req *UpdateSettingsRequest) error {
 	}
 	if req.GitHubMirror != nil {
 		s.cfg.GitHubMirror = *req.GitHubMirror
+	}
+	if req.CoreConfigDebug != nil {
+		s.cfg.CoreConfigDebug = *req.CoreConfigDebug
 	}
 	if err := s.cfg.SaveJSONConfig(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)

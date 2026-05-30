@@ -114,3 +114,12 @@ web/src/
 - **`.bak` 容灾回滚**：`loadJSONConfig` 在文件损坏（0KB / JSON 解析失败）时自动从 `config.json.bak` 恢复；`BackupConfig` 仅在应用完整启动后调用，避免脏数据污染
 - **SQLite WAL 模式**：连接参数 `_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)`，断电最多丢失最近一个事务，数据库结构不会损坏
 - **sync.Once 保证**：`BackupConfig` 使用 `sync.Once` 防止重复备份
+
+### 12. 无文件落地（Fileless Execution）
+- **stdin 模式**：默认通过 `cmd.Stdin` 管道将 JSON 配置注入内核进程，全程不触碰物理磁盘
+- **内核 stdin 支持**：Xray `-config stdin:` / Sing-box `-c stdin:` / Mihomo `-d . -f -`
+- **Functional Options**：`StartCore(coreType, "", core.WithStdin(data))` 零侵入扩展，向后兼容文件模式
+- **`BuildBytes` 接口**：`ConfigBuilder.BuildBytes()` 仅返回 JSON 字节不写文件，`Build()` 保留给调试模式
+- **调试开关**：`CoreConfigDebug` 配置字段，开启后写入文件并使用传统文件模式启动
+- **跨平台进程安全**：`process_unix.go`（Setpgid + kill -pid）/ `process_windows.go`（HideWindow + Process.Kill）
+- **工作目录**：stdin 模式下 `cmd.Dir` 设为内核二进制所在目录（Mihomo 需要加载 geoip.db 等资源）

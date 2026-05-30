@@ -2,6 +2,7 @@ package core
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -54,6 +55,22 @@ type LogEntry struct {
 	Source  string    `json:"source"` // 日志来源: "system", "xray", "sing-box", "mihomo"
 }
 
+// StartOption 启动选项（Functional Options 模式）
+type StartOption func(*startConfig)
+
+// startConfig 内部启动配置
+type startConfig struct {
+	configData []byte // 非空时使用 stdin 模式（无文件落地）
+}
+
+// WithStdin 使用 stdin 注入配置（无文件落地模式）。
+// 配置数据直接通过 cmd.Stdin 管道传给内核进程，全程不触碰物理磁盘。
+func WithStdin(data []byte) StartOption {
+	return func(sc *startConfig) {
+		sc.configData = data
+	}
+}
+
 // CoreAdminManager 管理外部内核进程的生命周期
 type CoreAdminManager struct {
 	cfg *config.AppConfig
@@ -80,8 +97,20 @@ func NewCoreAdminManager(cfg *config.AppConfig) *CoreAdminManager {
 	}
 }
 
-// StartCore 启动指定类型的内核
-func (m *CoreAdminManager) StartCore(coreType CoreType, configPath string) error {
+// StartCore 启动指定类型的内核。
+//
+// 支持两种启动模式：
+//   - 文件模式（默认）：传入 configPath，内核从文件读取配置
+//   - stdin 模式：通过 WithStdin(data) 选项注入配置，全程无文件落地
+//
+// 示例：
+//
+//	// 文件模式（向后兼容）
+//	m.StartCore(coreType, "/path/to/config.json")
+//
+//	// stdin 模式（无文件落地）
+//	m.StartCore(coreType, "", core.WithStdin(configData))
+func (m *CoreAdminManager) StartCore(coreType CoreType, configPath string, opts ...StartOption) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -96,18 +125,46 @@ func (m *CoreAdminManager) StartCore(coreType CoreType, configPath string) error
 		return fmt.Errorf("core binary not found: %s", binPath)
 	}
 
-	// 检查配置文件
-	if _, err := os.Stat(configPath); errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("config file not found: %s", configPath)
+	// 解析启动选项
+	sc := &startConfig{}
+	for _, opt := range opts {
+		opt(sc)
+	}
+
+	useStdin := sc.configData != nil
+
+	// 文件模式下检查配置文件是否存在
+	if !useStdin {
+		if _, err := os.Stat(configPath); errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("config file not found: %s", configPath)
+		}
 	}
 
 	// 创建 context 用于控制进程生命周期
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// 构建命令参数
-	args := m.buildCoreArgs(coreType, configPath)
+	// 构建命令参数和工作目录
+	var args []string
+	var workDir string
+	if useStdin {
+		args = m.buildStdinArgs(coreType)
+		// stdin 模式下工作目录设为内核二进制所在目录（Mihomo 需要在此加载 geoip.db 等资源）
+		workDir = filepath.Join(m.cfg.BinDir, coredef.Registry[coreType].SubDir)
+	} else {
+		args = m.buildCoreArgs(coreType, configPath)
+		workDir = filepath.Dir(configPath)
+	}
+
 	cmd := exec.CommandContext(ctx, binPath, args...)
-	cmd.Dir = filepath.Dir(configPath)
+	cmd.Dir = workDir
+
+	// stdin 模式：将配置数据绑定到子进程的 Stdin
+	if useStdin {
+		cmd.Stdin = bytes.NewReader(sc.configData)
+	}
+
+	// 跨平台进程属性配置
+	configureProcess(cmd)
 
 	// 设置 stdout/stderr 管道
 	stdoutPipe, err := cmd.StdoutPipe()
@@ -184,7 +241,11 @@ func (m *CoreAdminManager) StartCore(coreType CoreType, configPath string) error
 		}
 	}()
 
-	m.emitLog(coreType, "info", fmt.Sprintf("Core started (PID: %d)", cmd.Process.Pid))
+	mode := "file"
+	if useStdin {
+		mode = "stdin"
+	}
+	m.emitLog(coreType, "info", fmt.Sprintf("Core started (PID: %d, mode: %s)", cmd.Process.Pid, mode))
 	return nil
 }
 
@@ -211,10 +272,8 @@ func (m *CoreAdminManager) StopCore(coreType CoreType) error {
 		// 监控 goroutine 已完成状态更新和 logFile.Close
 		m.emitLog(coreType, "info", "Core stopped gracefully")
 	case <-time.After(coredef.CoreStopTimeout):
-		// 超时后强制杀死进程，但不自行 Wait/Close，仍等待监控 goroutine 处理
-		if inst.cmd.Process != nil {
-			inst.cmd.Process.Kill()
-		}
+		// 超时后强制杀死进程（跨平台：Unix 杀进程组，Windows 杀单进程）
+		killProcess(inst)
 		m.emitLog(coreType, "warn", "Core force killed after timeout")
 		<-done // 等待监控 goroutine 完成最终清理
 	}
@@ -274,7 +333,7 @@ func (m *CoreAdminManager) getCoreBinaryPath(coreType CoreType) string {
 	return filepath.Join(m.cfg.BinDir, meta.SubDir, meta.BinaryName())
 }
 
-// buildCoreArgs 构建内核启动参数
+// buildCoreArgs 构建内核启动参数（文件模式）
 func (m *CoreAdminManager) buildCoreArgs(coreType CoreType, configPath string) []string {
 	switch coreType {
 	case CoreTypeXray:
@@ -285,6 +344,27 @@ func (m *CoreAdminManager) buildCoreArgs(coreType CoreType, configPath string) [
 		return []string{"-f", configPath}
 	default:
 		return []string{"run", "-config", configPath}
+	}
+}
+
+// buildStdinArgs 构建内核启动参数（stdin 无文件落地模式）。
+//
+// 各内核对 stdin 的支持：
+//   - Xray:      -config stdin:     （官方原生支持）
+//   - Sing-box:  -c stdin:          （官方原生支持）
+//   - Mihomo:    -f -               （用 - 代替文件路径）
+//
+// 注意：Mihomo 的 -d . 依赖外部 cmd.Dir 已被设置为内核工作目录
+func (m *CoreAdminManager) buildStdinArgs(coreType CoreType) []string {
+	switch coreType {
+	case CoreTypeXray:
+		return []string{"run", "-config", "stdin:"}
+	case CoreTypeSingBox:
+		return []string{"run", "-c", "stdin:"}
+	case CoreTypeMihomo:
+		return []string{"-d", ".", "-f", "-"}
+	default:
+		return []string{"run", "-config", "stdin:"}
 	}
 }
 

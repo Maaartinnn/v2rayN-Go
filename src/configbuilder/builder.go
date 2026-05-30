@@ -15,6 +15,9 @@ type BuildConfigParams struct {
 type ConfigBuilder interface {
 	// Build 根据统一参数生成配置文件，返回配置文件路径
 	Build(params *BuildConfigParams) (configPath string, err error)
+	// BuildBytes 根据统一参数生成配置数据（JSON 字节），不写入文件。
+	// 用于 stdin 无文件落地模式，避免不必要的磁盘 I/O。
+	BuildBytes(params *BuildConfigParams) (data []byte, err error)
 }
 
 var builderRegistry = make(map[string]ConfigBuilder)
