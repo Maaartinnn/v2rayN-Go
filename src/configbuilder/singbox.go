@@ -3,9 +3,9 @@ package configbuilder
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 
+	"v2rayn-go/config"
 	"v2rayn-go/database"
 )
 
@@ -425,7 +425,8 @@ func SaveSingboxConfig(profile *database.Profile, rules []database.RoutingRule, 
 	}
 
 	configPath := filepath.Join(configDir, "singbox_config.json")
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
+	// 使用原子写入，防止断电导致配置文件损坏
+	if err := config.AtomicWriteFile(configPath, data, 0644); err != nil {
 		return "", fmt.Errorf("failed to write config: %w", err)
 	}
 

@@ -28,8 +28,15 @@ var DB *gorm.DB
 
 // Init 初始化 SQLite 数据库连接并自动迁移表结构
 func Init(cfg *config.AppConfig) error {
-	var err error //增加 busy_timeout 参数，让 SQLite 在遇到锁冲突时，先在底层默默排队等待（5000 毫秒），而不是立刻抛出 database is locked 错误让上层事务失败
-	DB, err = gorm.Open(sqlite.Open(cfg.DBPath+"?_pragma=busy_timeout(5000)"), &gorm.Config{
+	// 连接参数说明：
+	// - busy_timeout(5000): 遇到锁冲突时排队等待 5 秒，而非立刻报 "database is locked"
+	// - journal_mode(WAL): 启用 Write-Ahead Logging 模式
+	//   WAL 模式下断电最多丢失最近一个事务，数据库结构不会损坏；
+	//   同时读写并发性能远优于默认的 DELETE journal 模式
+	// - synchronous(NORMAL): WAL 模式下的推荐级别，在安全性和性能之间取得最佳平衡
+	//   FULL 级别在 WAL 下已无必要，NORMAL 足以保证数据库文件不损坏
+	var err error
+	DB, err = gorm.Open(sqlite.Open(cfg.DBPath+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {

@@ -45,6 +45,11 @@ func (a *App) run() {
 	}
 	log.Println("Database initialized successfully")
 
+	// 数据库初始化成功、配置经过完整验证后，备份 config.json 为 .bak
+	// 此时调用 BackupConfig 能确保只有经过完整启动验证的配置才会写入备份，
+	// 避免脏数据污染 .bak 文件
+	a.cfg.BackupConfig()
+
 	// 启动 Web 服务器
 	webServer := web.NewServer(a.cfg, a.core)
 	if err := webServer.Start(); err != nil {
@@ -195,6 +200,9 @@ func RunDirect(cfg *config.AppConfig) error {
 		return fmt.Errorf("failed to init database: %w", err)
 	}
 	defer database.Close()
+
+	// 数据库初始化成功、配置经过完整验证后，备份 config.json 为 .bak
+	cfg.BackupConfig()
 
 	log.Printf("v2rayN-Go started in direct mode")
 	log.Printf("Web UI: http://127.0.0.1:%d", cfg.WebPort)
