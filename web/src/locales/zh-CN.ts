@@ -109,6 +109,9 @@ const zhCN = {
   'settings.proxy': '代理',
   'settings.system_proxy': '系统代理',
   'settings.system_proxy_enabled': '已启用',
+  'settings.advanced': '高级',
+  'settings.core_config_debug': '内核配置调试模式',
+  'settings.core_config_debug_hint': '开启后内核配置文件将保存到本地磁盘（用于排查问题），默认通过内存管道注入内核，全程不落盘',
   'settings.save': '保存设置',
   'settings.saved': '设置已保存',
 

@@ -93,6 +93,7 @@ export const settingsApi = {
     http_port?: number
     outbound_ip?: string
     github_mirror?: string
+    core_config_debug?: boolean
   }) => api.post('/settings', data),
 }
 

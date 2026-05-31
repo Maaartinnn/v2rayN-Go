@@ -13,6 +13,7 @@ export function SettingsView() {
   const [httpPort, setHttpPort] = useState('10809')
   const [outboundIP, setOutboundIP] = useState('0.0.0.0')
   const [githubMirror, setGithubMirror] = useState('')
+  const [coreConfigDebug, setCoreConfigDebug] = useState(false)
 
   useEffect(() => {
     loadSettings()
@@ -27,6 +28,7 @@ export function SettingsView() {
       if (data.http_port) setHttpPort(String(data.http_port))
       if (data.outbound_ip) setOutboundIP(data.outbound_ip)
       if (data.github_mirror) setGithubMirror(data.github_mirror)
+      setCoreConfigDebug(!!data.core_config_debug)
     } catch (err) {
       console.error('Failed to load settings:', err)
     }
@@ -40,6 +42,7 @@ export function SettingsView() {
         http_port: parseInt(httpPort) || 0,
         outbound_ip: outboundIP,
         github_mirror: githubMirror,
+        core_config_debug: coreConfigDebug,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -297,6 +300,59 @@ export function SettingsView() {
             fontFamily: 'var(--font-mono)',
           }}
         />
+      </motion.div>
+
+      {/* Advanced Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.24, ease: [0.16, 1, 0.3, 1] }}
+        className="rounded-xl border p-6 mb-6"
+        style={{
+          backgroundColor: 'var(--color-card)',
+          borderColor: 'var(--color-border)',
+          boxShadow: 'var(--shadow-card)',
+        }}
+      >
+        <h3
+          className="text-sm font-semibold mb-5"
+          style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+        >
+          {t('settings.advanced') ?? 'Advanced'}
+        </h3>
+
+        {/* Core Config Debug Toggle */}
+        <div className="flex items-center justify-between">
+          <div className="flex-1 mr-4">
+            <span
+              className="text-sm block"
+              style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+            >
+              {t('settings.core_config_debug')}
+            </span>
+            <span
+              className="text-xs block mt-1"
+              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
+            >
+              {t('settings.core_config_debug_hint')}
+            </span>
+          </div>
+          <button
+            onClick={() => setCoreConfigDebug(!coreConfigDebug)}
+            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer shrink-0"
+            style={{
+              backgroundColor: coreConfigDebug ? 'var(--color-primary)' : 'var(--color-muted)',
+            }}
+          >
+            <span
+              className="inline-block h-4 w-4 transform rounded-full transition-transform"
+              style={{
+                backgroundColor: coreConfigDebug ? 'var(--color-primary-foreground)' : 'var(--color-muted-foreground)',
+                transform: coreConfigDebug ? 'translateX(24px)' : 'translateX(4px)',
+              }}
+            />
+          </button>
+        </div>
       </motion.div>
 
       {/* Save Button */}

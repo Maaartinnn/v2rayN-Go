@@ -109,6 +109,9 @@ const enUS = {
   'settings.proxy': 'Proxy',
   'settings.system_proxy': 'System Proxy',
   'settings.system_proxy_enabled': 'Enabled',
+  'settings.advanced': 'Advanced',
+  'settings.core_config_debug': 'Kernel Config Debug Mode',
+  'settings.core_config_debug_hint': 'When enabled, kernel config files are saved to disk for troubleshooting. By default, configs are injected via memory pipe without touching disk.',
   'settings.save': 'Save Settings',
   'settings.saved': 'Settings saved',
 
