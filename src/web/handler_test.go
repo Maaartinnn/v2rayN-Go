@@ -31,7 +31,7 @@ func createTestMux(t *testing.T) *http.ServeMux {
 	// Create a mock ping service
 	pingSvc := &mockPingService{}
 
-	profileHandler := NewProfileHandler(profileSvc, pingSvc)
+	profileHandler := NewProfileHandler(profileSvc, nil, pingSvc)
 	groupHandler := NewGroupHandler(groupSvc)
 	routingHandler := NewRoutingRuleHandler(routingSvc)
 
@@ -179,10 +179,19 @@ func TestProfileHandler_Get(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 
-	var result database.Profile
+	var result map[string]any
 	json.NewDecoder(w.Body).Decode(&result)
-	if result.Name != "GetMe" {
-		t.Fatalf("expected name 'GetMe', got '%s'", result.Name)
+	// 响应格式已改为 {profile, core_list}
+	profileData, ok := result["profile"].(map[string]any)
+	if !ok {
+		t.Fatal("expected 'profile' key in response")
+	}
+	if profileData["name"] != "GetMe" {
+		t.Fatalf("expected name 'GetMe', got '%v'", profileData["name"])
+	}
+	// coreSvc 为 nil 时 core_list 应为 null
+	if _, exists := result["core_list"]; !exists {
+		t.Fatal("expected 'core_list' key in response")
 	}
 }
 

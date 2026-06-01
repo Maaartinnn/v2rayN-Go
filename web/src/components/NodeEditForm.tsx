@@ -1,12 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Zap } from 'lucide-react'
-import { profileApi, coresApi, groupsApi } from '../lib/api'
+import { profileApi, groupsApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 import type { Profile } from '../store'
-import {
-  PROTOCOLS, NETWORKS, TLS_OPTIONS, SECURITY_METHODS,
-  getBestInstalledCore, getSupportedCores,
-} from '../lib/coreMap'
+import { PROTOCOLS, NETWORKS, TLS_OPTIONS, SECURITY_METHODS } from '../lib/coreMap'
 import { EditFormCard } from './ui/EditFormCard'
 import { FormField } from './ui/FormField'
 import { FormActions } from './ui/FormActions'
@@ -51,11 +48,17 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
   const [selectedGroupUUID, setSelectedGroupUUID] = useState<string>(groupUUID || '')
   const [groups, setGroups] = useState<Array<{ ID: number; uuid: string; alias: string; is_subscription: boolean }>>([])
 
-  // Smart core selection
-  const [recommendedCore, setRecommendedCore] = useState<string | null>(null)
-  const [installedCores, setInstalledCores] = useState<string[]>([])
+  // Core selection（由后端计算，不再前端过滤）
+  const [coreList, setCoreList] = useState<string[]>([])
   const [kernelMode, setKernelMode] = useState<'auto' | 'manual'>('auto')
   const [manualCore, setManualCore] = useState('')
+
+  // loadCoreList 从后端获取指定协议的可用内核列表
+  const loadCoreList = (proto: string) => {
+    profileApi.coreList(proto).then((res) => {
+      setCoreList(res.data?.core_list || [])
+    }).catch(() => { setCoreList([]) })
+  }
 
   // Load groups on mount
   useEffect(() => {
@@ -64,7 +67,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
     }).catch(() => {})
   }, [])
 
-  // Pre-fill form when editing
+  // Pre-fill form when editing（同时从后端获取 core_list）
   useEffect(() => {
     if (editData) {
       setName(editData.name || '')
@@ -93,28 +96,24 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
         setKernelMode('auto')
         setManualCore('')
       }
+
+      // 从后端获取该节点协议对应的 core_list
+      loadCoreList(editData.proxy_protocol || 'vmess')
     } else {
       // 新增模式默认自动
       setKernelMode('auto')
       setManualCore('')
+      // 根据当前协议获取 core_list
+      loadCoreList('vmess')
     }
   }, [editData])
 
-  // Load installed cores on mount
+  // 协议变化时重新获取 core_list
   useEffect(() => {
-    coresApi.list().then((res) => {
-      const cores = (res.data || [])
-        .filter((c: { version: string }) => c.version === 'installed')
-        .map((c: { name: string }) => c.name)
-      setInstalledCores(cores)
-    }).catch(() => {})
-  }, [])
-
-  // Update recommended core when protocol changes
-  useEffect(() => {
-    const best = getBestInstalledCore(protocol, installedCores)
-    setRecommendedCore(best)
-  }, [protocol, installedCores])
+    if (!editData) {
+      loadCoreList(protocol)
+    }
+  }, [protocol])
 
   const handleSubmit = async () => {
     if (!name.trim() || !address.trim() || !port) return
@@ -167,7 +166,8 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
   const showReality = showVLESSFields && tls === 'reality'
   const showFlow = showVLESSFields
 
-  const supportedCores = getSupportedCores(protocol)
+  // 推荐内核 = core_list 第一个（后端已按推荐优先级排序）
+  const recommendedCore = coreList.length > 0 ? coreList[0] : null
 
   return (
     <EditFormCard>
@@ -433,7 +433,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
         )}
 
         {/* 内核设置 */}
-        {supportedCores.length > 0 && (
+        {coreList.length > 0 && (
           <>
             <div className="grid grid-cols-2 gap-3">
               <FormField label={t('nodes.core_selection')} cols="1/2">
@@ -481,25 +481,20 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
                     className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
                     style={inputStyle}
                   >
-                    {supportedCores.map((c) => {
-                      const isInstalled = installedCores.includes(c)
-                      return (
-                        <option key={c} value={c}>
-                          {c}{isInstalled ? t('nodes.core_installed_suffix') : t('nodes.core_not_installed_suffix')}
-                        </option>
-                      )
-                    })}
+                    {coreList.map((c: string) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
                   </select>
                 )}
               </FormField>
             </div>
-            {/* 提示信息 */}
-            {kernelMode === 'manual' && supportedCores.length > 1 && (
+            {/* 提示信息：手动模式下显示其他兼容内核 */}
+            {kernelMode === 'manual' && coreList.length > 1 && (
               <p
                 className="text-xs"
                 style={{ color: 'var(--color-muted-foreground)', opacity: 0.6, fontFamily: 'var(--font-heading)' }}
               >
-                {t('nodes.also_supported')} {supportedCores.filter(c => c !== manualCore).join(', ')}
+                {t('nodes.also_supported')} {coreList.filter(c => c !== manualCore).join(', ')}
               </p>
             )}
           </>

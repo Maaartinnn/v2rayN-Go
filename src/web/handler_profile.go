@@ -13,13 +13,15 @@ import (
 // ProfileHandler 节点管理独立处理器
 type ProfileHandler struct {
 	profileSvc *service.ProfileService
+	coreSvc    *service.CoreService
 	pingSvc    service.PingServiceInterface
 }
 
 // NewProfileHandler 创建节点管理处理器
-func NewProfileHandler(profileSvc *service.ProfileService, pingSvc service.PingServiceInterface) *ProfileHandler {
+func NewProfileHandler(profileSvc *service.ProfileService, coreSvc *service.CoreService, pingSvc service.PingServiceInterface) *ProfileHandler {
 	return &ProfileHandler{
 		profileSvc: profileSvc,
+		coreSvc:    coreSvc,
 		pingSvc:    pingSvc,
 	}
 }
@@ -28,6 +30,7 @@ func NewProfileHandler(profileSvc *service.ProfileService, pingSvc service.PingS
 func (h *ProfileHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET    /api/profiles/{$}", h.handleList)
 	mux.HandleFunc("POST   /api/profiles/{$}", h.handleCreate)
+	mux.HandleFunc("GET    /api/profiles/core-list", h.handleCoreList)
 	mux.HandleFunc("POST /api/profiles/import", h.handleImport)
 	mux.HandleFunc("POST   /api/profiles/import-image", h.handleImportImage)
 	mux.HandleFunc("POST   /api/profiles/dedup", h.handleDedup)
@@ -176,6 +179,30 @@ func (h *ProfileHandler) handlePingAll(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]string{"status": "pinging"})
 }
 
+// handleCoreList 处理 GET /api/profiles/core-list?protocol=vmess
+//
+// 返回指定协议兼容且本地已安装的内核列表（按推荐优先级排序）。
+// 用于新增节点时，前端根据当前选中的协议动态获取可用内核列表。
+func (h *ProfileHandler) handleCoreList(w http.ResponseWriter, r *http.Request) {
+	protocol := r.URL.Query().Get("protocol")
+	if protocol == "" {
+		jsonError(w, "protocol is required", http.StatusBadRequest)
+		return
+	}
+
+	var coreList []string
+	if h.coreSvc != nil {
+		coreList = h.coreSvc.GetCompatibleInstalledCores(protocol)
+	}
+	jsonOK(w, map[string]any{"core_list": coreList})
+}
+
+// handleGet 处理 GET /api/profiles/{uuid}，返回完整节点数据 + core_list。
+//
+// core_list 是该协议兼容且本地已安装的内核列表（按推荐优先级排序），
+// 由 CoreService.GetCompatibleInstalledCores() 计算。
+// 前端 NodeEditForm 直接使用 core_list 渲染内核选择下拉框，
+// 不再需要单独调用 GET /api/cores 获取所有内核再做前端过滤。
 func (h *ProfileHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	profile, err := h.profileSvc.Get(uuid)
@@ -183,7 +210,16 @@ func (h *ProfileHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 		mapServiceError(w, err)
 		return
 	}
-	jsonOK(w, profile)
+
+	// coreSvc 可能为 nil（测试环境），此时 core_list 返回 nil
+	var coreList []string
+	if h.coreSvc != nil {
+		coreList = h.coreSvc.GetCompatibleInstalledCores(profile.ProxyProtocol)
+	}
+	jsonOK(w, map[string]any{
+		"profile":   profile,
+		"core_list": coreList,
+	})
 }
 
 func (h *ProfileHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {

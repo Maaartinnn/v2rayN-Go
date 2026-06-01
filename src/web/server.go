@@ -57,7 +57,7 @@ func (s *Server) Start() error {
 
 	// 2. 实例化各业务 Handler 并显式注入依赖
 	coreHandler := NewCoreHandler(s.coreSvc, wsHandler)
-	profileHandler := NewProfileHandler(s.profileSvc, s.pingSvc)
+	profileHandler := NewProfileHandler(s.profileSvc, s.coreSvc, s.pingSvc)
 	groupHandler := NewGroupHandler(s.groupSvc)
 	routingHandler := NewRoutingRuleHandler(s.routingSvc)
 	settingsHandler := NewSettingsHandler(s.settingsSvc, s.cfg)

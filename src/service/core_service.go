@@ -60,9 +60,14 @@ func (s *CoreService) Start(coreType string, configPath string) error {
 		coreType = profile.CoreType
 	}
 
-	// 节点未显式指定内核类型时，默认使用 xray
+	// 节点未显式指定内核类型时，自动选择协议兼容且已安装的最佳内核
 	if coreType == "" {
-		coreType = "xray"
+		installedCores := s.GetCompatibleInstalledCores(profile.ProxyProtocol)
+		if len(installedCores) > 0 {
+			coreType = installedCores[0] // 第一个是推荐优先级最高的
+		} else {
+			coreType = "xray" // 极端兜底：没有任何兼容内核安装
+		}
 	}
 
 	var rules []database.RoutingRule
@@ -106,6 +111,41 @@ func (s *CoreService) Start(coreType string, configPath string) error {
 		return fmt.Errorf("failed to start core: %w", err)
 	}
 	return nil
+}
+
+// GetCompatibleInstalledCores 获取协议兼容且本地已安装的内核列表（按推荐优先级排序）。
+//
+// 此方法是"协议→内核"选择的唯一后端逻辑，被以下两处复用：
+//   - NodeEditForm 编辑页面：通过 GET /api/profiles/{uuid} 返回 core_list 供前端展示
+//   - CoreService.Start()：当用户未指定 coreType 时，选择最佳默认内核
+//
+// 算法：
+//  1. 根据 ProtocolCoreMap 获取协议支持的内核列表（已按推荐优先级排序）
+//  2. 检查 bin/ 目录下每个内核的二进制文件是否已安装
+//  3. 只返回既兼容又已安装的内核（保持推荐优先级顺序）
+func (s *CoreService) GetCompatibleInstalledCores(protocol string) []string {
+	supported := coredef.GetSupportedCoresForProtocol(protocol)
+	if len(supported) == 0 {
+		return nil
+	}
+
+	// 获取本地已安装的内核集合
+	localCores := s.updater.GetLocalCores()
+	installedSet := make(map[string]bool)
+	for _, c := range localCores {
+		if c.Version == "installed" {
+			installedSet[c.Name] = true
+		}
+	}
+
+	// 按推荐优先级过滤，只保留已安装的
+	var result []string
+	for _, ct := range supported {
+		if installedSet[string(ct)] {
+			result = append(result, string(ct))
+		}
+	}
+	return result
 }
 
 // Stop 停止指定类型的内核。
