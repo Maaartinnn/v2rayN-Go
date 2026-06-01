@@ -11,6 +11,7 @@ import { Globe, Monitor, Sun, Moon } from 'lucide-react'
 import { AVAILABLE_LANGUAGES, useI18n, useT } from '../lib/i18n'
 import { useState, useEffect } from 'react'
 import { settingsApi } from '../lib/api'
+import { useStore } from '../store'
 
 export function SettingsView() {
   const t = useT()
@@ -21,6 +22,9 @@ export function SettingsView() {
   const [outboundIP, setOutboundIP] = useState('0.0.0.0')
   const [githubMirror, setGithubMirror] = useState('')
   const [coreConfigDebug, setCoreConfigDebug] = useState(false)
+  const [forceHttps, setForceHttps] = useState(false)
+  const [basePath, setBasePath] = useState('/')
+  const addToast = useStore(s => s.addToast)
 
   useEffect(() => {
     loadSettings()
@@ -37,6 +41,9 @@ export function SettingsView() {
       if (data.outbound_ip) setOutboundIP(data.outbound_ip)
       if (data.github_mirror !== undefined) setGithubMirror(data.github_mirror || '')
       setCoreConfigDebug(!!data.core_config_debug)
+      // 服务器设置（从 app_settings 表读取）
+      if (data.force_https !== undefined) setForceHttps(data.force_https === 'true')
+      if (data.custom_base_path !== undefined) setBasePath(data.custom_base_path || '/')
     } catch (err) {
       console.error('Failed to load settings:', err)
     }
@@ -384,6 +391,104 @@ export function SettingsView() {
               }}
             />
           </button>
+        </div>
+      </motion.div>
+
+      {/* ── Server Section（服务器级设置，修改后需重启） ─────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.3 }}
+        className="rounded-xl border p-6 mb-4"
+        style={{
+          backgroundColor: 'var(--color-card)',
+          borderColor: 'var(--color-border)',
+          boxShadow: 'var(--shadow-card)',
+        }}
+      >
+        <h3
+          className="text-sm font-semibold mb-5"
+          style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+        >
+          {t('settings.server')}
+        </h3>
+
+        {/* Force HTTPS Toggle */}
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex-1 mr-4">
+            <span
+              className="text-sm block"
+              style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+            >
+              {t('settings.force_https')}
+            </span>
+            <span
+              className="text-xs block mt-1"
+              style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
+            >
+              {t('settings.force_https_hint')}
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              const newVal = !forceHttps
+              setForceHttps(newVal)
+              // 保存到 app_settings 并提醒需重启
+              settingsApi.save({ force_https: String(newVal) } as any).then(() => {
+                addToast(t('settings.restart_required'), 'warning')
+              }).catch(() => loadSettings())
+            }}
+            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer shrink-0"
+            style={{
+              backgroundColor: forceHttps ? 'var(--color-primary)' : 'var(--color-muted)',
+            }}
+          >
+            <span
+              className="inline-block h-4 w-4 transform rounded-full transition-transform"
+              style={{
+                backgroundColor: forceHttps ? 'var(--color-primary-foreground)' : 'var(--color-muted-foreground)',
+                transform: forceHttps ? 'translateX(24px)' : 'translateX(4px)',
+              }}
+            />
+          </button>
+        </div>
+
+        {/* Custom Base Path */}
+        <div className="space-y-1.5">
+          <label
+            className="text-xs font-medium"
+            style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+          >
+            {t('settings.base_path')}
+          </label>
+          <span
+            className="text-xs block mb-1.5"
+            style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
+          >
+            {t('settings.base_path_hint')}
+          </span>
+          <input
+            type="text"
+            value={basePath}
+            onChange={e => setBasePath(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={e => {
+              const val = e.target.value.trim() || '/'
+              setBasePath(val)
+              settingsApi.save({ custom_base_path: val } as any).then(() => {
+                addToast(t('settings.restart_required'), 'warning')
+              }).catch(() => loadSettings())
+            }}
+            className="w-full px-3 py-2 text-sm rounded-lg outline-none transition-colors"
+            style={{
+              backgroundColor: 'var(--color-background)',
+              color: 'var(--color-foreground)',
+              border: '1px solid var(--color-border)',
+              fontFamily: 'var(--font-heading)',
+            }}
+            onFocus={e => (e.target.style.borderColor = 'var(--color-primary)')}
+            onBlurCapture={e => (e.target.style.borderColor = 'var(--color-border)')}
+          />
         </div>
       </motion.div>
     </div>

@@ -25,6 +25,19 @@ All core features are implemented and tested.
 - **协议→内核智能选择**：ProtocolCoreMap 映射表 + GetCompatibleInstalledCores + GetInstalledCoreMatrix
 - **Mihomo 配置调试输出**：binConfig/mihomo_config.yaml
 - **局部更新 + 失焦保存**：SettingsService dirty flag + 三步校验 + SettingsView Blur 自动保存
+- **安全改造计划（2026-06-02）**：
+  - User 模型（UUID/PasswordHash/JWTSecret/TOTP/Role）
+  - SeedDefaults（app_settings 默认 KV + admin 高亮密码打印）
+  - CLI admin 子命令（`admin set <pwd>` / `admin random`）
+  - AuthService（Login/JWT/ChangePassword/RotateJWTSecret/TOTP 全套）
+  - AuthHandler（8 个 API 端点）+ AuthMiddleware（JWT 认证 + 白名单）
+  - 自签名证书（ECDSA P-256，10 年有效期，SAN 覆盖 localhost）
+  - 动态路由前缀（withBasePath）+ force_https HTTPS 启动
+  - LoginView 极简登录页 + AccountView 账户管理（改密/TOTP QR 码/会话管理）
+  - App.tsx 路由守卫（Auth guard 三态 + AuthenticatedApp 子组件）
+  - Sidebar 账户入口 + SettingsView 服务器设置卡片（HTTPS/basePath）
+  - Axios 拦截器（自动注入 Token + 401 跳转）+ authApi
+  - i18n 中英文新增 auth/account/settings.server 键值
 - Go 后端全部测试通过（7 packages）
 - 前端 TypeScript 编译无错误
 
@@ -33,8 +46,7 @@ All core features are implemented and tested.
 - 扩展前端组件测试
 
 ## Current Status
-- 断电安全防护 + 无文件落地 + Mihomo ConfigBuilder + 协议→内核能力矩阵 已完成
-- Go 全量测试 7/7 PASS，TypeScript 编译无错误
+- 安全改造计划四阶段全部完成，go vet + vite build 通过
 - 项目稳定运行
 
 ## Known Issues
@@ -49,3 +61,9 @@ All core features are implemented and tested.
 - API 职责单一：GET /api/profiles/{uuid} 返回原始 profile，GET /api/profiles/core-matrix 返回能力矩阵
 - 内核配置调试输出统一到 binConfig/ 目录
 - Mihomo stdin 模式使用 `-d . -f -`（工作目录为内核二进制目录）
+- JWT 使用用户专属 Secret（HS256），RotateJWTSecret 使旧 Token 失效
+- TOTP 使用 pquerna/otp 库，默认时间窗口 ±30 秒
+- CLI admin 命令在 flag.Parse() 之前拦截（避免 flag 冲突）
+- Auth guard 拆分为 App（检测 token）+ AuthenticatedApp（业务逻辑）两层
+- 自签名证书使用 ECDSA P-256，复用 config.AtomicWriteFile 断电安全写入
+- withBasePath 动态路由前缀包装，根路径重定向到 basePath

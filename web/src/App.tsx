@@ -50,10 +50,6 @@ function FullScreenLoader() {
 }
 
 export default function App() {
-  const t = useT()
-  const [location] = useLocation()
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-
   // ── Auth 状态 ────────────────────────────────────────────────────
   const [authState, setAuthState] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading')
 

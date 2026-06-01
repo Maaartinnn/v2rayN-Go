@@ -1,61 +1,59 @@
 # Active Context
 
 ## Current Work Focus
-局部更新 + 失焦保存改造已完成，可继续策略组重构或测试扩展。
+安全改造计划已全部实施完毕，后端+前端+CLI 全部编译通过。
 
 ## Recent Changes
 
-### 1. 局部更新 + 失焦保存 (2026-06-01)
-- `settings_service.go`：引入 dirty flag（changed 标记），三步拦截（判空→判变→判合法）
-- 端口 1-65535 校验，IP 通过 `net.ParseIP` 校验，非法数据永不触碰内存和磁盘
-- 值未变时零磁盘 I/O（直接 return nil，跳过 AtomicWriteFile + Sync()）
-- `SettingsView.tsx`：移除全局保存按钮，改为失焦自动保存（Blur → API）
-- `handleBlur(field, value)` 通用函数：单字段 JSON 发送，后端校验失败时回滚脏输入
-- 输入框：onBlur 触发保存 + Enter 键触发 blur
-- Toggle：onClick 时立即调用 handleBlur（无失焦概念）
+### 安全改造计划（2026-06-02）
 
-### 2. 内核配置调试输出统一到 binConfig (2026-06-01)
-- SaveXrayConfig / SaveSingboxConfig / SaveMihomoConfig 输出路径统一到 `{AppDir}/binConfig/`
+#### 阶段一：底层拓荒与数据模型
+- `database/models.go`：新增 User 模型（UUID/Username/PasswordHash/JWTSecret/TOTPSecret/TOTPEnabled/Role）
+- `database/db.go`：AutoMigrate 挂载 User + SeedDefaults()（app_settings 默认 KV + admin 用户高亮密码打印）
+- `cmd/cli.go`：admin 子命令（`admin set <pwd>` / `admin random`），在 flag.Parse() 前拦截
+- `main.go`：admin 命令前置拦截 + 非 admin 路径的 Init 移到 sysmgr 中调用
+- `sysmgr/os_service.go`：RunDirect 和 App.run 中加入 SeedDefaults 调用
 
-### 2. Mihomo ConfigBuilder 实现 (2026-06-01)
-- 新建 `configbuilder/mihomo.go`：完整 YAML 配置结构体（MihomoConfig / MihomoProxy / MihomoProxyGroup）
-- 基础字段强类型定义 + `Extra map[string]any` + `yaml:",inline"` 处理协议专属参数
-- 利用 Go 1.26 `new(expr)` 语法创建 `*bool` 指针字面量
-- 支持 8 种协议：vmess, vless, trojan, ss, hysteria2, tuic, socks5, http
-- TLS/Reality/传输层(ws/h2/grpc/tcp) 全部覆盖
-- `configbuilder/mihomo_builder.go`：实现 ConfigBuilder 接口，`BuildBytes()` 返回 YAML 字节
+#### 阶段二：后端鉴权与 API 防线
+- `service/auth_service.go`：AuthService（Login/JWT 签发验证/ChangePassword/RotateJWTSecret/EnableTOTP/VerifyAndActivateTOTP/DisableTOTP）
+- `web/handler_auth.go`：AuthHandler（8 个 API 端点：login/me/change-password/totp/enable|verify|disable/sessions/revoke-all）
+- `web/middleware_auth.go`：JWT 认证中间件 + 白名单放行
+- `web/server.go`：AuthHandler 注册 + AuthMiddleware 包装 + withBasePath + getSettingFromDB + force_https HTTPS 启动
+- `web/cert.go`：ECDSA P-256 自签名证书自动生成，10 年有效期，SAN 覆盖 localhost/127.0.0.1/::1，复用 config.AtomicWriteFile
 
-### 3. 内核选择后端化 (2026-06-01)
-- 新建 `coredef/protocol_cores.go`：`ProtocolCoreMap` 协议→内核兼容映射表（唯一事实来源）
-- `CoreService.GetCompatibleInstalledCores()`：交叉查询映射表 + 本地 bin/ 目录
-- `CoreService.GetInstalledCoreMatrix()`：一次性计算所有协议的能力矩阵
-- `CoreService.Start()` 复用 `GetCompatibleInstalledCores` 选择最佳默认内核（替换硬编码 xray）
-- `CoreService.Stop()` 核心类型为空时调用 `StopAll()`
+#### 阶段三：前端登录与拦截
+- `web/src/lib/api.ts`：Axios 请求拦截器（自动注入 Token）+ 响应拦截器（401 跳转）+ authApi
+- `web/src/components/LoginView.tsx`：极简居中卡片登录页（用户名+密码+TOTP 动态码）
+- `web/src/components/AccountView.tsx`：修改密码卡片 + TOTP 两步验证卡片（QR 码渲染 qrcode.react）+ 会话管理卡片
+- `web/src/App.tsx`：路由守卫（authState 三态：loading/authenticated/unauthenticated）+ AuthenticatedApp 子组件
+- `web/src/components/Sidebar.tsx`：底部新增账户入口（UserCircle 图标 + /account 路由）
+- `web/src/locales/zh-CN.ts` + `en-US.ts`：新增 auth/account/settings.server 相关键值
 
-### 4. API 能力矩阵 + 前端 NodeEditForm 重构 (2026-06-01)
-- 新增 `GET /api/profiles/core-matrix` 端点：返回完整能力矩阵 `{"vmess": ["xray", ...]}`
-- `GET /api/profiles/{uuid}` 保持返回原始 profile（职责单一）
-- `ProfileHandler` 注入 `CoreService`，`NewProfileHandler` 新增 `coreSvc` 参数
-- 前端 NodeEditForm：删除 `coresApi.list()` / `coreMap.ts` 过滤逻辑，改用后端能力矩阵字典查询
-- 协议切换时零延迟查字典，无需网络请求
+#### 阶段四：动态网络纵深防御
+- `web/src/components/SettingsView.tsx`：新增服务器设置卡片（HTTPS Toggle + basePath Input + 重启提示 Toast）
 
-### 5. HomeView Bug 修复 (2026-06-01)
-- 修复前端硬编码 `'xray'` 问题：HomeView 传空字符串，后端自动判断内核
+### 局部更新 + 失焦保存（2026-06-01）
+- `settings_service.go`：dirty flag + 三步校验
+- `SettingsView.tsx`：移除全局保存按钮，失焦自动保存
 
-### 6. 无文件落地 Fileless Execution (2026-05-31)
-- stdin 模式 + Functional Options + BuildBytes + 跨平台进程安全
-
-### 7. 断电安全防护改造 (2026-05-31)
-- AtomicWriteFile + .bak backup rollback + SQLite WAL mode
+### 内核配置调试输出统一到 binConfig (2026-06-01)
+### Mihomo ConfigBuilder 实现 (2026-06-01)
+### 内核选择后端化 + API 能力矩阵 (2026-06-01)
+### HomeView Bug 修复 (2026-06-01)
+### 无文件落地 Fileless Execution (2026-05-31)
+### 断电安全防护改造 (2026-05-31)
 
 ## Next Steps
 - 策略组重构：StrategyGroup 表 → Profile 虚拟节点（组合模式）
 - 扩展测试覆盖
-- coreMap.ts 清理（PROTOCOLS / NETWORKS / TLS_OPTIONS / SECURITY_METHODS 仍被 NodeEditForm 使用）
+- 移动端响应式布局优化
 
 ## Important Patterns
+- JWT 使用用户专属 Secret（HS256），RotateJWTSecret 使旧 Token 失效
+- TOTP 使用 pquerna/otp 库，默认时间窗口 ±30 秒
+- CLI admin 命令在 flag.Parse() 之前拦截（避免 flag 冲突）
+- Auth guard 拆分为 App（检测 token）+ AuthenticatedApp（业务逻辑）两层
+- 自签名证书使用 ECDSA P-256，复用 config.AtomicWriteFile 断电安全写入
+- withBasePath 动态路由前缀包装，根路径重定向到 basePath
 - **能力矩阵**：后端一次性下发所有协议的可用内核矩阵，前端字典查询
-- **协议→内核映射**：`coredef.ProtocolCoreMap` 是唯一事实来源
-- **Mihomo YAML**：基础字段强类型 + `Extra map[string]any` + `yaml:",inline"` 处理可选协议参数
-- **API 职责单一**：`GET /api/profiles/{uuid}` 返回原始 profile，`GET /api/profiles/core-matrix` 返回能力矩阵
-- Data transfer optimization (DTO), Toast notification, testing, logging, constants patterns
+- **Mihomo YAML**：基础字段强类型 + `Extra map[string]any` + `yaml:",inline"`
