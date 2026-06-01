@@ -179,19 +179,10 @@ func TestProfileHandler_Get(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 
-	var result map[string]any
+	var result database.Profile
 	json.NewDecoder(w.Body).Decode(&result)
-	// 响应格式已改为 {profile, core_list}
-	profileData, ok := result["profile"].(map[string]any)
-	if !ok {
-		t.Fatal("expected 'profile' key in response")
-	}
-	if profileData["name"] != "GetMe" {
-		t.Fatalf("expected name 'GetMe', got '%v'", profileData["name"])
-	}
-	// coreSvc 为 nil 时 core_matrix 应为 null
-	if _, exists := result["core_matrix"]; !exists {
-		t.Fatal("expected 'core_matrix' key in response")
+	if result.Name != "GetMe" {
+		t.Fatalf("expected name 'GetMe', got '%s'", result.Name)
 	}
 }
 

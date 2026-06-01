@@ -194,12 +194,10 @@ func (h *ProfileHandler) handleCoreMatrix(w http.ResponseWriter, r *http.Request
 	jsonOK(w, map[string]any{"core_matrix": matrix})
 }
 
-// handleGet 处理 GET /api/profiles/{uuid}，返回完整节点数据 + core_matrix。
+// handleGet 处理 GET /api/profiles/{uuid}，返回完整节点数据。
 //
-// core_matrix 是所有协议兼容且本地已安装的内核矩阵，
-// 由 CoreService.GetInstalledCoreMatrix() 一次性计算。
-// 前端 NodeEditForm 使用 core_matrix 渲染内核选择下拉框，
-// 协议切换时直接查字典，零延迟，无需反复请求后端。
+// core_matrix 不在此端点返回，前端通过 GET /api/profiles/core-matrix 单独获取。
+// 这样保持 API 职责单一，前端逻辑也更清晰。
 func (h *ProfileHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	profile, err := h.profileSvc.Get(uuid)
@@ -207,16 +205,7 @@ func (h *ProfileHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 		mapServiceError(w, err)
 		return
 	}
-
-	// coreSvc 可能为 nil（测试环境），此时 core_matrix 返回 nil
-	var coreMatrix map[string][]string
-	if h.coreSvc != nil {
-		coreMatrix = h.coreSvc.GetInstalledCoreMatrix()
-	}
-	jsonOK(w, map[string]any{
-		"profile":     profile,
-		"core_matrix": coreMatrix,
-	})
+	jsonOK(w, profile)
 }
 
 func (h *ProfileHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {

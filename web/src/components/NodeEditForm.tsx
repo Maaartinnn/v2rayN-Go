@@ -60,12 +60,12 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
     }).catch(() => {})
   }, [])
 
-  // 加载能力矩阵（一次性获取所有协议的可用内核，编辑/新增时均从 handleGet 或 coreMatrix 端点获取）
-  const loadCoreMatrix = (pUuid?: string) => {
-    const fetch = pUuid
-      ? profileApi.get(pUuid).then(res => res.data?.core_matrix || {})
-      : profileApi.coreMatrix().then(res => res.data?.core_matrix || {})
-    fetch.then(setCoreMatrix).catch(() => setCoreMatrix({}))
+  // 加载能力矩阵（一次性获取所有协议的可用内核）
+  // 编辑/新增均从 GET /api/profiles/core-matrix 获取，保持逻辑统一
+  const loadCoreMatrix = () => {
+    profileApi.coreMatrix()
+      .then(res => setCoreMatrix(res.data?.core_matrix || {}))
+      .catch(() => setCoreMatrix({}))
   }
 
   // Pre-fill form when editing（同时从后端获取能力矩阵）
@@ -98,8 +98,8 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
         setManualCore('')
       }
 
-      // 从后端获取该节点的能力矩阵（包含所有协议的可用内核）
-      loadCoreMatrix(editData.uuid)
+      // 从后端获取完整能力矩阵
+      loadCoreMatrix()
     } else {
       // 新增模式默认自动
       setKernelMode('auto')
