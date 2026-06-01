@@ -43,6 +43,11 @@ func (a *App) run() {
 		log.Printf("Failed to init database: %v", err)
 		return
 	}
+	// 首次启动时注入默认数据（app_settings + 初始管理员），幂等安全
+	if err := database.SeedDefaults(); err != nil {
+		log.Printf("Failed to seed defaults: %v", err)
+		return
+	}
 	log.Println("Database initialized successfully")
 
 	// 数据库初始化成功、配置经过完整验证后，备份 config.json 为 .bak
@@ -198,6 +203,10 @@ func RunDirect(cfg *config.AppConfig) error {
 	// 初始化数据库
 	if err := database.Init(cfg); err != nil {
 		return fmt.Errorf("failed to init database: %w", err)
+	}
+	// 首次启动时注入默认数据（app_settings + 初始管理员），幂等安全
+	if err := database.SeedDefaults(); err != nil {
+		return fmt.Errorf("failed to seed defaults: %w", err)
 	}
 	defer database.Close()
 

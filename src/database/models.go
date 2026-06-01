@@ -6,6 +6,26 @@ import (
 	"gorm.io/gorm"
 )
 
+// User 系统用户（鉴权与两步验证）
+type User struct {
+	gorm.Model
+
+	// 记录标识
+	UUID string `gorm:"size:36;uniqueIndex;not null" json:"uuid"` // 用户唯一标识（JWT sub 字段）
+
+	// 认证信息
+	Username     string `gorm:"size:64;uniqueIndex;not null" json:"username"` // 登录用户名
+	PasswordHash string `gorm:"size:256;not null" json:"-"`                   // bcrypt 密码哈希（JSON 不输出）
+	JWTSecret    string `gorm:"size:256;not null" json:"-"`                   // 用户专属 JWT 签名密钥
+
+	// 两步验证 (TOTP)
+	TOTPSecret  string `gorm:"size:64;default:''" json:"-"`       // TOTP 密钥（Base32 编码）
+	TOTPEnabled bool   `gorm:"default:false" json:"totp_enabled"` // 是否已启用两步验证
+
+	// 权限
+	Role int `gorm:"default:0" json:"role"` // 角色: 0=普通用户, 1=超管（全局唯一）
+}
+
 // Profile 代理节点配置
 type Profile struct {
 	gorm.Model

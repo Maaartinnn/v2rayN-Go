@@ -24,6 +24,7 @@ type Server struct {
 	routingSvc  *service.RoutingRuleService
 	coreSvc     *service.CoreService
 	settingsSvc *service.SettingsService
+	authSvc     *service.AuthService
 
 	// 保留的直接依赖
 	coreMgr *core.CoreAdminManager
@@ -43,6 +44,7 @@ func NewServer(cfg *config.AppConfig, coreMgr *core.CoreAdminManager) *Server {
 		routingSvc:  service.NewRoutingRuleService(),
 		coreSvc:     coreSvc,
 		settingsSvc: service.NewSettingsService(cfg),
+		authSvc:     service.NewAuthService(),
 		coreMgr:     coreMgr,
 		pingSvc:     service.NewPingService(),
 	}
@@ -56,13 +58,15 @@ func (s *Server) Start() error {
 	wsHandler := NewWSHandler(s.coreSvc, s.coreMgr)
 
 	// 2. 实例化各业务 Handler 并显式注入依赖
+	authHandler := NewAuthHandler(s.authSvc)
 	coreHandler := NewCoreHandler(s.coreSvc, wsHandler)
 	profileHandler := NewProfileHandler(s.profileSvc, s.coreSvc, s.pingSvc)
 	groupHandler := NewGroupHandler(s.groupSvc)
 	routingHandler := NewRoutingRuleHandler(s.routingSvc)
 	settingsHandler := NewSettingsHandler(s.settingsSvc, s.cfg)
 
-	// 3. 注册路由
+	// 3. 注册路由（auth 路由先注册，白名单在中间件中处理）
+	authHandler.Register(mux)
 	coreHandler.Register(mux)
 	profileHandler.Register(mux)
 	groupHandler.Register(mux)
@@ -93,11 +97,15 @@ func (s *Server) Start() error {
 	// 5. 启动日志广播（使用 context.Background 支持优雅退出）
 	go wsHandler.LogBroadcaster(context.Background())
 
+	// 5. Auth 中间件包装（拦截非白名单的 /api/ 请求）
+	authedMux := AuthMiddleware(s.authSvc)(mux)
+
+	// 6. 日志中间件
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			slog.Info("API request", "method", r.Method, "path", r.URL.Path)
 		}
-		mux.ServeHTTP(w, r)
+		authedMux.ServeHTTP(w, r)
 	})
 
 	addr := s.cfg.GetListenAddr()
