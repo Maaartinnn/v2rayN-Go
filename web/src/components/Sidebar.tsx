@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link, useLocation } from 'wouter'
-import { Home, Server, FileText, Settings, Download, Route, ChevronLeft, ChevronRight, FolderOpen, ArrowUpFromLine } from 'lucide-react'
+import { Home, Server, FileText, Settings, Download, Route, ChevronLeft, ChevronRight, FolderOpen, ArrowUpFromLine, UserCircle } from 'lucide-react'
 import { useStore } from '../store'
 import { useT } from '../lib/i18n'
 
@@ -133,6 +133,48 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </Link>
           )
         })}
+      </div>
+
+      {/* Account Link */}
+      <div className="px-3 mt-auto pt-2">
+        <Link href="/account">
+          <motion.div
+            className="relative flex items-center h-9 rounded-lg transition-colors cursor-pointer"
+            style={{
+              backgroundColor: location === '/account' ? 'var(--color-accent-dim)' : 'transparent',
+              color: location === '/account' ? 'var(--color-accent-warm)' : 'var(--color-muted-foreground)',
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              paddingLeft: collapsed ? 0 : '12px',
+              paddingRight: collapsed ? 0 : '12px',
+            }}
+            whileHover={{ backgroundColor: location === '/account' ? undefined : 'var(--color-muted)' }}
+            whileTap={{ scale: 0.97 }}
+            title={collapsed ? t('nav.account') : undefined}
+          >
+            {location === '/account' && (
+              <motion.div
+                layoutId="sidebar-active"
+                className="absolute left-0 top-1/2 -translate-y-1/2 w-0.75 h-4 rounded-r-full"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+              />
+            )}
+            <UserCircle size={17} strokeWidth={1.6} className="shrink-0" />
+            <AnimatePresence>
+              {!collapsed && (
+                <motion.span
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: 'auto' }}
+                  exit={{ opacity: 0, width: 0 }}
+                  className="ml-2.5 text-[13px] font-medium whitespace-nowrap overflow-hidden"
+                  style={{ fontFamily: 'var(--font-heading)' }}
+                >
+                  {t('nav.account')}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </Link>
       </div>
 
       {/* Collapse Toggle */}

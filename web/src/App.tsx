@@ -3,11 +3,12 @@ import { Switch, Route, useLocation } from 'wouter'
 import { Sidebar } from './components/Sidebar'
 import { HomeView } from './components/HomeView'
 import { NodesView } from './components/NodesView'
+import { LoginView } from './components/LoginView'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useWebSocket } from './lib/useWebSocket'
 import { useStore } from './store'
 import { useT, initTheme } from './lib/i18n'
-import { coreApi } from './lib/api'
+import { coreApi, authApi } from './lib/api'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ToastContainer } from './components/ui/ToastContainer'
 
@@ -18,6 +19,7 @@ const LogConsole = lazy(() => import('./components/LogConsole').then(m => ({ def
 const SettingsView = lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })))
 const CoresView = lazy(() => import('./components/CoresView').then(m => ({ default: m.CoresView })))
 const RoutingView = lazy(() => import('./components/RoutingView').then(m => ({ default: m.RoutingView })))
+const AccountView = lazy(() => import('./components/AccountView').then(m => ({ default: m.AccountView })))
 
 function PageLoader() {
   return (
@@ -33,21 +35,71 @@ function PageLoader() {
   )
 }
 
+function FullScreenLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
+      <div
+        className="w-8 h-8 rounded-full border-2 animate-spin"
+        style={{
+          borderColor: 'var(--color-border)',
+          borderTopColor: 'var(--color-primary)',
+        }}
+      />
+    </div>
+  )
+}
+
 export default function App() {
+  const t = useT()
+  const [location] = useLocation()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
+  // ── Auth 状态 ────────────────────────────────────────────────────
+  const [authState, setAuthState] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading')
+
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token')
+    if (!token) {
+      setAuthState('unauthenticated')
+      return
+    }
+    authApi.me()
+      .then(() => setAuthState('authenticated'))
+      .catch(() => {
+        localStorage.removeItem('auth_token')
+        setAuthState('unauthenticated')
+      })
+  }, [])
+
+  // Initialize theme on mount
+  useEffect(() => {
+    initTheme()
+  }, [])
+
+  // ── 仅在已认证后初始化业务逻辑 ────────────────────────────────────
+  return authState === 'loading' ? (
+    <FullScreenLoader />
+  ) : authState === 'unauthenticated' ? (
+    <LoginView onSuccess={() => setAuthState('authenticated')} />
+  ) : (
+    <AuthenticatedApp />
+  )
+}
+
+/**
+ * AuthenticatedApp 已认证后才渲染的业务界面
+ * 将 useWebSocket / coreStatus 等逻辑放在子组件中，
+ * 确保未登录时不会触发任何 /api/ 请求
+ */
+function AuthenticatedApp() {
   useWebSocket()
   const { isConnected, profileList, activeProfileUUID, setCoreStatuses } = useStore()
-  // 从精简列表中查找当前激活节点（仅用于顶部状态栏显示名称）
   const activeProfile = activeProfileUUID
     ? profileList.find(p => p.uuid === activeProfileUUID) || null
     : null
   const t = useT()
   const [location] = useLocation()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-
-  // Initialize theme on mount
-  useEffect(() => {
-    initTheme()
-  }, [])
 
   // Fetch initial core status on mount
   useEffect(() => {
@@ -68,6 +120,7 @@ export default function App() {
     '/settings': t('nav.settings'),
     '/cores': t('nav.cores'),
     '/routing': t('nav.routing'),
+    '/account': t('nav.account'),
   }
 
   return (
@@ -151,6 +204,7 @@ export default function App() {
                     <Route path="/settings" component={SettingsView} />
                     <Route path="/cores" component={CoresView} />
                     <Route path="/routing" component={RoutingView} />
+                    <Route path="/account" component={AccountView} />
                     <Route component={HomeView} />
                   </Switch>
                 </Suspense>

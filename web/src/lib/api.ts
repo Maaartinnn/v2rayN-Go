@@ -5,6 +5,31 @@ const api = axios.create({
   timeout: 10000,
 })
 
+// ── 请求拦截器：自动注入 JWT Token ──────────────────────────────────
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('auth_token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+// ── 响应拦截器：401 → 清除 Token → 跳转登录页 ─────────────────────────
+api.interceptors.response.use(
+  res => res,
+  err => {
+    if (err.response?.status === 401) {
+      // 避免在登录页本身触发无限跳转
+      const isLoginRequest = err.config?.url?.includes('/login')
+      if (!isLoginRequest) {
+        localStorage.removeItem('auth_token')
+        window.location.href = '/'
+      }
+    }
+    return Promise.reject(err)
+  },
+)
+
 // ========== Core API ==========
 export const coreApi = {
   start: (coreType: string, configPath: string) =>
@@ -103,6 +128,19 @@ export const proxyApi = {
   setSystemProxy: (enabled: boolean, port: number) =>
     api.post('/proxy/system', { enabled, port }),
   getSystemProxy: () => api.get('/proxy/system'),
+}
+
+// ========== Auth API ==========
+export const authApi = {
+  login: (data: { username: string; password: string; totp_code?: string }) =>
+    api.post('/login', data),
+  me: () => api.get('/auth/me'),
+  changePassword: (data: { old_password: string; new_password: string }) =>
+    api.post('/change-password', data),
+  enableTOTP: () => api.post('/totp/enable'),
+  verifyTOTP: (code: string) => api.post('/totp/verify', { code }),
+  disableTOTP: (password: string) => api.post('/totp/disable', { password }),
+  revokeAllSessions: () => api.post('/sessions/revoke-all'),
 }
 
 export default api
