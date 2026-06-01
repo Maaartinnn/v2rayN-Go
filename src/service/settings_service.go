@@ -1,7 +1,20 @@
+// settings_service.go — 配置管理业务逻辑层
+//
+// 职责：
+//   - GetSettings(): 返回当前配置快照（只读）
+//   - UpdateSettings(): 接收前端单字段/多字段局部更新，带校验和脏标记
+//
+// 设计要点：
+//   - UpdateSettingsRequest 使用指针类型（*int, *string, *bool），区分"未传"和"传了零值"
+//   - dirty flag 模式：只有字段值真正改变时才触发 AtomicWriteFile，避免不必要的 Sync() 开销
+//   - 三步拦截（判空→判变→判合法）：确保非法数据永远不触碰内存和磁盘
+//   - 前端通过失焦（Blur）触发保存，每次只发送变更的字段
+
 package service
 
 import (
 	"fmt"
+	"net"
 
 	"v2rayn-go/config"
 )
@@ -29,7 +42,13 @@ func (s *SettingsService) GetSettings() map[string]any {
 	}
 }
 
-// UpdateSettingsRequest 配置更新请求
+// UpdateSettingsRequest 配置更新请求（局部更新，所有字段均为指针类型）。
+//
+// 指针类型设计意图：
+//   - nil   → 前端未传此字段，跳过处理
+//   - 非nil → 前端显式设置了值（包括零值），需要处理
+//
+// 前端每次只发送一个字段（失焦保存），因此大部分字段为 nil。
 type UpdateSettingsRequest struct {
 	ListenIP        *string `json:"listen_ip"`
 	SocksPort       *int    `json:"socks_port"`
@@ -39,26 +58,73 @@ type UpdateSettingsRequest struct {
 	CoreConfigDebug *bool   `json:"core_config_debug"`
 }
 
-// UpdateSettings 更新配置
+// UpdateSettings 更新配置（局部更新 + 脏标记 + 白名单校验）。
+//
+// 三步拦截策略（每个字段）：
+//  1. 判空：req.Field != nil → 前端传了此字段
+//  2. 判变：*req.Field != s.cfg.Field → 值确实有变化
+//  3. 判合法：端口 1-65535，IP 通过 net.ParseIP 校验
+//
+// dirty flag 模式：
+//   - 任意字段通过三步拦截后，标记 changed = true
+//   - 函数末尾只有 changed == true 时才调用 SaveJSONConfig()
+//   - 如果所有字段都没变，直接返回 nil，零磁盘 I/O
 func (s *SettingsService) UpdateSettings(req *UpdateSettingsRequest) error {
-	if req.ListenIP != nil {
+	changed := false
+
+	// ListenIP：判空 → 判变 → net.ParseIP 校验
+	if req.ListenIP != nil && *req.ListenIP != s.cfg.ListenIP {
+		if net.ParseIP(*req.ListenIP) == nil {
+			return NewValidation("invalid listen_ip: must be a valid IP address", nil)
+		}
 		s.cfg.ListenIP = *req.ListenIP
+		changed = true
 	}
-	if req.SocksPort != nil && *req.SocksPort > 0 {
+
+	// SocksPort：判空 → 判变 → 1-65535 校验
+	if req.SocksPort != nil && *req.SocksPort != s.cfg.SocksPort {
+		if *req.SocksPort < 1 || *req.SocksPort > 65535 {
+			return NewValidation("socks_port must be between 1 and 65535", nil)
+		}
 		s.cfg.SocksPort = *req.SocksPort
+		changed = true
 	}
-	if req.HTTPPort != nil && *req.HTTPPort > 0 {
+
+	// HTTPPort：判空 → 判变 → 1-65535 校验
+	if req.HTTPPort != nil && *req.HTTPPort != s.cfg.HTTPPort {
+		if *req.HTTPPort < 1 || *req.HTTPPort > 65535 {
+			return NewValidation("http_port must be between 1 and 65535", nil)
+		}
 		s.cfg.HTTPPort = *req.HTTPPort
+		changed = true
 	}
-	if req.OutboundIP != nil {
+
+	// OutboundIP：判空 → 判变 → net.ParseIP 校验
+	if req.OutboundIP != nil && *req.OutboundIP != s.cfg.OutboundIP {
+		if net.ParseIP(*req.OutboundIP) == nil {
+			return NewValidation("invalid outbound_ip: must be a valid IP address", nil)
+		}
 		s.cfg.OutboundIP = *req.OutboundIP
+		changed = true
 	}
-	if req.GitHubMirror != nil {
+
+	// GitHubMirror：判空 → 判变（允许空字符串清空，无需格式校验）
+	if req.GitHubMirror != nil && *req.GitHubMirror != s.cfg.GitHubMirror {
 		s.cfg.GitHubMirror = *req.GitHubMirror
+		changed = true
 	}
-	if req.CoreConfigDebug != nil {
+
+	// CoreConfigDebug：判空 → 判变（布尔值无需格式校验）
+	if req.CoreConfigDebug != nil && *req.CoreConfigDebug != s.cfg.CoreConfigDebug {
 		s.cfg.CoreConfigDebug = *req.CoreConfigDebug
+		changed = true
 	}
+
+	// dirty flag：只有值真正改变时才落盘，避免不必要的 AtomicWriteFile + Sync() 开销
+	if !changed {
+		return nil
+	}
+
 	if err := s.cfg.SaveJSONConfig(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}

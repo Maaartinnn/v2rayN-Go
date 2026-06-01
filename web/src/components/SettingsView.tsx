@@ -1,5 +1,13 @@
+// SettingsView.tsx — 设置页面
+//
+// 设计要点：
+//   - 移除全局保存按钮，改为失焦自动保存（Blur → API）
+//   - 输入框：onBlur 触发保存，onKeyDown Enter 触发 blur
+//   - Toggle/Select：onChange 时立即触发保存（无失焦概念）
+//   - 后端返回 400 时，回滚脏输入并重新加载
+
 import { motion } from 'framer-motion'
-import { Globe, Monitor, Sun, Moon, Save } from 'lucide-react'
+import { Globe, Monitor, Sun, Moon } from 'lucide-react'
 import { AVAILABLE_LANGUAGES, useI18n, useT } from '../lib/i18n'
 import { useState, useEffect } from 'react'
 import { settingsApi } from '../lib/api'
@@ -7,7 +15,6 @@ import { settingsApi } from '../lib/api'
 export function SettingsView() {
   const t = useT()
   const { lang, setLang, theme, setTheme } = useI18n()
-  const [saved, setSaved] = useState(false)
   const [listenIP, setListenIP] = useState('127.0.0.1')
   const [socksPort, setSocksPort] = useState('10808')
   const [httpPort, setHttpPort] = useState('10809')
@@ -19,6 +26,7 @@ export function SettingsView() {
     loadSettings()
   }, [])
 
+  // loadSettings 从后端加载当前配置，用于初始化和错误回滚
   const loadSettings = async () => {
     try {
       const res = await settingsApi.get()
@@ -27,27 +35,36 @@ export function SettingsView() {
       if (data.socks_port) setSocksPort(String(data.socks_port))
       if (data.http_port) setHttpPort(String(data.http_port))
       if (data.outbound_ip) setOutboundIP(data.outbound_ip)
-      if (data.github_mirror) setGithubMirror(data.github_mirror)
+      if (data.github_mirror !== undefined) setGithubMirror(data.github_mirror || '')
       setCoreConfigDebug(!!data.core_config_debug)
     } catch (err) {
       console.error('Failed to load settings:', err)
     }
   }
 
-  const handleSave = async () => {
+  // handleBlur 通用失焦保存函数
+  //
+  // 输入框 onBlur 时调用，组装单字段 JSON 发送到后端。
+  // 如果后端校验失败（HTTP 400），回滚脏输入：重新从后端加载配置覆盖前端状态。
+  //
+  // 参数：
+  //   - field: 配置字段名（与 JSON key 一致）
+  //   - value: 字段值
+  const handleBlur = async (field: string, value: string | number | boolean) => {
     try {
-      await settingsApi.save({
-        listen_ip: listenIP,
-        socks_port: parseInt(socksPort) || 0,
-        http_port: parseInt(httpPort) || 0,
-        outbound_ip: outboundIP,
-        github_mirror: githubMirror,
-        core_config_debug: coreConfigDebug,
-      })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-    } catch (err) {
-      console.error('Failed to save settings:', err)
+      await settingsApi.save({ [field]: value })
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || 'Save failed'
+      console.error(`Settings save failed (${field}):`, msg)
+      // 校验失败时回滚：重新从后端加载配置，覆盖用户的非法输入
+      loadSettings()
+    }
+  }
+
+  // handleKeyDown 回车键触发失焦（blur），间接触发保存
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.currentTarget.blur()
     }
   }
 
@@ -185,6 +202,8 @@ export function SettingsView() {
               type="text"
               value={listenIP}
               onChange={(e) => setListenIP(e.target.value)}
+              onBlur={() => handleBlur('listen_ip', listenIP)}
+              onKeyDown={handleKeyDown}
               className="w-40 px-3 py-1.5 text-sm rounded-lg border text-right"
               style={{
                 backgroundColor: 'var(--color-overlay)',
@@ -207,6 +226,8 @@ export function SettingsView() {
               type="number"
               value={socksPort}
               onChange={(e) => setSocksPort(e.target.value)}
+              onBlur={() => handleBlur('socks_port', parseInt(socksPort) || 0)}
+              onKeyDown={handleKeyDown}
               className="w-40 px-3 py-1.5 text-sm rounded-lg border text-right"
               style={{
                 backgroundColor: 'var(--color-overlay)',
@@ -229,6 +250,8 @@ export function SettingsView() {
               type="number"
               value={httpPort}
               onChange={(e) => setHttpPort(e.target.value)}
+              onBlur={() => handleBlur('http_port', parseInt(httpPort) || 0)}
+              onKeyDown={handleKeyDown}
               className="w-40 px-3 py-1.5 text-sm rounded-lg border text-right"
               style={{
                 backgroundColor: 'var(--color-overlay)',
@@ -251,6 +274,8 @@ export function SettingsView() {
               type="text"
               value={outboundIP}
               onChange={(e) => setOutboundIP(e.target.value)}
+              onBlur={() => handleBlur('outbound_ip', outboundIP)}
+              onKeyDown={handleKeyDown}
               className="w-40 px-3 py-1.5 text-sm rounded-lg border text-right"
               style={{
                 backgroundColor: 'var(--color-overlay)',
@@ -291,6 +316,8 @@ export function SettingsView() {
           type="text"
           value={githubMirror}
           onChange={(e) => setGithubMirror(e.target.value)}
+          onBlur={() => handleBlur('github_mirror', githubMirror)}
+          onKeyDown={handleKeyDown}
           placeholder="https://mirror.example.com"
           className="w-full px-3 py-2 text-sm rounded-lg border"
           style={{
@@ -338,7 +365,12 @@ export function SettingsView() {
             </span>
           </div>
           <button
-            onClick={() => setCoreConfigDebug(!coreConfigDebug)}
+            onClick={() => {
+              const newVal = !coreConfigDebug
+              setCoreConfigDebug(newVal)
+              // Toggle 无失焦概念，onChange 时立即触发保存
+              handleBlur('core_config_debug', newVal)
+            }}
             className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer shrink-0"
             style={{
               backgroundColor: coreConfigDebug ? 'var(--color-primary)' : 'var(--color-muted)',
@@ -354,26 +386,6 @@ export function SettingsView() {
           </button>
         </div>
       </motion.div>
-
-      {/* Save Button */}
-      <div className="flex justify-end">
-      <motion.button
-        onClick={handleSave}
-        className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium cursor-pointer ${saved ? '' : 'btn-primary'}`}
-        style={{
-          backgroundColor: saved ? 'var(--color-success)' : undefined,
-          color: saved ? 'var(--color-primary-foreground)' : undefined,
-          borderRadius: saved ? '0.75rem' : undefined,
-          boxShadow: saved ? 'var(--shadow-btn)' : undefined,
-          fontFamily: 'var(--font-heading)',
-        }}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-      >
-        <Save size={14} />
-        {saved ? t('settings.saved') : t('settings.save')}
-      </motion.button>
-      </div>
     </div>
   )
 }

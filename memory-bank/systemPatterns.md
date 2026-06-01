@@ -131,7 +131,15 @@ web/src/
 - **路由规则格式**：Mihomo 规则为纯字符串 `"TYPE,PARAM,POLICY"`（DOMAIN-SUFFIX/IP-CIDR/DST-PORT/MATCH）
 - **VLESS 支持**：Mihomo 支持 VLESS 协议（从 Clash.Meta 内核起支持）
 
-### 14. 协议→内核能力矩阵 (2026-06-01)
+### 14. 设置局部更新 + 失焦保存 (2026-06-01)
+- **Dirty Flag**：`UpdateSettings` 中 `changed := false`，只有字段值真正改变时才标记 `changed = true`，末尾只有 `changed` 时才调用 `SaveJSONConfig()`
+- **三步拦截**（判空→判变→判合法）：端口 1-65535，IP 通过 `net.ParseIP` 校验，非法数据永不触碰内存和磁盘
+- **值未变零 I/O**：如果所有字段都没变，直接返回 nil，跳过 AtomicWriteFile + Sync() 开销
+- **失焦保存**：前端 `handleBlur(field, value)` 组装单字段 JSON 发送，后端校验失败时 `loadSettings()` 回滚脏输入
+- **回车即保存**：输入框 `onKeyDown` Enter 触发 `e.currentTarget.blur()`
+- **Toggle 立即保存**：无失焦概念，`onClick` 时先 setState 再调用 `handleBlur`
+
+### 15. 协议→内核能力矩阵 (2026-06-01)
 - **ProtocolCoreMap**：`coredef/protocol_cores.go` 定义协议→内核映射表（唯一事实来源），每种协议的内核列表按推荐优先级排序
 - **GetCompatibleInstalledCores**：交叉查询映射表 + `updater.GetLocalCores()` 检查 bin/ 下二进制文件，返回协议兼容且已安装的内核列表（返回空数组而非 nil，避免 JSON 序列化为 null）
 - **GetInstalledCoreMatrix**：遍历所有协议返回 `map[string][]string`，前端一次性加载，协议切换时零延迟查字典

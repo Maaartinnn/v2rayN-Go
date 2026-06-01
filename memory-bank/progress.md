@@ -24,6 +24,7 @@ All core features are implemented and tested.
 - **断电安全防护**：AtomicWriteFile + .bak 容灾 + SQLite WAL
 - **协议→内核智能选择**：ProtocolCoreMap 映射表 + GetCompatibleInstalledCores + GetInstalledCoreMatrix
 - **Mihomo 配置调试输出**：binConfig/mihomo_config.yaml
+- **局部更新 + 失焦保存**：SettingsService dirty flag + 三步校验 + SettingsView Blur 自动保存
 - Go 后端全部测试通过（7 packages）
 - 前端 TypeScript 编译无错误
 
@@ -41,6 +42,7 @@ All core features are implemented and tested.
 - Mihomo 配置生成器暂不支持 WireGuard 协议
 
 ## Decisions
+- 设置页面失焦保存：前端 handleBlur 单字段 API，后端 dirty flag 避免无效 Sync()
 - Go 1.26 + new(expr) 语法（Mihomo 指针字面量）
 - Mihomo YAML 结构体：基础字段强类型 + Extra map + yaml:",inline"（平衡覆盖度与可维护性）
 - 协议→内核映射表位于 coredef/protocol_cores.go（唯一事实来源）

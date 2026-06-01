@@ -1,11 +1,20 @@
 # Active Context
 
 ## Current Work Focus
-协议内核智能选择 + 能力矩阵 + Mihomo ConfigBuilder 已完成，可继续策略组重构或测试扩展。
+局部更新 + 失焦保存改造已完成，可继续策略组重构或测试扩展。
 
 ## Recent Changes
 
-### 1. 内核配置调试输出统一到 binConfig (2026-06-01)
+### 1. 局部更新 + 失焦保存 (2026-06-01)
+- `settings_service.go`：引入 dirty flag（changed 标记），三步拦截（判空→判变→判合法）
+- 端口 1-65535 校验，IP 通过 `net.ParseIP` 校验，非法数据永不触碰内存和磁盘
+- 值未变时零磁盘 I/O（直接 return nil，跳过 AtomicWriteFile + Sync()）
+- `SettingsView.tsx`：移除全局保存按钮，改为失焦自动保存（Blur → API）
+- `handleBlur(field, value)` 通用函数：单字段 JSON 发送，后端校验失败时回滚脏输入
+- 输入框：onBlur 触发保存 + Enter 键触发 blur
+- Toggle：onClick 时立即调用 handleBlur（无失焦概念）
+
+### 2. 内核配置调试输出统一到 binConfig (2026-06-01)
 - SaveXrayConfig / SaveSingboxConfig / SaveMihomoConfig 输出路径统一到 `{AppDir}/binConfig/`
 
 ### 2. Mihomo ConfigBuilder 实现 (2026-06-01)

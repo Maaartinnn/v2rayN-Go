@@ -48,6 +48,7 @@
 - 🧬 **Fileless Core Launch** — Kernel configs injected via stdin pipe (Xray/Sing-box/Mihomo), zero disk I/O, no sensitive data leaked to filesystem, clean working directory
 - 🧠 **Smart Core Selection** — Backend capability matrix delivered once, protocol switch auto-recommends best installed core
 - 🐾 **Full Mihomo Support** — Complete YAML config generation for Clash Meta kernel, supporting 8 protocols + TLS/Reality
+- ✏️ **Auto-Save on Blur** — Settings page removes global save button, input blur/Enter/toggle instantly saves, backend dirty-flag zero I/O interception
 
 ---
 
