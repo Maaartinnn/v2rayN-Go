@@ -424,8 +424,13 @@ func SaveSingboxConfig(profile *database.Profile, rules []database.RoutingRule, 
 		return "", fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	configPath := filepath.Join(configDir, "singbox_config.json")
-	// singbox_config.json 是运行时从数据库动态生成的派生数据，不需要原子写入
+	// 确保 binConfig 目录存在
+	binConfigDir := filepath.Join(configDir, "binConfig")
+	if err := os.MkdirAll(binConfigDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create binConfig directory: %w", err)
+	}
+
+	configPath := filepath.Join(binConfigDir, "singbox_config.json")
 	if err := os.WriteFile(configPath, data, 0644); err != nil {
 		return "", fmt.Errorf("failed to write config: %w", err)
 	}

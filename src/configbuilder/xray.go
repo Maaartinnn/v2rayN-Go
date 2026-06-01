@@ -633,6 +633,12 @@ func buildXrayRoutingWithBalancers(rules []database.RoutingRule, balancers []any
 }
 
 // SaveXrayConfig 生成并保存 Xray 配置文件
+//
+// 输出路径: {configDir}/binConfig/xray_config.json
+// 与 SaveSingboxConfig / SaveMihomoConfig 统一输出到 binConfig 目录，
+// 便于调试模式下集中查看所有内核配置文件。
+//
+// xray_config.json 是运行时从数据库动态生成的派生数据，不需要原子写入。
 func SaveXrayConfig(profile *database.Profile, rules []database.RoutingRule, configDir string, socksPort, httpPort int) (string, error) {
 	cfg, err := BuildXrayConfig(profile, rules, configDir, socksPort, httpPort)
 	if err != nil {
@@ -644,8 +650,13 @@ func SaveXrayConfig(profile *database.Profile, rules []database.RoutingRule, con
 		return "", fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	configPath := filepath.Join(configDir, "xray_config.json")
-	// xray_config.json 是运行时从数据库动态生成的派生数据，不需要原子写入
+	// 确保 binConfig 目录存在
+	binConfigDir := filepath.Join(configDir, "binConfig")
+	if err := os.MkdirAll(binConfigDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create binConfig directory: %w", err)
+	}
+
+	configPath := filepath.Join(binConfigDir, "xray_config.json")
 	if err := os.WriteFile(configPath, data, 0644); err != nil {
 		return "", fmt.Errorf("failed to write config: %w", err)
 	}
