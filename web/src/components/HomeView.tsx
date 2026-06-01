@@ -18,9 +18,11 @@ export function HomeView() {
     setError(null)
     try {
       if (isConnected) {
-        await coreApi.stop('xray')
+        // coreType 传空字符串，由后端根据活跃节点的 core_type 字段自动判断
+        await coreApi.stop('')
       } else {
-        await coreApi.start('xray', '')
+        // coreType 传空字符串，后端 Start() 会回退到 profile.CoreType
+        await coreApi.start('', '')
       }
     } catch (err: any) {
       const msg = err?.response?.data?.error || err?.message || 'Unknown error'

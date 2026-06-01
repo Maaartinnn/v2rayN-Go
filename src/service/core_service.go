@@ -60,6 +60,11 @@ func (s *CoreService) Start(coreType string, configPath string) error {
 		coreType = profile.CoreType
 	}
 
+	// 节点未显式指定内核类型时，默认使用 xray
+	if coreType == "" {
+		coreType = "xray"
+	}
+
 	var rules []database.RoutingRule
 	if err := database.DB.Order("sort_order ASC").Find(&rules).Error; err != nil {
 		return fmt.Errorf("failed to load routing rules: %w", err)
@@ -103,10 +108,14 @@ func (s *CoreService) Start(coreType string, configPath string) error {
 	return nil
 }
 
-// Stop 停止核心
+// Stop 停止指定类型的内核。
+//
+// coreType 为空时，自动停止所有运行中的内核（用户点击 HomeView 开关按钮时
+// 不需要知道当前运行的是哪个内核，直接全部停止即可）。
 func (s *CoreService) Stop(coreType string) error {
 	if coreType == "" {
-		coreType = "xray"
+		s.coreMgr.StopAll()
+		return nil
 	}
 	if err := s.coreMgr.StopCore(core.CoreType(coreType)); err != nil {
 		return fmt.Errorf("failed to stop core: %w", err)

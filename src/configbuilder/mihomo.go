@@ -401,11 +401,12 @@ func buildMihomoRules(rules []database.RoutingRule, configDir string) []string {
 		}
 
 		policy := rule.Type // direct / proxy / block
-		if policy == "proxy" {
+		switch policy {
+		case "proxy":
 			policy = "Proxy" // 对齐策略组名称
-		} else if policy == "direct" {
+		case "direct":
 			policy = "DIRECT"
-		} else if policy == "block" {
+		case "block":
 			policy = "REJECT"
 		}
 
