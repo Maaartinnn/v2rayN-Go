@@ -15,9 +15,9 @@ src/
 ├── main.go              # 入口
 ├── cmd/cli.go           # CLI 命令行
 ├── config/              # 配置管理
-├── configbuilder/       # 代理配置生成器（singbox/xray）
+├── configbuilder/       # 代理配置生成器（xray/singbox/mihomo）
 ├── core/                # 内核进程管理
-├── coredef/             # 核心常量定义
+├── coredef/             # 核心常量定义 + 协议→内核映射表
 ├── database/            # 数据库层（GORM + SQLite）
 │   ├── models.go        # 全量数据模型（Profile/NodeGroup/RoutingRule/...）
 │   ├── profile_summary.go  # 精简 DTO（ProfileListItem/ColorPair）
@@ -41,13 +41,13 @@ web/src/
 ├── components/
 │   ├── NodesView.tsx    # 节点列表（使用精简数据 + uuid 标识）
 │   ├── HomeView.tsx     # 首页（从 profileList 查找激活节点）
-│   ├── NodeEditForm.tsx # 节点编辑表单（接收完整 Profile）
+│   ├── NodeEditForm.tsx # 节点编辑表单（使用后端能力矩阵）
 │   └── ui/
 │       ├── ToastContainer.tsx  # 通用 Toast 通知（ToastItem + ToastContainer）
 │       └── ...                 # 其他原子组件
 ├── lib/
-│   ├── api.ts           # API 调用层
-│   ├── coreMap.ts       # 协议-内核兼容映射
+│   ├── api.ts           # API 调用层（含 coreMatrix 端点）
+│   ├── coreMap.ts       # 协议/网络/TLS 常量定义（已被 NodeEditForm 引用）
 │   ├── i18n.ts          # 多语言 + 主题管理
 │   └── useWebSocket.ts  # WebSocket Hook
 ├── locales/             # 国际化字典
@@ -116,10 +116,24 @@ web/src/
 - **sync.Once 保证**：`BackupConfig` 使用 `sync.Once` 防止重复备份
 
 ### 12. 无文件落地（Fileless Execution）
-- **stdin 模式**：默认通过 `cmd.Stdin` 管道将 JSON 配置注入内核进程，全程不触碰物理磁盘
+- **stdin 模式**：默认通过 `cmd.Stdin` 管道将 JSON/YAML 配置注入内核进程，全程不触碰物理磁盘
 - **内核 stdin 支持**：Xray `-config stdin:` / Sing-box `-c stdin:` / Mihomo `-d . -f -`
 - **Functional Options**：`StartCore(coreType, "", core.WithStdin(data))` 零侵入扩展，向后兼容文件模式
-- **`BuildBytes` 接口**：`ConfigBuilder.BuildBytes()` 仅返回 JSON 字节不写文件，`Build()` 保留给调试模式
-- **调试开关**：`CoreConfigDebug` 配置字段，开启后写入文件并使用传统文件模式启动
+- **`BuildBytes` 接口**：`ConfigBuilder.BuildBytes()` 仅返回 JSON/YAML 字节不写文件，`Build()` 保留给调试模式
+- **调试开关**：`CoreConfigDebug` 配置字段，开启后写入 `binConfig/` 目录并使用传统文件模式启动
 - **跨平台进程安全**：`process_unix.go`（Setpgid + kill -pid）/ `process_windows.go`（HideWindow + Process.Kill）
 - **工作目录**：stdin 模式下 `cmd.Dir` 设为内核二进制所在目录（Mihomo 需要加载 geoip.db 等资源）
+
+### 13. Mihomo ConfigBuilder (2026-06-01)
+- **YAML 配置**：Mihomo 使用 YAML 格式（非 JSON），ConfigBuilder 接口统一
+- **结构体设计**：基础字段强类型（name/type/server/port） + `Extra map[string]any` + `yaml:",inline"` 处理协议专属参数（ws-opts, grpc-opts, reality-opts 等）
+- **Go 1.26 特性**：利用 `new(expr)` 创建 `*bool` 指针字面量，配合 `omitempty` 避免零值误判
+- **路由规则格式**：Mihomo 规则为纯字符串 `"TYPE,PARAM,POLICY"`（DOMAIN-SUFFIX/IP-CIDR/DST-PORT/MATCH）
+- **VLESS 支持**：Mihomo 支持 VLESS 协议（从 Clash.Meta 内核起支持）
+
+### 14. 协议→内核能力矩阵 (2026-06-01)
+- **ProtocolCoreMap**：`coredef/protocol_cores.go` 定义协议→内核映射表（唯一事实来源），每种协议的内核列表按推荐优先级排序
+- **GetCompatibleInstalledCores**：交叉查询映射表 + `updater.GetLocalCores()` 检查 bin/ 下二进制文件，返回协议兼容且已安装的内核列表（返回空数组而非 nil，避免 JSON 序列化为 null）
+- **GetInstalledCoreMatrix**：遍历所有协议返回 `map[string][]string`，前端一次性加载，协议切换时零延迟查字典
+- **API 设计**：`GET /api/profiles/core-matrix` 返回能力矩阵（独立端点，职责单一），`GET /api/profiles/{uuid}` 保持返回原始 profile
+- **前端使用**：NodeEditForm 使用 `coreMatrix[protocol]` 获取当前协议可用内核，删除了前端 coreMap.ts 过滤逻辑

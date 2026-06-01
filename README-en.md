@@ -46,6 +46,8 @@
 - 🔔 **Generic Toast Notifications** — Custom colors, action buttons, optional auto-dismiss, responsive layout, accessibility support
 - 🛡️ **Power-Failure Safe Storage** — config.json uses atomic write (temp file → Sync to disk → Rename replace), auto-detects corruption on startup and recovers from .bak backup, SQLite WAL mode prevents database corruption
 - 🧬 **Fileless Core Launch** — Kernel configs injected via stdin pipe (Xray/Sing-box/Mihomo), zero disk I/O, no sensitive data leaked to filesystem, clean working directory
+- 🧠 **Smart Core Selection** — Backend capability matrix delivered once, protocol switch auto-recommends best installed core
+- 🐾 **Full Mihomo Support** — Complete YAML config generation for Clash Meta kernel, supporting 8 protocols + TLS/Reality
 
 ---
 
