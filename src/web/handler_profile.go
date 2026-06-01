@@ -30,7 +30,7 @@ func NewProfileHandler(profileSvc *service.ProfileService, coreSvc *service.Core
 func (h *ProfileHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET    /api/profiles/{$}", h.handleList)
 	mux.HandleFunc("POST   /api/profiles/{$}", h.handleCreate)
-	mux.HandleFunc("GET    /api/profiles/core-list", h.handleCoreList)
+	mux.HandleFunc("GET    /api/profiles/core-matrix", h.handleCoreMatrix)
 	mux.HandleFunc("POST /api/profiles/import", h.handleImport)
 	mux.HandleFunc("POST   /api/profiles/import-image", h.handleImportImage)
 	mux.HandleFunc("POST   /api/profiles/dedup", h.handleDedup)
@@ -179,30 +179,27 @@ func (h *ProfileHandler) handlePingAll(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]string{"status": "pinging"})
 }
 
-// handleCoreList 处理 GET /api/profiles/core-list?protocol=vmess
+// handleCoreMatrix 处理 GET /api/profiles/core-matrix
 //
-// 返回指定协议兼容且本地已安装的内核列表（按推荐优先级排序）。
-// 用于新增节点时，前端根据当前选中的协议动态获取可用内核列表。
-func (h *ProfileHandler) handleCoreList(w http.ResponseWriter, r *http.Request) {
-	protocol := r.URL.Query().Get("protocol")
-	if protocol == "" {
-		jsonError(w, "protocol is required", http.StatusBadRequest)
-		return
-	}
-
-	var coreList []string
+// 返回当前环境所有协议对应的可用内核矩阵（能力矩阵）。
+// 格式：{"vmess": ["xray", "sing-box", "mihomo"], "anytls": ["sing-box"]}
+//
+// 用于新增节点时，前端一次性获取所有协议的兼容性数据，
+// 切换协议时直接查字典，零延迟，无需再次请求后端。
+func (h *ProfileHandler) handleCoreMatrix(w http.ResponseWriter, r *http.Request) {
+	var matrix map[string][]string
 	if h.coreSvc != nil {
-		coreList = h.coreSvc.GetCompatibleInstalledCores(protocol)
+		matrix = h.coreSvc.GetInstalledCoreMatrix()
 	}
-	jsonOK(w, map[string]any{"core_list": coreList})
+	jsonOK(w, map[string]any{"core_matrix": matrix})
 }
 
-// handleGet 处理 GET /api/profiles/{uuid}，返回完整节点数据 + core_list。
+// handleGet 处理 GET /api/profiles/{uuid}，返回完整节点数据 + core_matrix。
 //
-// core_list 是该协议兼容且本地已安装的内核列表（按推荐优先级排序），
-// 由 CoreService.GetCompatibleInstalledCores() 计算。
-// 前端 NodeEditForm 直接使用 core_list 渲染内核选择下拉框，
-// 不再需要单独调用 GET /api/cores 获取所有内核再做前端过滤。
+// core_matrix 是所有协议兼容且本地已安装的内核矩阵，
+// 由 CoreService.GetInstalledCoreMatrix() 一次性计算。
+// 前端 NodeEditForm 使用 core_matrix 渲染内核选择下拉框，
+// 协议切换时直接查字典，零延迟，无需反复请求后端。
 func (h *ProfileHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	profile, err := h.profileSvc.Get(uuid)
@@ -211,14 +208,14 @@ func (h *ProfileHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// coreSvc 可能为 nil（测试环境），此时 core_list 返回 nil
-	var coreList []string
+	// coreSvc 可能为 nil（测试环境），此时 core_matrix 返回 nil
+	var coreMatrix map[string][]string
 	if h.coreSvc != nil {
-		coreList = h.coreSvc.GetCompatibleInstalledCores(profile.ProxyProtocol)
+		coreMatrix = h.coreSvc.GetInstalledCoreMatrix()
 	}
 	jsonOK(w, map[string]any{
-		"profile":   profile,
-		"core_list": coreList,
+		"profile":     profile,
+		"core_matrix": coreMatrix,
 	})
 }
 

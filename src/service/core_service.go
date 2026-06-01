@@ -123,10 +123,12 @@ func (s *CoreService) Start(coreType string, configPath string) error {
 //  1. 根据 ProtocolCoreMap 获取协议支持的内核列表（已按推荐优先级排序）
 //  2. 检查 bin/ 目录下每个内核的二进制文件是否已安装
 //  3. 只返回既兼容又已安装的内核（保持推荐优先级顺序）
+//
+// 注意：返回值确保是 []string (空数组) 而不是 nil，避免 JSON 序列化为 null
 func (s *CoreService) GetCompatibleInstalledCores(protocol string) []string {
 	supported := coredef.GetSupportedCoresForProtocol(protocol)
 	if len(supported) == 0 {
-		return nil
+		return make([]string, 0) // 返回空数组而非 nil
 	}
 
 	// 获取本地已安装的内核集合
@@ -139,13 +141,31 @@ func (s *CoreService) GetCompatibleInstalledCores(protocol string) []string {
 	}
 
 	// 按推荐优先级过滤，只保留已安装的
-	var result []string
+	// 初始化为空数组，确保 JSON 序列化为 []
+	result := make([]string, 0)
 	for _, ct := range supported {
 		if installedSet[string(ct)] {
 			result = append(result, string(ct))
 		}
 	}
 	return result
+}
+
+// GetInstalledCoreMatrix 返回当前环境所有协议对应的可用内核矩阵。
+//
+// 用于前端一次性获取所有协议的兼容性数据，避免前端在切换协议时反复请求后端。
+// 返回格式：{"vmess": ["xray", "sing-box"], "anytls": ["sing-box"]}
+func (s *CoreService) GetInstalledCoreMatrix() map[string][]string {
+	matrix := make(map[string][]string)
+	for protocol := range coredef.ProtocolCoreMap {
+		// 复用 GetCompatibleInstalledCores 保证一致性
+		cores := s.GetCompatibleInstalledCores(protocol)
+		// 仅当该协议有可用内核时才加入矩阵
+		if len(cores) > 0 {
+			matrix[protocol] = cores
+		}
+	}
+	return matrix
 }
 
 // Stop 停止指定类型的内核。

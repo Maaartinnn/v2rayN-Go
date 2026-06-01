@@ -189,9 +189,9 @@ func TestProfileHandler_Get(t *testing.T) {
 	if profileData["name"] != "GetMe" {
 		t.Fatalf("expected name 'GetMe', got '%v'", profileData["name"])
 	}
-	// coreSvc 为 nil 时 core_list 应为 null
-	if _, exists := result["core_list"]; !exists {
-		t.Fatal("expected 'core_list' key in response")
+	// coreSvc 为 nil 时 core_matrix 应为 null
+	if _, exists := result["core_matrix"]; !exists {
+		t.Fatal("expected 'core_matrix' key in response")
 	}
 }
 

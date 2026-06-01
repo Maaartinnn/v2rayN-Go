@@ -29,7 +29,7 @@ export const profileApi = {
   create: (data: any) => api.post('/profiles', data),
   update: (uuid: string, data: any) => api.put(`/profiles/${uuid}`, data),
   delete: (uuid: string) => api.delete(`/profiles/${uuid}`),
-  coreList: (protocol: string) => api.get(`/profiles/core-list?protocol=${protocol}`),
+  coreMatrix: () => api.get('/profiles/core-matrix'),
   select: (uuid: string) => api.post(`/profiles/${uuid}/select`),
   ping: (uuid: string) => api.post(`/profiles/${uuid}/ping`),
   pingAll: () => api.post('/profiles/ping-all'),

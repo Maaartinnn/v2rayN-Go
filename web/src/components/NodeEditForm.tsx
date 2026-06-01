@@ -48,17 +48,10 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
   const [selectedGroupUUID, setSelectedGroupUUID] = useState<string>(groupUUID || '')
   const [groups, setGroups] = useState<Array<{ ID: number; uuid: string; alias: string; is_subscription: boolean }>>([])
 
-  // Core selection（由后端计算，不再前端过滤）
-  const [coreList, setCoreList] = useState<string[]>([])
+  // Core selection（由后端一次性下发能力矩阵，前端协议切换时零延迟查字典）
+  const [coreMatrix, setCoreMatrix] = useState<Record<string, string[]>>({})
   const [kernelMode, setKernelMode] = useState<'auto' | 'manual'>('auto')
   const [manualCore, setManualCore] = useState('')
-
-  // loadCoreList 从后端获取指定协议的可用内核列表
-  const loadCoreList = (proto: string) => {
-    profileApi.coreList(proto).then((res) => {
-      setCoreList(res.data?.core_list || [])
-    }).catch(() => { setCoreList([]) })
-  }
 
   // Load groups on mount
   useEffect(() => {
@@ -67,7 +60,15 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
     }).catch(() => {})
   }, [])
 
-  // Pre-fill form when editing（同时从后端获取 core_list）
+  // 加载能力矩阵（一次性获取所有协议的可用内核，编辑/新增时均从 handleGet 或 coreMatrix 端点获取）
+  const loadCoreMatrix = (pUuid?: string) => {
+    const fetch = pUuid
+      ? profileApi.get(pUuid).then(res => res.data?.core_matrix || {})
+      : profileApi.coreMatrix().then(res => res.data?.core_matrix || {})
+    fetch.then(setCoreMatrix).catch(() => setCoreMatrix({}))
+  }
+
+  // Pre-fill form when editing（同时从后端获取能力矩阵）
   useEffect(() => {
     if (editData) {
       setName(editData.name || '')
@@ -97,23 +98,16 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
         setManualCore('')
       }
 
-      // 从后端获取该节点协议对应的 core_list
-      loadCoreList(editData.proxy_protocol || 'vmess')
+      // 从后端获取该节点的能力矩阵（包含所有协议的可用内核）
+      loadCoreMatrix(editData.uuid)
     } else {
       // 新增模式默认自动
       setKernelMode('auto')
       setManualCore('')
-      // 根据当前协议获取 core_list
-      loadCoreList('vmess')
+      // 从后端获取完整能力矩阵
+      loadCoreMatrix()
     }
   }, [editData])
-
-  // 协议变化时重新获取 core_list
-  useEffect(() => {
-    if (!editData) {
-      loadCoreList(protocol)
-    }
-  }, [protocol])
 
   const handleSubmit = async () => {
     if (!name.trim() || !address.trim() || !port) return
@@ -166,8 +160,10 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
   const showReality = showVLESSFields && tls === 'reality'
   const showFlow = showVLESSFields
 
-  // 推荐内核 = core_list 第一个（后端已按推荐优先级排序）
-  const recommendedCore = coreList.length > 0 ? coreList[0] : null
+  // 当前协议的可用内核 = 从能力矩阵中瞬间查出（零延迟，无需网络请求）
+  const currentCores = coreMatrix[protocol] || []
+  // 推荐内核 = 当前协议可用内核列表的第一个（后端已按推荐优先级排序）
+  const recommendedCore = currentCores.length > 0 ? currentCores[0] : null
 
   return (
     <EditFormCard>
@@ -433,7 +429,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
         )}
 
         {/* 内核设置 */}
-        {coreList.length > 0 && (
+        {currentCores.length > 0 && (
           <>
             <div className="grid grid-cols-2 gap-3">
               <FormField label={t('nodes.core_selection')} cols="1/2">
@@ -481,7 +477,7 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
                     className="w-full px-3 py-2 text-sm rounded-lg border cursor-pointer"
                     style={inputStyle}
                   >
-                    {coreList.map((c: string) => (
+                    {currentCores.map((c: string) => (
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
@@ -489,12 +485,12 @@ export function NodeEditForm({ onClose, onSaved, groupUUID, editData }: NodeEdit
               </FormField>
             </div>
             {/* 提示信息：手动模式下显示其他兼容内核 */}
-            {kernelMode === 'manual' && coreList.length > 1 && (
+            {kernelMode === 'manual' && currentCores.length > 1 && (
               <p
                 className="text-xs"
                 style={{ color: 'var(--color-muted-foreground)', opacity: 0.6, fontFamily: 'var(--font-heading)' }}
               >
-                {t('nodes.also_supported')} {coreList.filter(c => c !== manualCore).join(', ')}
+                {t('nodes.also_supported')} {currentCores.filter(c => c !== manualCore).join(', ')}
               </p>
             )}
           </>
