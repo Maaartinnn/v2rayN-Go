@@ -23,7 +23,7 @@
 - 📡 **多协议解析** — 支持 VMess、VLESS、Trojan、Shadowsocks、ShadowsocksR、Hysteria2、Hysteria、TUIC、AnyTLS、WireGuard 等协议
 - 📋 **订阅管理** — 并发拉取订阅、定期自动更新、自定义 User-Agent、别名正则过滤、一键导入分享链接，支持事务式原子更新
 - 📦 **分组管理** — 多层级节点分组，支持拖拽排序、按分组筛选、分配合并到分组
-- 🖼️ **二维码导入** — 独立的导入页面，支持拖拽/粘贴/上传图片或输入 URL 解析二维码中的节点
+- 🖼️ **二维码导入** — 浏览器端 QR 解码（jsQR），图片零上传，大图自动缩放防 OOM，通过 React.lazy() 按需加载
 - ⚡ **延迟测速** — TCP Ping 与 HTTP Ping 两种测速方式，批量并发测速，可视化延迟状态，自动写入数据库
 - 🔄 **节点去重** — 一键去除重复节点
 - ⛓️ **链式代理** — 支持前置代理串联（DialerProxy），灵活构建多跳转发链路
@@ -89,6 +89,8 @@ v2rayN-Go/
 │       │   ├── LogConsole.tsx     # 日志终端（级别/来源过滤）
 │       │   ├── ErrorBoundary.tsx  # 错误边界
 │       │   ├── ToastContainer.tsx  # 通用 Toast 通知（自定义颜色/按钮/自动消失/响应式/无障碍）
+│       │   ├── tools/            # 工具组件（懒加载）
+│       │   │   └── QrScanner.tsx # 浏览器端 QR 解码（jsQR，≤1000px 缩放防 OOM）
 │       │   └── ui/               # 通用 UI 原子组件（含 DeleteConfirmBanner 等）
 │       ├── lib/
 │       │   ├── api.ts             # API 客户端 (Axios)
@@ -118,14 +120,13 @@ v2rayN-Go/
     │   ├── profile_summary.go     # 精简 DTO（ProfileListItem/ColorPair）
     │   ├── profile_colors.go      # 协议/内核/延迟颜色映射纯函数（不入库）
     │   └── utils.go               # UUID 生成
-    ├── parser/                    # 多协议解析器 + 二维码解码
+    ├── parser/                    # 多协议解析器（QR 解码已迁移到前端 jsQR）
     │   ├── parser.go              # 解析入口分发 + 批量解析 + 订阅内容解析
     │   ├── vmess.go / vless.go / trojan.go
     │   ├── shadowsocks.go / ssr.go
     │   ├── hysteria2.go / hysteria.go / tuic.go
     │   ├── anytls.go              # AnyTLS 协议解析
     │   ├── wireguard.go           # WireGuard 协议解析
-    │   ├── qrcode.go              # 二维码解码
     │   └── utils.go               # Base64 解码 / URL 解析 / 名称提取等工具函数
     ├── service/                   # 业务逻辑层（Service 层）
     │   ├── profile.go             # 节点 CRUD / 激活 / 去重 / 排序 / 分组移动 / ListSummary 精简列表
@@ -323,7 +324,6 @@ dev-build.cmd
 - **ORM**: GORM
 - **WebSocket**: gorilla/websocket
 - **系统服务**: kardianos/service
-- **QR 码解码**: gozxing
 - **UUID**: google/uuid
 - **CPU 检测**: golang.org/x/sys（用于 mihomo CPU 微架构级别检测）
 
@@ -337,6 +337,7 @@ dev-build.cmd
 - **动画**: Framer Motion 12
 - **命令面板**: cmdk
 - **图标**: Lucide Icons
+- **QR 码解码**: jsQR（浏览器端纯 JS，React.lazy() 按需加载）
 - **HTTP 客户端**: Axios
 
 ---

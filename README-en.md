@@ -23,7 +23,7 @@
 - 📡 **Multi-Protocol Parsing** — VMess, VLESS, Trojan, Shadowsocks, ShadowsocksR, Hysteria2, Hysteria, TUIC, AnyTLS, WireGuard
 - 📋 **Subscription Management** — Concurrent fetching, scheduled auto-update, custom User-Agent, alias regex filtering, one-click link import, transactional atomic updates
 - 📦 **Group Management** — Multi-level node groups with drag-and-drop reorder, filter by group, assign subscriptions to groups
-- 🖼️ **QR Code Import** — Dedicated import page with drag/paste/upload image or URL for QR code node parsing
+- 🖼️ **QR Code Import** — Browser-side QR decoding (jsQR), zero image upload, auto-scaling for large images to prevent OOM, lazy-loaded via React.lazy()
 - ⚡ **Latency Testing** — TCP Ping and HTTP Ping dual modes, batch concurrent testing, visual latency indicators, auto-save to database
 - 🔄 **Node Deduplication** — One-click removal of duplicate nodes
 - ⛓️ **Chain Proxy** — DialerProxy support for multi-hop forwarding chains
@@ -89,6 +89,8 @@ v2rayN-Go/
 │       │   ├── LogConsole.tsx     # Log terminal (level/source filtering)
 │       │   ├── ErrorBoundary.tsx  # Error boundary
 │       │   ├── ToastContainer.tsx  # Generic toast notifications (custom color/action/auto-dismiss/responsive/a11y)
+│       │   ├── tools/            # Utility components (lazy-loaded)
+│       │   │   └── QrScanner.tsx # Browser-side QR decoding (jsQR, ≤1000px scaling to prevent OOM)
 │       │   └── ui/               # Atomic UI components (includes DeleteConfirmBanner, etc.)
 │       ├── lib/
 │       │   ├── api.ts             # API client (Axios)
@@ -118,14 +120,13 @@ v2rayN-Go/
     │   ├── profile_summary.go     # Compact DTO (ProfileListItem/ColorPair)
     │   ├── profile_colors.go      # Protocol/core/latency color mapping (pure functions, no DB)
     │   └── utils.go               # UUID generation
-    ├── parser/                    # Multi-protocol parsers + QR code decoder
+    ├── parser/                    # Multi-protocol parsers (QR decoding migrated to frontend jsQR)
     │   ├── parser.go              # Parse entry dispatch + batch parsing + subscription content parsing
     │   ├── vmess.go / vless.go / trojan.go
     │   ├── shadowsocks.go / ssr.go
     │   ├── hysteria2.go / hysteria.go / tuic.go
     │   ├── anytls.go              # AnyTLS protocol parser
     │   ├── wireguard.go           # WireGuard protocol parser
-    │   ├── qrcode.go              # QR code decoding
     │   └── utils.go               # Base64 decode / URL parse / name extraction utilities
     ├── service/                   # Business logic layer (Service layer)
     │   ├── profile.go             # Node CRUD / activate / dedup / sort / group move / ListSummary compact list
@@ -323,7 +324,6 @@ dev-build.cmd
 - **ORM**: GORM
 - **WebSocket**: gorilla/websocket
 - **System Service**: kardianos/service
-- **QR Code Decoder**: gozxing
 - **UUID**: google/uuid
 - **CPU Detection**: golang.org/x/sys (for mihomo CPU microarchitecture level detection)
 
@@ -337,6 +337,7 @@ dev-build.cmd
 - **Animations**: Framer Motion 12
 - **Command Palette**: cmdk
 - **Icons**: Lucide Icons
+- **QR Code Decoding**: jsQR (browser-side pure JS, lazy-loaded via React.lazy())
 - **HTTP Client**: Axios
 
 ---

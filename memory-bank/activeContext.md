@@ -32,6 +32,22 @@
 #### 阶段四：动态网络纵深防御
 - `web/src/components/SettingsView.tsx`：新增服务器设置卡片（HTTPS Toggle + basePath Input + JWT 过期时间 + 重启提示 Toast）
 
+### QR 识别前端化迁移（2026-06-02）
+- **问题**：`/api/profiles/import-image` 存在 SSRF 死代码（URL 下载）、无文件大小限制、无 MIME 校验、先全量读入再验证等安全问题
+- **方案**：彻底删除后端 QR 识别能力，迁移到前端浏览器端完成
+- **后端清理**：
+  - `handler_profile.go`：删除 `handleImportImage` + `importParsedLinks` + 路由注册，清理 `io`/`parser` 导入
+  - `profile_service.go`：删除无调用方的 `ImportParsedLinks` 方法
+  - `parser/qrcode.go`：整个文件删除（gozxing + image.Decode）
+  - `go.mod`/`go.sum`：`go mod tidy` 移除 `gozxing` 依赖
+- **前端新增/修改**：
+  - 安装 `jsqr`（纯 JS QR 解码库，~50KB）
+  - `components/tools/QrScanner.tsx`：独立 QR 解码组件，通过 `React.lazy()` 按需加载，集成 `useT()` i18n + `addToast()` 通知，大图自动等比缩放（≤1000px）防 OOM，StrictMode 双重执行保护
+  - `ImportView.tsx`：图片选择后设置 `qrFile` 状态，渲染 `QrScanner` → 解码成功调用已有 `POST /api/profiles/import`
+  - `api.ts`：删除 `profileEnhancedApi.importImage`
+  - `locales/zh-CN.ts` + `en-US.ts`：新增 `qr.*` 翻译 key（6 条）
+- **安全收益**：消除 SSRF、消除内存溢出风险、图片零网络传输、移除 Go 图片解码依赖
+
 ### 安全改造后续 Bug 修复（2026-06-02）
 - **密码确认逻辑**：AccountView 三字段空值检查 + 新旧密码相同判断 + 密码长度独立错误消息
 - **改密后无缝续用**：ChangePassword 返回新 JWT Token，前端更新 localStorage

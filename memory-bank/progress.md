@@ -6,6 +6,7 @@ All core features are implemented and tested.
 ## What's Built
 - Web UI (React 19 + TypeScript + TailwindCSS 4 + Framer Motion)
 - 前端暗色/亮色主题、中英双语、Toast 通知
+- **前端 QR 解码**：jsQR 浏览器端解码，React.lazy() 按需加载，大图自动缩放（≤1000px）防 OOM
 - 节点管理：列表/新增/编辑/拖拽排序/删除/批量测速/拖拽导入
 - 节点列表精简传输（ProfileListItem DTO）+ 颜色后端驱动
 - 前端 uuid 标识 + HomeView/App.tsx 从 profileList 查找激活节点
@@ -47,6 +48,10 @@ All core features are implemented and tested.
   - app_settings 表 GORM Upsert 读写（ForceHTTPS/CustomBasePath/JwtExpireHours）
   - 路由前缀规范化（纯路径名无斜杠 + 正则校验）
   - JWT 过期时间前端可配置（1-8760 小时）
+- **QR 识别前端化迁移（2026-06-02）**：
+  - 后端：删除 `handleImportImage`/`importParsedLinks`/`parser/qrcode.go`，清理 `gozxing` 依赖
+  - 前端：新增 `tools/QrScanner.tsx` 组件（jsQR + i18n + toast + React.lazy()），复用已有 import 接口
+  - 安全收益：消除 SSRF、消除内存溢出风险、图片零网络传输
 - Go 后端全部测试通过（7 packages）
 - 前端 TypeScript 编译无错误
 
@@ -63,6 +68,8 @@ All core features are implemented and tested.
 - Mihomo 配置生成器暂不支持 WireGuard 协议
 
 ## Decisions
+- **QR 解码前端化**：图片解码完全在浏览器完成（jsQR），复用已有 `POST /api/profiles/import`，后端不再接收图片
+- **懒加载组件放 `components/tools/`**：通用工具组件独立目录，通过 `React.lazy()` 按需加载
 - 设置页面失焦保存：前端 handleBlur 单字段 API，后端 dirty flag 避免无效 Sync()
 - Go 1.26 + new(expr) 语法（Mihomo 指针字面量）
 - Mihomo YAML 结构体：基础字段强类型 + Extra map + yaml:",inline"（平衡覆盖度与可维护性）
