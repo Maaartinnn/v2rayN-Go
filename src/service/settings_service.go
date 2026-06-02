@@ -156,11 +156,15 @@ func (s *SettingsService) UpdateSettings(req *UpdateSettingsRequest) error {
 		}
 	}
 
-	// CustomBasePath：判空 → 去斜杠 → 正则校验 → 写入 app_settings
-	// 存储格式：纯路径名（无斜杠），如 "my-path"，空字符串表示无前缀
+	// CustomBasePath：判空 → trim → 正则校验 → 写入 app_settings
+	//
+	// 存储规范（纯路径名，全链路统一，无斜杠）：
+	//   - 空字符串 ""  → 无前缀（默认值）
+	//   - "my-path"     → 访问地址 http://host:port/my-path/...
+	//   - "/"、"/my/"   → 非法输入，前端负责拦截，后端正则兜底拒绝
 	if req.CustomBasePath != nil {
 		val := strings.TrimSpace(*req.CustomBasePath)
-		val = strings.Trim(val, "/") // 去除首尾斜杠，兼容旧数据中的 "/" 格式
+		// 正则校验：仅允许字母、数字、下划线、连字符（无斜杠）
 		if val != "" && !basePathPattern.MatchString(val) {
 			return NewValidation("custom_base_path: only letters, digits, hyphens and underscores allowed, no slashes", nil)
 		}

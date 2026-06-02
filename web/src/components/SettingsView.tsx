@@ -43,9 +43,9 @@ export function SettingsView() {
       setCoreConfigDebug(!!data.core_config_debug)
       // 服务器设置（从 app_settings 表读取）
       if (data.force_https !== undefined) setForceHttps(data.force_https === 'true')
+      // custom_base_path 存储格式：纯路径名（无斜杠），空字符串表示无前缀
       if (data.custom_base_path !== undefined) {
-        const val = data.custom_base_path || ''
-        setBasePath(val === '/' ? '' : val.replace(/^\/|\/$/g, ''))
+        setBasePath(data.custom_base_path || '')
       }
     } catch (err) {
       console.error('Failed to load settings:', err)
@@ -476,7 +476,9 @@ export function SettingsView() {
               onChange={e => setBasePath(e.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={e => {
-                const val = e.target.value.trim().replace(/^\/|\/$/g, '')
+                // 路由前缀存储规范：纯路径名（无斜杠），空字符串表示无前缀
+                // 前端 trim 后直接保存，斜杠由后端正则兜底拒绝
+                const val = e.target.value.trim()
                 setBasePath(val)
                 settingsApi.save({ custom_base_path: val } as any).then(() => {
                   addToast(t('settings.restart_required'), 'warning', { duration: 5000 })
