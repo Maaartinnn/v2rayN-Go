@@ -116,13 +116,17 @@ func (h *AuthHandler) handleChangePassword(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if err := h.authSvc.ChangePassword(user.UUID, req.OldPassword, req.NewPassword); err != nil {
+	newToken, err := h.authSvc.ChangePassword(user.UUID, req.OldPassword, req.NewPassword)
+	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	slog.Info("password changed", "username", user.Username, "uuid", user.UUID)
-	jsonOK(w, map[string]string{"status": "password_changed"})
+	jsonOK(w, map[string]string{
+		"status": "password_changed",
+		"token":  newToken,
+	})
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

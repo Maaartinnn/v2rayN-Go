@@ -62,6 +62,9 @@ func (s *AuthService) Login(username, password, totpCode string) (*database.User
 		if !totp.Validate(totpCode, user.TOTPSecret) {
 			return nil, fmt.Errorf("invalid totp code")
 		}
+	} else if totpCode != "" {
+		// 没开 TOTP 但输入了动态码 → 拒绝登录（防止攻击者试探）
+		return nil, fmt.Errorf("two-factor authentication is not enabled, but code was provided")
 	}
 
 	return &user, nil
@@ -140,39 +143,59 @@ func (s *AuthService) ValidateToken(tokenStr string) (*database.User, error) {
 
 // ChangePassword 修改用户密码（需旧密码验证）
 // 成功后自动 RotateJWTSecret，使其他所有设备的 Token 失效
-func (s *AuthService) ChangePassword(userUUID, oldPwd, newPwd string) error {
+// 返回新签发的 JWT Token，让当前设备无缝续用
+func (s *AuthService) ChangePassword(userUUID, oldPwd, newPwd string) (string, error) {
 	var user database.User
 	if err := database.DB.Where("uuid = ?", userUUID).First(&user).Error; err != nil {
-		return fmt.Errorf("user not found")
+		return "", fmt.Errorf("user not found")
 	}
 
 	// 验证旧密码
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(oldPwd)); err != nil {
-		return fmt.Errorf("invalid old password")
+		return "", fmt.Errorf("invalid old password")
 	}
 
 	// 新密码长度校验
 	if len(newPwd) < 6 {
-		return fmt.Errorf("new password must be at least 6 characters")
+		return "", fmt.Errorf("new password must be at least 6 characters")
+	}
+
+	// 新旧密码不能相同
+	if oldPwd == newPwd {
+		return "", fmt.Errorf("new password cannot be the same as current password")
 	}
 
 	// 生成新密码哈希
 	hashedPwd, err := bcrypt.GenerateFromPassword([]byte(newPwd), bcrypt.DefaultCost)
 	if err != nil {
-		return fmt.Errorf("failed to hash new password: %w", err)
+		return "", fmt.Errorf("failed to hash new password: %w", err)
 	}
 
 	// 生成新的 JWTSecret（使旧 Token 全部失效）
 	newSecret, err := generateRandomHex(32)
 	if err != nil {
-		return fmt.Errorf("failed to generate JWT secret: %w", err)
+		return "", fmt.Errorf("failed to generate JWT secret: %w", err)
 	}
 
 	// 原子更新：密码哈希 + JWTSecret
-	return database.DB.Model(&user).Updates(map[string]any{
+	if err := database.DB.Model(&user).Updates(map[string]any{
 		"password_hash": string(hashedPwd),
 		"jwt_secret":    newSecret,
-	}).Error
+	}).Error; err != nil {
+		return "", err
+	}
+
+	// 重新加载用户以获取更新后的 JWTSecret
+	if err := database.DB.Where("uuid = ?", userUUID).First(&user).Error; err != nil {
+		return "", fmt.Errorf("failed to reload user: %w", err)
+	}
+
+	// 为当前设备签发新 Token（使其无缝续用）
+	token, err := s.GenerateToken(&user)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate new token: %w", err)
+	}
+	return token, nil
 }
 
 // RotateJWTSecret 重新生成用户的 JWTSecret，使所有旧 Token 失效

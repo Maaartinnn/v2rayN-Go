@@ -77,25 +77,42 @@ function ChangePasswordCard({ t, addToast, cardStyle, labelStyle, inputStyle, fo
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async () => {
-    if (!oldPwd || !newPwd) return
+    // 1. 三个字段都不能为空
+    if (!oldPwd || !newPwd || !confirmPwd) return
+
+    // 2. 新旧密码不能相同
+    if (newPwd === oldPwd) {
+      addToast(t('account.password_same_as_old'), 'error', { duration: 5000 })
+      return
+    }
+
+    // 3. 两次新密码必须一致
     if (newPwd !== confirmPwd) {
-      addToast(t('account.password_mismatch'), 'error')
+      addToast(t('account.password_mismatch'), 'error', { duration: 5000 })
       return
     }
+
+    // 4. 最少 6 位
     if (newPwd.length < 6) {
-      addToast(t('account.password_mismatch'), 'error')
+      addToast(t('account.password_mismatch'), 'error', { duration: 5000 })
       return
     }
+
     setLoading(true)
     try {
-      await authApi.changePassword({ old_password: oldPwd, new_password: newPwd })
-      addToast(t('account.password_changed'), 'success')
+      const res = await authApi.changePassword({ old_password: oldPwd, new_password: newPwd })
+      // 后端返回新 JWT，更新 localStorage 使当前设备无缝续用
+      const newToken = res.data.token
+      if (newToken) {
+        localStorage.setItem('auth_token', newToken)
+      }
+      addToast(t('account.password_changed'), 'success', { duration: 5000 })
       setOldPwd('')
       setNewPwd('')
       setConfirmPwd('')
     } catch (err: any) {
       const msg = err.response?.data?.error || 'Error'
-      addToast(msg, 'error')
+      addToast(msg, 'error', { duration: 5000 })
     } finally {
       setLoading(false)
     }
