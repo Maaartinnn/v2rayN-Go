@@ -246,7 +246,7 @@ const zhCN = {
   'settings.force_https': '启用 HTTPS',
   'settings.force_https_hint': '首次启用将自动生成自签名证书',
   'settings.base_path': '自定义路由前缀',
-  'settings.base_path_hint': '留空或 / 表示默认路径',
+  'settings.base_path_hint': '仅限字母、数字、下划线、连字符，不含斜杠。留空表示默认路径',
   'settings.restart_required': '这些设置修改后，需重启服务端并刷新浏览器方可生效',
 
   // 通用

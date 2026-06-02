@@ -16,12 +16,18 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"regexp"
+	"strings"
 
 	"v2rayn-go/config"
 	"v2rayn-go/database"
 
 	"gorm.io/gorm/clause"
 )
+
+// basePathPattern 路由前缀合法性校验：仅允许字母、数字、下划线、连字符
+// 不允许斜杠（"/"）、点号（"."）或其他特殊字符
+var basePathPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // SettingsService 配置管理业务逻辑层
 type SettingsService struct {
@@ -150,9 +156,15 @@ func (s *SettingsService) UpdateSettings(req *UpdateSettingsRequest) error {
 		}
 	}
 
-	// CustomBasePath：判空 → 写入 app_settings
+	// CustomBasePath：判空 → 去斜杠 → 正则校验 → 写入 app_settings
+	// 存储格式：纯路径名（无斜杠），如 "my-path"，空字符串表示无前缀
 	if req.CustomBasePath != nil {
-		if err := upsertAppSetting("custom_base_path", *req.CustomBasePath); err != nil {
+		val := strings.TrimSpace(*req.CustomBasePath)
+		val = strings.Trim(val, "/") // 去除首尾斜杠，兼容旧数据中的 "/" 格式
+		if val != "" && !basePathPattern.MatchString(val) {
+			return NewValidation("custom_base_path: only letters, digits, hyphens and underscores allowed, no slashes", nil)
+		}
+		if err := upsertAppSetting("custom_base_path", val); err != nil {
 			return fmt.Errorf("failed to save custom_base_path: %w", err)
 		}
 	}

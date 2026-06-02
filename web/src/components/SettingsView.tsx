@@ -43,7 +43,10 @@ export function SettingsView() {
       setCoreConfigDebug(!!data.core_config_debug)
       // 服务器设置（从 app_settings 表读取）
       if (data.force_https !== undefined) setForceHttps(data.force_https === 'true')
-      if (data.custom_base_path !== undefined) setBasePath(data.custom_base_path || '/')
+      if (data.custom_base_path !== undefined) {
+        const val = data.custom_base_path || ''
+        setBasePath(val === '/' ? '' : val.replace(/^\/|\/$/g, ''))
+      }
     } catch (err) {
       console.error('Failed to load settings:', err)
     }
@@ -467,28 +470,29 @@ export function SettingsView() {
           >
             {t('settings.base_path_hint')}
           </span>
-          <input
-            type="text"
-            value={basePath}
-            onChange={e => setBasePath(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={e => {
-              const val = e.target.value.trim() || '/'
-              setBasePath(val)
-              settingsApi.save({ custom_base_path: val } as any).then(() => {
-                addToast(t('settings.restart_required'), 'warning', { duration: 5000 })
-              }).catch(() => loadSettings())
-            }}
-            className="w-full px-3 py-2 text-sm rounded-lg outline-none transition-colors"
-            style={{
-              backgroundColor: 'var(--color-background)',
-              color: 'var(--color-foreground)',
-              border: '1px solid var(--color-border)',
-              fontFamily: 'var(--font-heading)',
-            }}
-            onFocus={e => (e.target.style.borderColor = 'var(--color-primary)')}
-            onBlurCapture={e => (e.target.style.borderColor = 'var(--color-border)')}
-          />
+            <input
+              type="text"
+              value={basePath}
+              onChange={e => setBasePath(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onBlur={e => {
+                const val = e.target.value.trim().replace(/^\/|\/$/g, '')
+                setBasePath(val)
+                settingsApi.save({ custom_base_path: val } as any).then(() => {
+                  addToast(t('settings.restart_required'), 'warning', { duration: 5000 })
+                }).catch(() => loadSettings())
+              }}
+              placeholder="my-path"
+              className="w-full px-3 py-2 text-sm rounded-lg outline-none transition-colors"
+              style={{
+                backgroundColor: 'var(--color-background)',
+                color: 'var(--color-foreground)',
+                border: '1px solid var(--color-border)',
+                fontFamily: 'var(--font-heading)',
+              }}
+              onFocus={e => (e.target.style.borderColor = 'var(--color-primary)')}
+              onBlurCapture={e => (e.target.style.borderColor = 'var(--color-border)')}
+            />
         </div>
       </motion.div>
     </div>

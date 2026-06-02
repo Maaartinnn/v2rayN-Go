@@ -172,20 +172,22 @@ func getSettingFromDB(key string) string {
 }
 
 // withBasePath 为 HTTP handler 添加自定义路由前缀
-// 当 basePath 为 "/" 或空时直接返回原 handler（无额外开销）
-// 否则剥离请求路径中的前缀后转发给内部 handler
+// basePath 存储格式为纯路径名（无斜杠），如 "my-secret"，空字符串表示无前缀
+// 当 basePath 为空时直接返回原 handler（无额外开销）
+// 否则在匹配请求路径时自动加上 "/" 前缀进行比对，并剥离后转发给内部 handler
 //
-// 例如 basePath="/my-secret" 时：
+// 例如 basePath="my-secret" 时：
 //
 //	/my-secret/api/core/status → /api/core/status
 //	/my-secret/ → /
 //	/other → 404
 func withBasePath(basePath string, handler http.Handler) http.Handler {
-	// 规范化：去除尾部斜杠，确保 "/" 等同于空
-	prefix := strings.TrimRight(basePath, "/")
-	if prefix == "" || prefix == "/" {
+	// 规范化：去除首尾斜杠，新格式存储无斜杠纯路径名
+	prefix := strings.Trim(basePath, "/")
+	if prefix == "" {
 		return handler
 	}
+	prefix = "/" + prefix // 统一为 "/my-secret" 格式进行路径比对
 
 	slog.Info("route prefix enabled", "prefix", prefix)
 

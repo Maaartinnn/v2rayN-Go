@@ -246,7 +246,7 @@ const enUS = {
   'settings.force_https': 'Enable HTTPS',
   'settings.force_https_hint': 'Self-signed certificate will be generated on first enable',
   'settings.base_path': 'Custom Route Prefix',
-  'settings.base_path_hint': 'Leave empty or / for default path',
+  'settings.base_path_hint': 'Letters, digits, hyphens, underscores only. Leave empty for default path',
   'settings.restart_required': 'After changing these settings, restart the server and refresh the browser.',
 
   // Common
