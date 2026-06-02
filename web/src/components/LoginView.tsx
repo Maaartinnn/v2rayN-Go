@@ -159,12 +159,7 @@ export function LoginView({ onSuccess }: LoginViewProps) {
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-2.5 text-sm font-medium rounded-lg transition-opacity hover:opacity-90 disabled:opacity-50"
-          style={{
-            backgroundColor: 'var(--color-primary)',
-            color: 'var(--color-primary-foreground, #fff)',
-            fontFamily: 'var(--font-heading)',
-          }}
+          className="btn-primary w-full py-2.5 text-sm"
         >
           {loading ? '...' : t('auth.login')}
         </button>

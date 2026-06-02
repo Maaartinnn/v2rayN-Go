@@ -145,3 +145,20 @@ web/src/
 - **GetInstalledCoreMatrix**：遍历所有协议返回 `map[string][]string`，前端一次性加载，协议切换时零延迟查字典
 - **API 设计**：`GET /api/profiles/core-matrix` 返回能力矩阵（独立端点，职责单一），`GET /api/profiles/{uuid}` 保持返回原始 profile
 - **前端使用**：NodeEditForm 使用 `coreMatrix[protocol]` 获取当前协议可用内核，删除了前端 coreMap.ts 过滤逻辑
+
+### 16. 按钮样式规范 (2026-06-02)
+项目 `index.css` 中定义了 4 种全局按钮 CSS class，所有按钮必须使用这些 class，禁止内联 style 定义按钮外观：
+
+| Class | 用途 | 视觉特征 |
+|-------|------|----------|
+| `.btn-primary` | 主要操作（提交、确认、登录） | 深色背景 + 白色文字 + 橙色阴影 |
+| `.btn-secondary` | 次要操作（退出登录、普通操作） | 卡片背景 + 前景色文字 + 边框 |
+| `.btn-ghost` | 辅助操作（取消、返回） | 无背景无边框 + 灰色文字，hover 出现背景 |
+| `.btn-danger` | 危险操作（删除、注销、关闭） | 红色背景 + 白色文字 |
+
+用法示例：`className="btn-primary px-4 py-2 text-sm"`（尺寸/间距仍用 Tailwind 控制）
+
+### 17. ToastContainer 全局挂载 (2026-06-02)
+- `ToastContainer` 必须渲染在 `App` 组件顶层（auth state 判断之前），确保登录页和已认证页面都能看到 toast 通知
+- 如果 `ToastContainer` 放在 `AuthenticatedApp` 内部，登录页调用 `addToast()` 时 Toast 组件不在 DOM 树中，通知无法显示
+- `AuthenticatedApp` 内部不需要再重复渲染 `ToastContainer`

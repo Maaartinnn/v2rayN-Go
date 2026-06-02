@@ -73,12 +73,18 @@ export default function App() {
   }, [])
 
   // ── 仅在已认证后初始化业务逻辑 ────────────────────────────────────
-  return authState === 'loading' ? (
-    <FullScreenLoader />
-  ) : authState === 'unauthenticated' ? (
-    <LoginView onSuccess={() => setAuthState('authenticated')} />
-  ) : (
-    <AuthenticatedApp />
+  return (
+    <>
+      {/* ToastContainer 放在顶层，确保登录页也能看到通知 */}
+      <ToastContainer />
+      {authState === 'loading' ? (
+        <FullScreenLoader />
+      ) : authState === 'unauthenticated' ? (
+        <LoginView onSuccess={() => setAuthState('authenticated')} />
+      ) : (
+        <AuthenticatedApp />
+      )}
+    </>
   )
 }
 
@@ -122,7 +128,6 @@ function AuthenticatedApp() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--color-background)' }}>
       <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
-      <ToastContainer />
 
       {/* Top Header Bar */}
       <header

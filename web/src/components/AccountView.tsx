@@ -154,12 +154,7 @@ function ChangePasswordCard({ t, addToast, cardStyle, labelStyle, inputStyle, fo
         <button
           onClick={handleSubmit}
           disabled={loading}
-          className="px-4 py-2 text-sm font-medium rounded-lg transition-opacity hover:opacity-90 disabled:opacity-50"
-          style={{
-            backgroundColor: 'var(--color-primary)',
-            color: 'var(--color-primary-foreground, #fff)',
-            fontFamily: 'var(--font-heading)',
-          }}
+          className="btn-primary px-4 py-2 text-sm"
         >
           {loading ? '...' : t('account.submit_password')}
         </button>
@@ -272,12 +267,7 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
             <button
               onClick={handleDisable}
               disabled={loading || !disablePassword}
-              className="px-4 py-2 text-sm font-medium rounded-lg transition-opacity hover:opacity-90 disabled:opacity-50"
-              style={{
-                backgroundColor: 'var(--color-destructive, #ef4444)',
-                color: '#fff',
-                fontFamily: 'var(--font-heading)',
-              }}
+              className="btn-danger px-4 py-2 text-sm"
             >
               {t('common.disabled')}
             </button>
@@ -290,12 +280,7 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
         <button
           onClick={handleEnable}
           disabled={loading}
-          className="px-4 py-2 text-sm font-medium rounded-lg transition-opacity hover:opacity-90 disabled:opacity-50"
-          style={{
-            backgroundColor: 'var(--color-primary)',
-            color: 'var(--color-primary-foreground, #fff)',
-            fontFamily: 'var(--font-heading)',
-          }}
+          className="btn-primary px-4 py-2 text-sm"
         >
           {loading ? '...' : t('common.enabled')}
         </button>
@@ -347,12 +332,7 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
               <button
                 onClick={handleVerify}
                 disabled={loading || verifyCode.length !== 6}
-                className="px-4 py-2 text-sm font-medium rounded-lg transition-opacity hover:opacity-90 disabled:opacity-50"
-                style={{
-                  backgroundColor: 'var(--color-primary)',
-                  color: 'var(--color-primary-foreground, #fff)',
-                  fontFamily: 'var(--font-heading)',
-                }}
+                className="btn-primary px-4 py-2 text-sm"
               >
                 {loading ? '...' : t('account.totp_confirm_enable')}
               </button>
@@ -362,8 +342,7 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
           {/* 取消配置 */}
           <button
             onClick={() => { setTotpSetup(null); setVerifyCode('') }}
-            className="text-xs underline"
-            style={{ color: 'var(--color-muted-foreground)' }}
+            className="btn-ghost text-xs"
           >
             {t('common.back')}
           </button>
@@ -421,31 +400,19 @@ function SessionCard({ t, addToast, cardStyle }: any) {
         {/* 退出登录 */}
         <button
           onClick={handleLogout}
-          className="w-full px-4 py-2.5 text-sm font-medium rounded-lg text-left transition-colors hover:opacity-90"
-          style={{
-            backgroundColor: 'var(--color-muted)',
-            color: 'var(--color-foreground)',
-            border: '1px solid var(--color-border)',
-            fontFamily: 'var(--font-heading)',
-          }}
+          className="btn-secondary w-full px-4 py-2.5 text-sm text-left"
         >
           {t('account.logout')}
         </button>
 
         {/* 注销所有设备 */}
         {!showConfirm ? (
-          <button
-            onClick={() => setShowConfirm(true)}
-            className="w-full px-4 py-2.5 text-sm font-medium rounded-lg text-left transition-colors hover:opacity-90"
-            style={{
-              backgroundColor: 'var(--color-muted)',
-              color: 'var(--color-destructive, #ef4444)',
-              border: '1px solid var(--color-border)',
-              fontFamily: 'var(--font-heading)',
-            }}
-          >
-            {t('account.revoke_all')}
-          </button>
+            <button
+              onClick={() => setShowConfirm(true)}
+              className="btn-danger w-full px-4 py-2.5 text-sm text-left"
+            >
+              {t('account.revoke_all')}
+            </button>
         ) : (
           /* 确认横幅（红色警告条风格） */
           <div
@@ -461,22 +428,13 @@ function SessionCard({ t, addToast, cardStyle }: any) {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleRevokeAll}
-                className="px-4 py-1.5 text-xs font-medium rounded-lg transition-opacity hover:opacity-90"
-                style={{
-                  backgroundColor: 'var(--color-destructive, #ef4444)',
-                  color: '#fff',
-                  fontFamily: 'var(--font-heading)',
-                }}
+                className="btn-danger px-4 py-1.5 text-xs"
               >
                 {t('account.revoke_all')}
               </button>
               <button
                 onClick={() => setShowConfirm(false)}
-                className="px-4 py-1.5 text-xs font-medium rounded-lg"
-                style={{
-                  color: 'var(--color-muted-foreground)',
-                  fontFamily: 'var(--font-heading)',
-                }}
+                className="btn-ghost px-4 py-1.5 text-xs"
               >
                 {t('nodes.cancel')}
               </button>
