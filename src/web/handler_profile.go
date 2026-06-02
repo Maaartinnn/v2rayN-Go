@@ -1,12 +1,10 @@
 package web
 
 import (
-	"io"
 	"net/http"
 
 	"v2rayn-go/coredef"
 	"v2rayn-go/database"
-	"v2rayn-go/parser"
 	"v2rayn-go/service"
 )
 
@@ -32,7 +30,6 @@ func (h *ProfileHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST   /api/profiles/{$}", h.handleCreate)
 	mux.HandleFunc("GET    /api/profiles/core-matrix", h.handleCoreMatrix)
 	mux.HandleFunc("POST /api/profiles/import", h.handleImport)
-	mux.HandleFunc("POST   /api/profiles/import-image", h.handleImportImage)
 	mux.HandleFunc("POST   /api/profiles/dedup", h.handleDedup)
 	mux.HandleFunc("POST   /api/profiles/ping-all", h.handlePingAll)
 
@@ -79,73 +76,6 @@ func (h *ProfileHandler) handleImport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	count, err := h.profileSvc.ImportLinks(req.Links, req.GroupUUID)
-	if err != nil {
-		mapServiceError(w, err)
-		return
-	}
-
-	jsonOK(w, map[string]int{"imported": count})
-}
-
-func (h *ProfileHandler) handleImportImage(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(coredef.MultipartMaxMemoryDefault); err != nil {
-		jsonError(w, "Failed to parse form: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	groupUUID := r.FormValue("group_uuid")
-	if groupUUID == "" {
-		jsonError(w, "group_uuid is required", http.StatusBadRequest)
-		return
-	}
-
-	file, _, err := r.FormFile("image")
-	if err == nil {
-		defer file.Close()
-		data, err := io.ReadAll(file)
-		if err != nil {
-			jsonError(w, "Failed to read file", http.StatusInternalServerError)
-			return
-		}
-		links, decodeErr := parser.DecodeQRFromBytes(data)
-		if decodeErr != nil {
-			jsonError(w, "No QR code found in image: "+decodeErr.Error(), http.StatusBadRequest)
-			return
-		}
-		h.importParsedLinks(w, links, groupUUID)
-		return
-	}
-
-	imageURL := r.FormValue("url")
-	if imageURL == "" {
-		jsonError(w, "No image file or URL provided", http.StatusBadRequest)
-		return
-	}
-
-	resp, err := http.Get(imageURL)
-	if err != nil {
-		jsonError(w, "Failed to download image: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		jsonError(w, "Failed to read image data", http.StatusInternalServerError)
-		return
-	}
-
-	links, decodeErr := parser.DecodeQRFromBytes(data)
-	if decodeErr != nil {
-		jsonError(w, "No QR code found in image: "+decodeErr.Error(), http.StatusBadRequest)
-		return
-	}
-
-	h.importParsedLinks(w, links, groupUUID)
-}
-
-func (h *ProfileHandler) importParsedLinks(w http.ResponseWriter, links []string, groupUUID string) {
-	count, err := h.profileSvc.ImportParsedLinks(links, groupUUID)
 	if err != nil {
 		mapServiceError(w, err)
 		return

@@ -152,24 +152,6 @@ func (s *ProfileService) ImportLinks(linksText string, groupUUID string) (int, e
 	return s.importParsedProfiles(profiles, groupUUID)
 }
 
-// ImportParsedLinks 将已解析的链接列表导入到指定分组（供图片导入等复用）
-func (s *ProfileService) ImportParsedLinks(links []string, groupUUID string) (int, error) {
-	if groupUUID == "" {
-		return 0, NewValidation("group_uuid is required", nil)
-	}
-	var group database.NodeGroup
-	if err := database.DB.Where("uuid = ?", groupUUID).First(&group).Error; err != nil {
-		return 0, NewNotFound("group not found", err)
-	}
-
-	profiles, err := parser.ParseLinks(links)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse links: %w", err)
-	}
-
-	return s.importParsedProfiles(profiles, groupUUID)
-}
-
 // importParsedProfiles 内部方法：将已解析的 Profile 列表批量写入数据库
 func (s *ProfileService) importParsedProfiles(profiles []*database.Profile, groupUUID string) (int, error) {
 	seq := database.SortNewBatch(&database.Profile{}, "group_uuid = ?", len(profiles), groupUUID)

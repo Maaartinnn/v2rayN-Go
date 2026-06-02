@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ScanLine,
@@ -7,11 +7,14 @@ import {
   Link,
   Check,
 } from 'lucide-react'
-import { groupsApi, profileApi, profileEnhancedApi } from '../lib/api'
+import { groupsApi, profileApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 import { useStore } from '../store'
 import { NodeEditForm } from './NodeEditForm'
 import { StrategyEditForm } from './StrategyEditForm'
+
+// 懒加载 QR 解码组件，避免主包体积膨胀
+const QrScanner = lazy(() => import('./tools/QrScanner'))
 
 interface NodeGroup {
   ID: number
@@ -29,6 +32,7 @@ export function ImportView() {
   const [showManualAdd, setShowManualAdd] = useState(false)
   const [showStrategyAdd, setShowStrategyAdd] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [qrFile, setQrFile] = useState<File | null>(null)
   const t = useT()
   const { addToast } = useStore()
 
@@ -69,26 +73,34 @@ export function ImportView() {
     setImporting(false)
   }
 
-  const handleImageImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 选择图片后触发前端 QR 解码（不上传到服务器）
+  const handleImageImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const formData = new FormData()
-    formData.append('image', file)
-    if (selectedGroupUUID) {
-      formData.append('group_uuid', selectedGroupUUID)
-    }
+    setQrFile(file)
+    e.target.value = ''
+  }
+
+  // QR 解码成功：将解析到的链接通过已有 import 接口提交
+  const handleQrResult = async (links: string[]) => {
+    setQrFile(null)
+    setImporting(true)
     try {
-      const res = await profileEnhancedApi.importImage(formData)
+      const text = links.join('\n')
+      const res = await profileApi.importLinks(text, selectedGroupUUID)
       const count = res.data?.imported || 0
-      if (count > 0) {
-        addToast(t('import.import_success', { count }), 'success')
-        await loadGroups()
-      }
-    } catch (err) {
-      console.error('Image import failed:', err)
+      addToast(t('import.import_success', { count }), 'success')
+      setImportText('')
+      await loadGroups()
+    } catch {
       addToast(t('import.import_failed'), 'error')
     }
-    e.target.value = ''
+    setImporting(false)
+  }
+
+  // QR 解码失败（QrScanner 组件内部已集成 toast 通知，此处仅清理状态）
+  const handleQrError = () => {
+    setQrFile(null)
   }
 
   const displayName = (g: NodeGroup) => g.alias || t('groups.default_name')
@@ -196,6 +208,28 @@ export function ImportView() {
             {t('strategy.add')}
           </motion.button>
         </div>
+
+        {/* QR 解码状态（懒加载组件） */}
+        <AnimatePresence>
+          {qrFile && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-4"
+            >
+              <Suspense
+                fallback={
+                  <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                    {t('common.loading')}
+                  </div>
+                }
+              >
+                <QrScanner file={qrFile} onResult={handleQrResult} onError={handleQrError} />
+              </Suspense>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Manual Add Form */}
         <AnimatePresence>

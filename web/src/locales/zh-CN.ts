@@ -266,6 +266,14 @@ const zhCN = {
   'common.disabled': '已禁用',
   'common.yes': '是',
   'common.no': '否',
+
+  // 二维码扫描
+  'qr.decoding': '正在解码二维码...',
+  'qr.no_qr_found': '图片中未找到二维码',
+  'qr.empty_qr': '二维码内容为空',
+  'qr.no_valid_links': '未找到有效链接',
+  'qr.decode_failed': '二维码解码失败',
+  'qr.load_failed': '无法加载图片',
 } as const
 
 export default zhCN

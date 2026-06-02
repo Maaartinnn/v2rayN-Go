@@ -80,11 +80,6 @@ export const groupsApi = {
 // ========== Profile Enhancements ==========
 export const profileEnhancedApi = {
   dedup: (groupUuid?: string) => api.post('/profiles/dedup', { group_uuid: groupUuid || '' }),
-  importImage: (formData: FormData) =>
-    api.post('/profiles/import-image', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 30000,
-    }),
 }
 
 // ========== Routing API ==========

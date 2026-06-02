@@ -266,6 +266,14 @@ const enUS = {
   'common.disabled': 'Disabled',
   'common.yes': 'Yes',
   'common.no': 'No',
+
+  // QR Code Scanner
+  'qr.decoding': 'Decoding QR code...',
+  'qr.no_qr_found': 'No QR code found in image',
+  'qr.empty_qr': 'QR code is empty',
+  'qr.no_valid_links': 'No valid links found',
+  'qr.decode_failed': 'Failed to decode QR code',
+  'qr.load_failed': 'Failed to load image',
 } as const
 
 export default enUS
