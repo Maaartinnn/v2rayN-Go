@@ -224,6 +224,7 @@ const enUS = {
   'account.password_changed': 'Password changed. Other devices have been signed out.',
   'account.password_mismatch': 'New passwords do not match',
   'account.password_same_as_old': 'New password cannot be the same as current password',
+  'account.password_too_short': 'Password must be at least 6 characters',
   'account.totp_title': 'Two-Factor Authentication (TOTP)',
   'account.totp_enabled': 'Enabled',
   'account.totp_disabled': 'Disabled',

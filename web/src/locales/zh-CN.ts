@@ -224,6 +224,7 @@ const zhCN = {
   'account.password_changed': '密码已修改，其他设备已被强制下线',
   'account.password_mismatch': '两次输入的新密码不一致',
   'account.password_same_as_old': '新密码不能与当前密码相同',
+  'account.password_too_short': '密码长度不能少于 6 位',
   'account.totp_title': '两步验证 (TOTP)',
   'account.totp_enabled': '已启用',
   'account.totp_disabled': '未启用',

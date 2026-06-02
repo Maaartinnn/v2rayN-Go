@@ -94,7 +94,7 @@ function ChangePasswordCard({ t, addToast, cardStyle, labelStyle, inputStyle, fo
 
     // 4. 最少 6 位
     if (newPwd.length < 6) {
-      addToast(t('account.password_mismatch'), 'error', { duration: 5000 })
+      addToast(t('account.password_too_short'), 'error', { duration: 5000 })
       return
     }
 

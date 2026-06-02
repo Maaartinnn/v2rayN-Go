@@ -14,9 +14,13 @@ package service
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 
 	"v2rayn-go/config"
+	"v2rayn-go/database"
+
+	"gorm.io/gorm/clause"
 )
 
 // SettingsService 配置管理业务逻辑层
@@ -29,9 +33,13 @@ func NewSettingsService(cfg *config.AppConfig) *SettingsService {
 	return &SettingsService{cfg: cfg}
 }
 
-// GetSettings 获取当前配置
+// GetSettings 获取当前配置（合并 config.json 字段 + app_settings 数据库表）
 func (s *SettingsService) GetSettings() map[string]any {
+	// 从 app_settings 表读取服务器级配置
+	appSettings := getAllAppSettings()
+
 	return map[string]any{
+		// config.json 字段
 		"listen_ip":         s.cfg.ListenIP,
 		"web_port":          s.cfg.WebPort,
 		"socks_port":        s.cfg.SocksPort,
@@ -39,6 +47,9 @@ func (s *SettingsService) GetSettings() map[string]any {
 		"outbound_ip":       s.cfg.OutboundIP,
 		"github_mirror":     s.cfg.GitHubMirror,
 		"core_config_debug": s.cfg.CoreConfigDebug,
+		// app_settings 字段（服务器级，需重启生效）
+		"force_https":      appSettings["force_https"],
+		"custom_base_path": appSettings["custom_base_path"],
 	}
 }
 
@@ -49,13 +60,21 @@ func (s *SettingsService) GetSettings() map[string]any {
 //   - 非nil → 前端显式设置了值（包括零值），需要处理
 //
 // 前端每次只发送一个字段（失焦保存），因此大部分字段为 nil。
+//
+// 存储归属：
+//   - config.json 字段：listen_ip, socks_port, http_port, outbound_ip, github_mirror, core_config_debug
+//   - app_settings 数据库表：force_https, custom_base_path（服务器级配置，需重启生效）
 type UpdateSettingsRequest struct {
+	// config.json 字段
 	ListenIP        *string `json:"listen_ip"`
 	SocksPort       *int    `json:"socks_port"`
 	HTTPPort        *int    `json:"http_port"`
 	OutboundIP      *string `json:"outbound_ip"`
 	GitHubMirror    *string `json:"github_mirror"`
 	CoreConfigDebug *bool   `json:"core_config_debug"`
+	// app_settings 数据库表字段（服务器级，需重启生效）
+	ForceHTTPS     *string `json:"force_https"`
+	CustomBasePath *string `json:"custom_base_path"`
 }
 
 // UpdateSettings 更新配置（局部更新 + 脏标记 + 白名单校验）。
@@ -120,7 +139,26 @@ func (s *SettingsService) UpdateSettings(req *UpdateSettingsRequest) error {
 		changed = true
 	}
 
-	// dirty flag：只有值真正改变时才落盘，避免不必要的 AtomicWriteFile + Sync() 开销
+	// ── app_settings 数据库表字段（服务器级配置，需重启生效）──────────
+	// 使用 SQLite 原生 Upsert（ON CONFLICT DO UPDATE），一条 SQL 完成插入或更新
+	// 避免先 SELECT 再决定 INSERT/UPDATE 的并发竞争问题
+
+	// ForceHTTPS：判空 → 写入 app_settings
+	if req.ForceHTTPS != nil {
+		if err := upsertAppSetting("force_https", *req.ForceHTTPS); err != nil {
+			return fmt.Errorf("failed to save force_https: %w", err)
+		}
+	}
+
+	// CustomBasePath：判空 → 写入 app_settings
+	if req.CustomBasePath != nil {
+		if err := upsertAppSetting("custom_base_path", *req.CustomBasePath); err != nil {
+			return fmt.Errorf("failed to save custom_base_path: %w", err)
+		}
+	}
+
+	// dirty flag：只有 config.json 字段真正改变时才落盘
+	// app_settings 字段已直接写入数据库，无需触发文件保存
 	if !changed {
 		return nil
 	}
@@ -129,4 +167,34 @@ func (s *SettingsService) UpdateSettings(req *UpdateSettingsRequest) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 	return nil
+}
+
+// upsertAppSetting 使用 SQLite 原生 Upsert 写入 app_settings 键值对。
+//
+// SQL 语义：INSERT INTO app_settings (key, value) VALUES (?, ?)
+//
+//	ON CONFLICT(key) DO UPDATE SET value = excluded.value
+//
+// 一条 SQL 完成插入或更新，避免先 SELECT 再决定 INSERT/UPDATE 的并发竞争。
+// GORM 通过 Clauses(clause.OnConflict{...}) 翻译为数据库原生语法。
+func upsertAppSetting(key, value string) error {
+	return database.DB.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "key"}},              // 冲突检测列（唯一索引）
+		DoUpdates: clause.AssignmentColumns([]string{"value"}), // 冲突时更新 value
+	}).Create(&database.AppSetting{Key: key, Value: value}).Error
+}
+
+// getAllAppSettings 从 app_settings 表读取所有键值对，返回 map。
+// 用于 GetSettings() 合并返回给前端。
+func getAllAppSettings() map[string]string {
+	var settings []database.AppSetting
+	result := make(map[string]string)
+	if err := database.DB.Find(&settings).Error; err != nil {
+		slog.Warn("failed to read app_settings", "error", err)
+		return result
+	}
+	for _, s := range settings {
+		result[s.Key] = s.Value
+	}
+	return result
 }
