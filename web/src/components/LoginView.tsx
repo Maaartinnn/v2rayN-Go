@@ -23,7 +23,7 @@ export function LoginView({ onSuccess }: LoginViewProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!username.trim() || !password.trim()) {
-      addToast(t('auth.login_failed'), 'error')
+      addToast(t('auth.login_failed'), 'error', { duration: 5000 })
       return
     }
 
@@ -40,9 +40,9 @@ export function LoginView({ onSuccess }: LoginViewProps) {
     } catch (err: any) {
       const errMsg = err.response?.data?.error || ''
       if (errMsg.includes('totp')) {
-        addToast(t('auth.totp_invalid'), 'error')
+        addToast(t('auth.totp_invalid'), 'error', { duration: 5000 })
       } else {
-        addToast(t('auth.login_failed'), 'error')
+        addToast(t('auth.login_failed'), 'error', { duration: 5000 })
       }
     } finally {
       setLoading(false)

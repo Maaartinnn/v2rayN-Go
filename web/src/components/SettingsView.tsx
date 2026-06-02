@@ -435,7 +435,7 @@ export function SettingsView() {
               setForceHttps(newVal)
               // 保存到 app_settings 并提醒需重启
               settingsApi.save({ force_https: String(newVal) } as any).then(() => {
-                addToast(t('settings.restart_required'), 'warning')
+                addToast(t('settings.restart_required'), 'warning', { duration: 5000 })
               }).catch(() => loadSettings())
             }}
             className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer shrink-0"
@@ -476,7 +476,7 @@ export function SettingsView() {
               const val = e.target.value.trim() || '/'
               setBasePath(val)
               settingsApi.save({ custom_base_path: val } as any).then(() => {
-                addToast(t('settings.restart_required'), 'warning')
+                addToast(t('settings.restart_required'), 'warning', { duration: 5000 })
               }).catch(() => loadSettings())
             }}
             className="w-full px-3 py-2 text-sm rounded-lg outline-none transition-colors"
