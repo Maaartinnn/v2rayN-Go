@@ -56,6 +56,7 @@ func (s *SettingsService) GetSettings() map[string]any {
 		// app_settings 字段（服务器级，需重启生效）
 		"force_https":      appSettings["force_https"],
 		"custom_base_path": appSettings["custom_base_path"],
+		"jwt_expire_hours": appSettings["jwt_expire_hours"],
 	}
 }
 
@@ -81,6 +82,7 @@ type UpdateSettingsRequest struct {
 	// app_settings 数据库表字段（服务器级，需重启生效）
 	ForceHTTPS     *string `json:"force_https"`
 	CustomBasePath *string `json:"custom_base_path"`
+	JwtExpireHours *string `json:"jwt_expire_hours"`
 }
 
 // UpdateSettings 更新配置（局部更新 + 脏标记 + 白名单校验）。
@@ -153,6 +155,22 @@ func (s *SettingsService) UpdateSettings(req *UpdateSettingsRequest) error {
 	if req.ForceHTTPS != nil {
 		if err := upsertAppSetting("force_https", *req.ForceHTTPS); err != nil {
 			return fmt.Errorf("failed to save force_https: %w", err)
+		}
+	}
+
+	// JwtExpireHours：判空 → 正整数校验（1-8760）→ 写入 app_settings
+	if req.JwtExpireHours != nil {
+		val := strings.TrimSpace(*req.JwtExpireHours)
+		if val == "" {
+			val = "24" // 空值回退到默认 24 小时
+		}
+		// 正整数校验
+		hours := 0
+		if _, err := fmt.Sscanf(val, "%d", &hours); err != nil || hours < 1 || hours > 8760 {
+			return NewValidation("jwt_expire_hours must be a positive integer between 1 and 8760", nil)
+		}
+		if err := upsertAppSetting("jwt_expire_hours", val); err != nil {
+			return fmt.Errorf("failed to save jwt_expire_hours: %w", err)
 		}
 	}
 

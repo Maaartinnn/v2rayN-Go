@@ -23,7 +23,8 @@ export function SettingsView() {
   const [githubMirror, setGithubMirror] = useState('')
   const [coreConfigDebug, setCoreConfigDebug] = useState(false)
   const [forceHttps, setForceHttps] = useState(false)
-  const [basePath, setBasePath] = useState('/')
+  const [basePath, setBasePath] = useState('')
+  const [jwtExpireHours, setJwtExpireHours] = useState('24')
   const addToast = useStore(s => s.addToast)
 
   useEffect(() => {
@@ -46,6 +47,10 @@ export function SettingsView() {
       // custom_base_path 存储格式：纯路径名（无斜杠），空字符串表示无前缀
       if (data.custom_base_path !== undefined) {
         setBasePath(data.custom_base_path || '')
+      }
+      // JWT 过期时间（小时），默认 24
+      if (data.jwt_expire_hours !== undefined) {
+        setJwtExpireHours(data.jwt_expire_hours || '24')
       }
     } catch (err) {
       console.error('Failed to load settings:', err)
@@ -495,6 +500,41 @@ export function SettingsView() {
               onFocus={e => (e.target.style.borderColor = 'var(--color-primary)')}
               onBlurCapture={e => (e.target.style.borderColor = 'var(--color-border)')}
             />
+        </div>
+
+        {/* JWT 过期时间 */}
+        <div className="space-y-1.5 mt-5">
+          <label
+            className="text-xs font-medium"
+            style={{ color: 'var(--color-foreground)', fontFamily: 'var(--font-heading)' }}
+          >
+            {t('settings.jwt_expire_hours')}
+          </label>
+          <span
+            className="text-xs block mb-1.5"
+            style={{ color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-heading)' }}
+          >
+            {t('settings.jwt_expire_hours_hint')}
+          </span>
+          <input
+            type="number"
+            min="1"
+            max="8760"
+            value={jwtExpireHours}
+            onChange={e => setJwtExpireHours(e.target.value)}
+            onKeyDown={handleKeyDown}
+            // 失焦保存：后端校验正整数范围 1-8760，非法值自动回滚
+            onBlur={() => handleBlur('jwt_expire_hours', jwtExpireHours)}
+            className="w-40 px-3 py-2 text-sm rounded-lg outline-none transition-colors"
+            style={{
+              backgroundColor: 'var(--color-background)',
+              color: 'var(--color-foreground)',
+              border: '1px solid var(--color-border)',
+              fontFamily: 'var(--font-heading)',
+            }}
+            onFocus={e => (e.target.style.borderColor = 'var(--color-primary)')}
+            onBlurCapture={e => (e.target.style.borderColor = 'var(--color-border)')}
+          />
         </div>
       </motion.div>
     </div>

@@ -248,6 +248,8 @@ const zhCN = {
   'settings.base_path': '自定义路由前缀',
   'settings.base_path_hint': '仅限字母、数字、下划线、连字符，不含斜杠。留空表示默认路径',
   'settings.restart_required': '这些设置修改后，需重启服务端并刷新浏览器方可生效',
+  'settings.jwt_expire_hours': 'JWT 过期时间（小时）',
+  'settings.jwt_expire_hours_hint': '登录 Token 有效期，范围 1-8760，需重启生效',
 
   // 通用
   'common.error': '错误',

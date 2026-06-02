@@ -1,7 +1,7 @@
 # Active Context
 
 ## Current Work Focus
-安全改造计划已全部实施完毕，后端+前端+CLI 全部编译通过。
+安全改造计划 + Bug 修复 + 功能增强全部完成，后端+前端+CLI 全部编译通过。
 
 ## Recent Changes
 
@@ -30,7 +30,31 @@
 - `web/src/locales/zh-CN.ts` + `en-US.ts`：新增 auth/account/settings.server 相关键值
 
 #### 阶段四：动态网络纵深防御
-- `web/src/components/SettingsView.tsx`：新增服务器设置卡片（HTTPS Toggle + basePath Input + 重启提示 Toast）
+- `web/src/components/SettingsView.tsx`：新增服务器设置卡片（HTTPS Toggle + basePath Input + JWT 过期时间 + 重启提示 Toast）
+
+### 安全改造后续 Bug 修复（2026-06-02）
+- **密码确认逻辑**：AccountView 三字段空值检查 + 新旧密码相同判断 + 密码长度独立错误消息
+- **改密后无缝续用**：ChangePassword 返回新 JWT Token，前端更新 localStorage
+- **TOTP 防攻击**：未开 TOTP 但输入动态码时拒绝登录
+- **Toast 自动消失**：LoginView/SettingsView/AccountView 所有土司加 5 秒 duration
+- **按钮样式统一**：LoginView + AccountView 改用 btn-primary/btn-secondary/btn-danger/btn-ghost CSS class
+- **ToastContainer 全局挂载**：移至 App 顶层，确保登录页也能看到通知
+
+### app_settings 表读写（2026-06-02）
+- `SettingsService.UpdateSettings` 新增 `ForceHTTPS`、`CustomBasePath`、`JwtExpireHours` 字段
+- GORM 原生 Upsert（`clause.OnConflict`）一条 SQL 完成插入或更新
+- `GetSettings` 合并 config.json + app_settings 返回完整配置快照
+
+### 路由前缀规范化（2026-06-02）
+- 存储规范：纯路径名（无斜杠），空字符串表示无前缀
+- 后端正则校验 `^[a-zA-Z0-9_-]+$`，拒绝含 `/` 的输入
+- `withBasePath` 兼容无斜杠纯路径名，自动加 `/` 前缀比对
+- 前端 `onBlur` 时 `trim()` 后直接保存，placeholder 改为 `my-path`
+
+### JWT 过期时间可配置（2026-06-02）
+- `app_settings` 存储 `jwt_expire_hours`，默认 24 小时
+- SettingsView Server Section 新增 number Input，失焦保存
+- 后端正整数校验 1-8760，空值回退默认 24
 
 ### 局部更新 + 失焦保存（2026-06-01）
 - `settings_service.go`：dirty flag + 三步校验
@@ -53,7 +77,10 @@
 - TOTP 使用 pquerna/otp 库，默认时间窗口 ±30 秒
 - CLI admin 命令在 flag.Parse() 之前拦截（避免 flag 冲突）
 - Auth guard 拆分为 App（检测 token）+ AuthenticatedApp（业务逻辑）两层
+- ToastContainer 必须在 App 顶层渲染，不能放在 AuthenticatedApp 内部
 - 自签名证书使用 ECDSA P-256，复用 config.AtomicWriteFile 断电安全写入
-- withBasePath 动态路由前缀包装，根路径重定向到 basePath
+- withBasePath 动态路由前缀包装，存储纯路径名（无斜杠），运行时自动加 `/`
+- **app_settings Upsert**：GORM `clause.OnConflict` 原生 SQL，一条语句完成插入或更新
 - **能力矩阵**：后端一次性下发所有协议的可用内核矩阵，前端字典查询
 - **Mihomo YAML**：基础字段强类型 + `Extra map[string]any` + `yaml:",inline"`
+- **按钮规范**：所有按钮使用 `.btn-primary`/`.btn-secondary`/`.btn-ghost`/`.btn-danger` CSS class

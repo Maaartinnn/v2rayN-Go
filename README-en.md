@@ -49,6 +49,7 @@
 - 🧠 **Smart Core Selection** — Backend capability matrix delivered once, protocol switch auto-recommends best installed core
 - 🐾 **Full Mihomo Support** — Complete YAML config generation for Clash Meta kernel, supporting 8 protocols + TLS/Reality
 - ✏️ **Auto-Save on Blur** — Settings page removes global save button, input blur/Enter/toggle instantly saves, backend dirty-flag zero I/O interception
+- 🔐 **Secure Authentication** — JWT user auth + TOTP two-factor verification + bcrypt password hashing + self-signed HTTPS + configurable JWT expiry
 
 ---
 

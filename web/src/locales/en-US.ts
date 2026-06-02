@@ -248,6 +248,8 @@ const enUS = {
   'settings.base_path': 'Custom Route Prefix',
   'settings.base_path_hint': 'Letters, digits, hyphens, underscores only. Leave empty for default path',
   'settings.restart_required': 'After changing these settings, restart the server and refresh the browser.',
+  'settings.jwt_expire_hours': 'JWT Expiry (hours)',
+  'settings.jwt_expire_hours_hint': 'Login token validity period, range 1-8760, requires restart',
 
   // Common
   'common.error': 'Error',

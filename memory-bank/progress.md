@@ -35,9 +35,18 @@ All core features are implemented and tested.
   - 动态路由前缀（withBasePath）+ force_https HTTPS 启动
   - LoginView 极简登录页 + AccountView 账户管理（改密/TOTP QR 码/会话管理）
   - App.tsx 路由守卫（Auth guard 三态 + AuthenticatedApp 子组件）
-  - Sidebar 账户入口 + SettingsView 服务器设置卡片（HTTPS/basePath）
+  - Sidebar 账户入口 + SettingsView 服务器设置卡片（HTTPS/basePath/JWT 过期时间）
   - Axios 拦截器（自动注入 Token + 401 跳转）+ authApi
   - i18n 中英文新增 auth/account/settings.server 键值
+  - ToastContainer 移至 App 顶层（登录页也能看到通知）
+  - 按钮样式统一（btn-primary/secondary/ghost/danger）
+  - 密码确认逻辑修复 + 新旧密码相同判断 + 独立错误消息
+  - ChangePassword 返回新 JWT（当前设备不退出）
+  - TOTP 防攻击（未开 TOTP 但输入动态码拒绝登录）
+  - Toast 自动消失（5 秒 duration）
+  - app_settings 表 GORM Upsert 读写（ForceHTTPS/CustomBasePath/JwtExpireHours）
+  - 路由前缀规范化（纯路径名无斜杠 + 正则校验）
+  - JWT 过期时间前端可配置（1-8760 小时）
 - Go 后端全部测试通过（7 packages）
 - 前端 TypeScript 编译无错误
 
