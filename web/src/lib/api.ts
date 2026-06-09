@@ -1,7 +1,12 @@
 import axios from 'axios'
 
+// 读取 Go 后端注入的 custom_base_path（如 "/my-secret"）
+// 本地开发时值为字面量 '__INJECT_BASE_PATH__'，视为空字符串
+const basePath =
+  window.__BASE_PATH__ === '__INJECT_BASE_PATH__' ? '' : (window.__BASE_PATH__ || '')
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: `${basePath}/api`,
   timeout: 10000,
 })
 
@@ -22,8 +27,9 @@ api.interceptors.response.use(
       // 避免在登录页本身触发无限跳转
       const isLoginRequest = err.config?.url?.includes('/login')
       if (!isLoginRequest) {
-        localStorage.removeItem('auth_token')
-        window.location.href = '/'
+      localStorage.removeItem('auth_token')
+        // 重定向时需带上 basePath 前缀，确保落在正确的路由前缀下
+        window.location.href = basePath || '/'
       }
     }
     return Promise.reject(err)

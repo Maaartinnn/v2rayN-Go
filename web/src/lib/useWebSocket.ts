@@ -7,8 +7,10 @@ export function useWebSocket() {
   const { addLog, setMetrics, setCoreStatuses, setDownloadProgress, clearDownloadProgress, addToast, setCoreVersions } = useStore()
 
   const connect = useCallback(() => {
+    // 读取 Go 后端注入的 custom_base_path，拼接到 WebSocket URL
+    const basePath = window.__BASE_PATH__ === '__INJECT_BASE_PATH__' ? '' : (window.__BASE_PATH__ || '')
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.host}/api/ws`
+    const wsUrl = `${protocol}//${window.location.host}${basePath}/api/ws`
 
     const ws = new WebSocket(wsUrl)
     wsRef.current = ws

@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
-import { Switch, Route, useLocation } from 'wouter'
+import { Router, Switch, Route, useLocation } from 'wouter'
 import { Sidebar } from './components/Sidebar'
 import { HomeView } from './components/HomeView'
 import { NodesView } from './components/NodesView'
@@ -49,6 +49,11 @@ function FullScreenLoader() {
   )
 }
 
+// 读取 Go 后端注入的 custom_base_path（如 "/my-secret"）
+// 本地开发时值为字面量 '__INJECT_BASE_PATH__'，视为空字符串
+const basePath =
+  window.__BASE_PATH__ === '__INJECT_BASE_PATH__' ? '' : (window.__BASE_PATH__ || '')
+
 export default function App() {
   // ── Auth 状态 ────────────────────────────────────────────────────
   const [authState, setAuthState] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading')
@@ -73,8 +78,9 @@ export default function App() {
   }, [])
 
   // ── 仅在已认证后初始化业务逻辑 ────────────────────────────────────
+  // Router 包裹整个应用，使所有 <Link> 和 useLocation() 自动感知 base 前缀
   return (
-    <>
+    <Router base={basePath}>
       {/* ToastContainer 放在顶层，确保登录页也能看到通知 */}
       <ToastContainer />
       {authState === 'loading' ? (
@@ -84,7 +90,7 @@ export default function App() {
       ) : (
         <AuthenticatedApp />
       )}
-    </>
+    </Router>
   )
 }
 

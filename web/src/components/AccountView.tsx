@@ -13,6 +13,10 @@ import { authApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 import { useStore } from '../store'
 
+// 读取 Go 后端注入的 custom_base_path，用于退出登录后重定向到正确的路径
+const basePath =
+  window.__BASE_PATH__ === '__INJECT_BASE_PATH__' ? '' : (window.__BASE_PATH__ || '')
+
 export function AccountView() {
   const t = useT()
   const addToast = useStore(s => s.addToast)
@@ -377,9 +381,10 @@ function SessionCard({ t, addToast, cardStyle }: any) {
   const [showConfirm, setShowConfirm] = useState(false)
 
   // 退出登录（仅清除当前设备 token）
+  // 重定向时需带上 basePath 前缀，确保落在正确的路由前缀下
   const handleLogout = () => {
     localStorage.removeItem('auth_token')
-    window.location.href = '/'
+    window.location.href = basePath || '/'
   }
 
   // 注销所有设备（后端刷新 JWTSecret）
@@ -388,8 +393,9 @@ function SessionCard({ t, addToast, cardStyle }: any) {
       await authApi.revokeAllSessions()
       addToast(t('account.sessions_revoked'), 'success')
       // 刷新后本设备也失效了，需要重新登录
+      // 重定向时需带上 basePath 前缀，确保落在正确的路由前缀下
       localStorage.removeItem('auth_token')
-      window.location.href = '/'
+      window.location.href = basePath || '/'
     } catch (err: any) {
       addToast(err.response?.data?.error || 'Error', 'error')
     }

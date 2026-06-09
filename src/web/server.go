@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"v2rayn-go/config"
 	"v2rayn-go/core"
@@ -82,18 +84,54 @@ func (s *Server) Start() error {
 		return fmt.Errorf("failed to load embedded files: %w", err)
 	}
 
+	// 5. 读取 app_settings 中的服务器配置
+	basePath := getSettingFromDB("custom_base_path")
+
+	// 6. 预处理 index.html：将占位符 __INJECT_BASE_PATH__ 替换为实际的 custom_base_path
+	//    使用 sync.Once 确保只执行一次，替换结果被缓存到 closed 变量中
+	var (
+		modifiedIndexHTML []byte
+		indexHTMLOnce     sync.Once
+	)
+	// 注意：必须从原始 StaticFiles（embed.FS）读取，因为 fs.Sub() 返回的类型
+	// 不实现 fs.ReadFileFS 接口，类型断言会 panic
+	resolveIndexHTML := func() []byte {
+		indexHTMLOnce.Do(func() {
+			raw, err := fs.ReadFile(StaticFiles, "dist/index.html")
+			if err != nil {
+				slog.Error("failed to read embedded index.html", "error", err)
+				modifiedIndexHTML = []byte("index.html not found")
+				return
+			}
+			// basePath 格式为纯路径名（如 "my-secret"），注入时需要加上 "/" 前缀
+			// 空字符串表示无前缀，直接注入空字符串
+			injectVal := basePath
+			if injectVal != "" {
+				injectVal = "/" + injectVal
+			}
+			modifiedIndexHTML = bytes.Replace(raw, []byte("__INJECT_BASE_PATH__"), []byte(injectVal), 1)
+			slog.Info("index.html base path injected", "base_path", injectVal)
+		})
+		return modifiedIndexHTML
+	}
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		if path == "/" {
-			path = "/index.html"
+
+		// 对于非根路径，先尝试从嵌入的静态文件系统中查找
+		if path != "/" {
+			f, err := staticFS.Open(strings.TrimPrefix(path, "/"))
+			if err == nil {
+				f.Close()
+				http.FileServerFS(staticFS).ServeHTTP(w, r)
+				return
+			}
 		}
-		f, err := staticFS.Open(strings.TrimPrefix(path, "/"))
-		if err != nil {
-			http.ServeFileFS(w, r, staticFS, "index.html")
-			return
-		}
-		f.Close()
-		http.FileServerFS(staticFS).ServeHTTP(w, r)
+
+		// 所有其他请求（包括 "/" 和 SPA 路由）→ 返回注入了 base path 的 index.html
+		// Content-Type 必须手动设置，避免 Go 的 http.DetectContentType 嗅探错误
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(resolveIndexHTML())
 	})
 
 	// 5. 启动日志广播（使用 context.Background 支持优雅退出）
@@ -110,8 +148,7 @@ func (s *Server) Start() error {
 		authedMux.ServeHTTP(w, r)
 	})
 
-	// 8. 读取 app_settings 中的服务器配置
-	basePath := getSettingFromDB("custom_base_path")
+	// 8. 读取 force_https 配置
 	forceHTTPS := getSettingFromDB("force_https")
 
 	// 9. 动态路由前缀包装
