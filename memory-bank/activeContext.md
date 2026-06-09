@@ -1,9 +1,40 @@
 # Active Context
 
 ## Current Work Focus
-安全改造计划 + Bug 修复 + 功能增强全部完成，后端+前端+CLI 全部编译通过。
+custom_base_path 前端感知修复完成：html/template 注入 + 哈希路由 + 3xx 重定向前缀补回 + 测试用例。
 
 ## Recent Changes
+
+### custom_base_path 前端感知修复（2026-06-09）
+
+#### 问题根因
+设置 custom_base_path 后，前端无法正常访问页面。API 请求发到 `/api/...`（无前缀），被 `withBasePath` 返回 404。
+根因是前端所有代码硬编码了无前缀路径，不知道 custom_base_path 的存在。
+
+#### 修复方案：运行时注入 + 哈希路由
+- **`web/index.html`**：占位符改为 Go 模板语法 `{{ .BasePath }}`
+- **`src/web/server.go`**：`html/template` + `Option("missingkey=error")` 安全注入，启动时一次性渲染并缓存
+- **`web/src/lib/basePath.ts`**（新建）：公共模块，统一判断 `{{ .BasePath }}` 占位符（本地 dev 兼容）
+- **`web/src/lib/api.ts`**：axios baseURL 改为 `${basePath}/api`
+- **`web/src/lib/useWebSocket.ts`**：WebSocket URL 拼接 basePath
+- **`web/src/components/AccountView.tsx`**：退出登录重定向带 basePath
+- **`web/src/App.tsx`**：wouter 切换为哈希路由模式（`useHashLocation`），消除 SPA 路由匹配问题
+- **`web/vite.config.ts`**：顶级 `base: './'`，Vite 构建输出相对路径
+- **`web/src/vite-env.d.ts`**：`Window.__BASE_PATH__` 类型声明 + Go 模板注释
+
+#### Go 1.22+ 精确路由 + redirectWriter
+- **精确路由 `{$}`**：`mux.HandleFunc("GET /{$}", indexHandler)` + `mux.HandleFunc("GET /my-secret/{$}", indexHandler)`
+- **`redirectWriter`**：包装 ResponseWriter，拦截所有 3xx 重定向，对相对路径（以 `/` 开头）补回前缀，绝对 URL 不动
+
+#### 测试用例（`handler_test.go`）
+- `TestWithBasePath_EmptyBasePath`：空 basePath 直接透传
+- `TestWithBasePath_StripsPrefix`：前缀剥离（API/根路径/精确匹配/404）
+- `TestWithBasePath_RedirectRoot`：根路径 302 重定向到 /my-secret/
+- `TestRedirectWriter_PrefixesRedirectLocation`：相对路径补前缀 + 绝对 URL 不动
+- `TestRedirectWriter_3xxRange`：所有 3xx 状态码都被拦截
+
+#### 文档更新
+- README.md 新增 🛰️ 动态网络防御特性描述
 
 ### 安全改造计划（2026-06-02）
 
@@ -96,6 +127,10 @@
 - ToastContainer 必须在 App 顶层渲染，不能放在 AuthenticatedApp 内部
 - 自签名证书使用 ECDSA P-256，复用 config.AtomicWriteFile 断电安全写入
 - withBasePath 动态路由前缀包装，存储纯路径名（无斜杠），运行时自动加 `/`
+- **html/template 注入**：`template.New().Option("missingkey=error").ParseFS()` 安全渲染，防止拼写错误
+- **redirectWriter**：拦截 3xx 重定向补回前缀，只处理相对路径，绝对 URL 不动
+- **哈希路由**：wouter `useHashLocation`，URL 格式 `/my-secret/#/nodes`，浏览器只请求根路径
+- **前端公共模块**：`lib/basePath.ts` 统一导出 `basePath`，消除重复判断
 - **app_settings Upsert**：GORM `clause.OnConflict` 原生 SQL，一条语句完成插入或更新
 - **能力矩阵**：后端一次性下发所有协议的可用内核矩阵，前端字典查询
 - **Mihomo YAML**：基础字段强类型 + `Extra map[string]any` + `yaml:",inline"`

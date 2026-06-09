@@ -52,6 +52,7 @@
 - 🐾 **Full Mihomo Support** — Complete YAML config generation for Clash Meta kernel, supporting 8 protocols + TLS/Reality
 - ✏️ **Auto-Save on Blur** — Settings page removes global save button, input blur/Enter/toggle instantly saves, backend dirty-flag zero I/O interception
 - 🔐 **Secure Authentication** — JWT user auth + TOTP two-factor verification + bcrypt password hashing + self-signed HTTPS + configurable JWT expiry
+- 🛰️ **Dynamic Network Defense** — Custom base path prefix (custom_base_path) to hide real access path, HTTPS toggle, hash-based frontend routing, Go html/template safe injection, automatic 3xx redirect prefix fixup
 
 ---
 

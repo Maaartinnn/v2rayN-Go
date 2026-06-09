@@ -52,6 +52,7 @@
 - 🐾 **Mihomo 完整支持** — Clash Meta 内核的完整 YAML 配置生成，支持 8 种协议 + TLS/Reality
 - ✏️ **失焦自动保存** — 设置页面移除全局保存按钮，输入框失焦/回车/Toggle 即时保存，后端脏标记零 I/O 拦截
 - 🔐 **安全认证** — JWT 用户认证 + TOTP 两步验证 + bcrypt 密码哈希 + 自签证书 HTTPS + JWT 过期时间可配置
+- 🛰️ **动态网络防御** — 自定义路由前缀（custom_base_path）隐藏真实访问路径，强制 HTTPS 开关，前端哈希路由适配，Go html/template 安全注入，3xx 重定向前缀自动补回
 
 ---
 

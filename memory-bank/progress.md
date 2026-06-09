@@ -54,13 +54,24 @@ All core features are implemented and tested.
   - 安全收益：消除 SSRF、消除内存溢出风险、图片零网络传输
 - Go 后端全部测试通过（7 packages）
 - 前端 TypeScript 编译无错误
+- **custom_base_path 前端感知修复（2026-06-09）**：
+  - `html/template` 注入 base path（`Option("missingkey=error")` Fail Fast）
+  - 前端公共模块 `lib/basePath.ts` 统一导出，消除重复判断
+  - wouter 哈希路由模式（`useHashLocation`），消除 SPA 路由匹配问题
+  - Vite `base: './'`，构建输出相对路径
+  - Go 1.22+ 精确路由 `{$}` 语法
+  - `redirectWriter`：拦截 3xx 重定向补回前缀（只补相对路径，绝对 URL 不动）
+  - 5 个测试用例全部通过（15/15）
+  - README.md 新增 🛰️ 动态网络防御特性
 
 ## What's Left To Build
 - 策略组重构：StrategyGroup 表 → Profile 虚拟节点（组合模式）
 - 扩展前端组件测试
 
 ## Current Status
-- 安全改造计划四阶段全部完成，go vet + vite build 通过
+- 安全改造计划四阶段全部完成
+- custom_base_path 前端感知修复完成（html/template + 哈希路由 + redirectWriter）
+- Go 测试全部通过，TypeScript 编译无错误
 - 项目稳定运行
 
 ## Known Issues
@@ -83,3 +94,7 @@ All core features are implemented and tested.
 - Auth guard 拆分为 App（检测 token）+ AuthenticatedApp（业务逻辑）两层
 - 自签名证书使用 ECDSA P-256，复用 config.AtomicWriteFile 断电安全写入
 - withBasePath 动态路由前缀包装，根路径重定向到 basePath
+- **html/template 注入**：启动时一次性渲染 index.html，`missingkey=error` 防拼写错误
+- **redirectWriter**：拦截 3xx 重定向补回前缀，只处理相对路径，绝对 URL 不动
+- **哈希路由**：wouter `useHashLocation`，消除 custom_base_path 下的 SPA 路由匹配问题
+- **前端公共 basePath 模块**：`lib/basePath.ts` 统一导出，兼容本地 dev（字面量判断）

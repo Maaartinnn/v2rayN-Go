@@ -379,3 +379,148 @@ func TestMapServiceError_Internal(t *testing.T) {
 		t.Fatalf("expected 500, got %d", w.Code)
 	}
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// withBasePath + redirectWriter 测试
+// ═══════════════════════════════════════════════════════════════════════════
+
+// TestWithBasePath_EmptyBasePath 空 basePath 时直接返回原 handler，不做任何包装
+func TestWithBasePath_EmptyBasePath(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "ok")
+	})
+
+	handler := withBasePath("", inner)
+	// handler 应该直接透传请求（无前缀包装）
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/any/path", nil)
+	handler.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+// TestWithBasePath_StripsPrefix 验证前缀剥离
+func TestWithBasePath_StripsPrefix(t *testing.T) {
+	var gotPath string
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := withBasePath("my-secret", inner)
+
+	tests := []struct {
+		name       string
+		reqPath    string
+		wantPath   string
+		wantStatus int
+	}{
+		{"api request", "/my-secret/api/profiles", "/api/profiles", 200},
+		{"root", "/my-secret/", "/", 200},
+		{"exact prefix", "/my-secret", "/", 200},
+		{"no match returns 404", "/other/path", "", 404},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotPath = ""
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest("GET", tt.reqPath, nil)
+			handler.ServeHTTP(w, r)
+
+			if w.Code != tt.wantStatus {
+				t.Fatalf("path %s: expected status %d, got %d", tt.reqPath, tt.wantStatus, w.Code)
+			}
+			if tt.wantPath != "" && gotPath != tt.wantPath {
+				t.Fatalf("path %s: expected internal path %q, got %q", tt.reqPath, tt.wantPath, gotPath)
+			}
+		})
+	}
+}
+
+// TestWithBasePath_RedirectRoot 根路径 "/" 应重定向到 "/my-secret/"
+func TestWithBasePath_RedirectRoot(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := withBasePath("my-secret", inner)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/", nil)
+	handler.ServeHTTP(w, r)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", w.Code)
+	}
+	loc := w.Header().Get("Location")
+	if loc != "/my-secret/" {
+		t.Fatalf("expected redirect to /my-secret/, got %s", loc)
+	}
+}
+
+// TestRedirectWriter_PrefixesRedirectLocation 验证 redirectWriter 补回前缀
+func TestRedirectWriter_PrefixesRedirectLocation(t *testing.T) {
+	tests := []struct {
+		name       string
+		code       int
+		location   string
+		wantPrefix string
+	}{
+		{"301 relative path", 301, "/api/profiles/", "/my-secret"},
+		{"307 relative path", 307, "/api/groups/", "/my-secret"},
+		{"302 relative path", 302, "/login", "/my-secret"},
+		{"301 absolute URL untouched", 301, "https://github.com/", ""},
+		{"200 not a redirect", 200, "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			rw := &redirectWriter{ResponseWriter: rec, prefix: "/my-secret"}
+
+			if tt.location != "" {
+				rec.Header().Set("Location", tt.location)
+			}
+			rw.WriteHeader(tt.code)
+
+			got := rec.Header().Get("Location")
+			if tt.wantPrefix != "" {
+				// 相对路径应该被加上前缀
+				expected := "/my-secret" + tt.location
+				if got != expected {
+					t.Fatalf("expected Location %q, got %q", expected, got)
+				}
+			} else {
+				// 绝对 URL 或非重定向不应被修改
+				if got != tt.location {
+					t.Fatalf("expected Location %q (unchanged), got %q", tt.location, got)
+				}
+			}
+		})
+	}
+}
+
+// TestRedirectWriter_3xxRange 验证所有 3xx 状态码都被拦截
+func TestRedirectWriter_3xxRange(t *testing.T) {
+	redirectCodes := []int{300, 301, 302, 303, 304, 305, 307, 308}
+
+	for _, code := range redirectCodes {
+		t.Run(fmt.Sprintf("status_%d", code), func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			rec.Header().Set("Location", "/old-path")
+			rw := &redirectWriter{ResponseWriter: rec, prefix: "/my-secret"}
+			rw.WriteHeader(code)
+
+			got := rec.Header().Get("Location")
+			// 304 Not Modified 有 Location 但不应被重定向（语义不同）
+			// 但根据我们的实现，所有 3xx 带相对路径的 Location 都会补前缀
+			// 这是安全的，因为浏览器对 304 不会跟随重定向
+			expected := "/my-secret/old-path"
+			if got != expected {
+				t.Fatalf("code %d: expected %q, got %q", code, expected, got)
+			}
+		})
+	}
+}
