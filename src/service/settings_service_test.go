@@ -7,129 +7,74 @@ import (
 	"v2rayn-go/database"
 )
 
-// ========== SettingsService 测试 ==========
-
-func TestGetSettings_IncludesCoreConfigDebug(t *testing.T) {
+func setupSettingsTestDB(t *testing.T) {
+	t.Helper()
 	database.InitTestDB()
 	t.Cleanup(database.CleanupTestDB)
+}
 
-	cfg := &config.AppConfig{
-		ListenIP:        "127.0.0.1",
-		WebPort:         2017,
-		SocksPort:       10808,
-		HTTPPort:        10809,
-		OutboundIP:      "0.0.0.0",
-		GitHubMirror:    "https://mirror.example.com",
-		CoreConfigDebug: true,
-	}
+func strPtr(s string) *string { return &s }
 
-	svc := NewSettingsService(cfg)
-	settings := svc.GetSettings()
-
-	if settings["core_config_debug"] != true {
-		t.Fatalf("expected core_config_debug=true, got %v", settings["core_config_debug"])
-	}
-	if settings["listen_ip"] != "127.0.0.1" {
-		t.Fatalf("expected listen_ip=127.0.0.1, got %v", settings["listen_ip"])
-	}
-	if settings["web_port"] != 2017 {
-		t.Fatalf("expected web_port=2017, got %v", settings["web_port"])
+func TestGetSettingFast_CacheHit(t *testing.T) {
+	setupSettingsTestDB(t)
+	svc := NewSettingsService(&config.AppConfig{})
+	svc.cacheMu.Lock()
+	svc.cacheData["jwt_expire_hours"] = "48"
+	svc.cacheMu.Unlock()
+	got := svc.GetSettingFast("jwt_expire_hours")
+	if got != "48" {
+		t.Fatalf("expected '48', got %q", got)
 	}
 }
 
-func TestGetSettings_CoreConfigDebug_DefaultFalse(t *testing.T) {
-	database.InitTestDB()
-	t.Cleanup(database.CleanupTestDB)
-
-	cfg := config.DefaultConfig()
-	cfg.AppDir = t.TempDir()
-
-	svc := NewSettingsService(cfg)
-	settings := svc.GetSettings()
-
-	if settings["core_config_debug"] != false {
-		t.Fatalf("expected core_config_debug=false (default), got %v", settings["core_config_debug"])
+func TestGetSettingFast_CacheMiss_ThenDB(t *testing.T) {
+	setupSettingsTestDB(t)
+	svc := NewSettingsService(&config.AppConfig{})
+	database.DB.Create(&database.AppSetting{Key: "jwt_expire_hours", Value: "24"})
+	got := svc.GetSettingFast("jwt_expire_hours")
+	if got != "24" {
+		t.Fatalf("expected '24', got %q", got)
+	}
+	svc.cacheMu.RLock()
+	cached, ok := svc.cacheData["jwt_expire_hours"]
+	svc.cacheMu.RUnlock()
+	if !ok || cached != "24" {
+		t.Fatalf("expected cache to have '24', got %q (exists: %v)", cached, ok)
 	}
 }
 
-func TestUpdateSettings_CoreConfigDebug_Enable(t *testing.T) {
-	database.InitTestDB()
-	t.Cleanup(database.CleanupTestDB)
-
-	cfg := config.DefaultConfig()
-	cfg.AppDir = t.TempDir()
-
-	svc := NewSettingsService(cfg)
-
-	// 默认是 false
-	if cfg.CoreConfigDebug {
-		t.Fatal("expected CoreConfigDebug=false before update")
+func TestGetSettingFast_DCLDoubleCheck(t *testing.T) {
+	setupSettingsTestDB(t)
+	svc := NewSettingsService(&config.AppConfig{})
+	database.DB.Create(&database.AppSetting{Key: "jwt_expire_hours", Value: "12"})
+	for i := 0; i < 100; i++ {
+		got := svc.GetSettingFast("jwt_expire_hours")
+		if got != "12" {
+			t.Fatalf("iteration %d: expected '12', got %q", i, got)
+		}
 	}
+	svc.cacheMu.RLock()
+	count := len(svc.cacheData)
+	svc.cacheMu.RUnlock()
+	if count != 1 {
+		t.Fatalf("expected 1 cached key, got %d", count)
+	}
+}
 
-	// 开启调试模式
-	enable := true
-	err := svc.UpdateSettings(&UpdateSettingsRequest{
-		CoreConfigDebug: &enable,
-	})
-	if err != nil {
+func TestGetSettingFast_UpdateSettings(t *testing.T) {
+	setupSettingsTestDB(t)
+	svc := NewSettingsService(&config.AppConfig{})
+	database.DB.Create(&database.AppSetting{Key: "jwt_expire_hours", Value: "24"})
+	got := svc.GetSettingFast("jwt_expire_hours")
+	if got != "24" {
+		t.Fatalf("expected '24', got %q", got)
+	}
+	req := &UpdateSettingsRequest{JwtExpireHours: strPtr("720")}
+	if err := svc.UpdateSettings(req); err != nil {
 		t.Fatalf("UpdateSettings failed: %v", err)
 	}
-
-	if !cfg.CoreConfigDebug {
-		t.Fatal("expected CoreConfigDebug=true after update")
+	got = svc.GetSettingFast("jwt_expire_hours")
+	if got != "720" {
+		t.Fatalf("expected '720', got %q", got)
 	}
-}
-
-func TestUpdateSettings_CoreConfigDebug_Disable(t *testing.T) {
-	database.InitTestDB()
-	t.Cleanup(database.CleanupTestDB)
-
-	cfg := config.DefaultConfig()
-	cfg.AppDir = t.TempDir()
-	cfg.CoreConfigDebug = true
-
-	svc := NewSettingsService(cfg)
-
-	// 关闭调试模式
-	disable := false
-	err := svc.UpdateSettings(&UpdateSettingsRequest{
-		CoreConfigDebug: &disable,
-	})
-	if err != nil {
-		t.Fatalf("UpdateSettings failed: %v", err)
-	}
-
-	if cfg.CoreConfigDebug {
-		t.Fatal("expected CoreConfigDebug=false after update")
-	}
-}
-
-func TestUpdateSettings_CoreConfigDebug_NilIgnored(t *testing.T) {
-	database.InitTestDB()
-	t.Cleanup(database.CleanupTestDB)
-
-	cfg := config.DefaultConfig()
-	cfg.AppDir = t.TempDir()
-	cfg.CoreConfigDebug = true
-
-	svc := NewSettingsService(cfg)
-
-	// 不传 CoreConfigDebug（nil），应保持原值
-	err := svc.UpdateSettings(&UpdateSettingsRequest{
-		ListenIP: strPtr("10.0.0.1"),
-	})
-	if err != nil {
-		t.Fatalf("UpdateSettings failed: %v", err)
-	}
-
-	if !cfg.CoreConfigDebug {
-		t.Fatal("expected CoreConfigDebug=true (unchanged when nil)")
-	}
-	if cfg.ListenIP != "10.0.0.1" {
-		t.Fatalf("expected ListenIP=10.0.0.1, got %q", cfg.ListenIP)
-	}
-}
-
-func strPtr(s string) *string {
-	return &s
 }

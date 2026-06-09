@@ -41,14 +41,15 @@ type PingServiceInterface = service.PingServiceInterface
 // NewServer 创建 Web 服务器
 func NewServer(cfg *config.AppConfig, coreMgr *core.CoreAdminManager) *Server {
 	coreSvc := service.NewCoreService(cfg, coreMgr)
+	settingsSvc := service.NewSettingsService(cfg) // 必须先创建，authSvc 依赖它
 	return &Server{
 		cfg:         cfg,
 		profileSvc:  service.NewProfileService(),
 		groupSvc:    service.NewGroupService(),
 		routingSvc:  service.NewRoutingRuleService(),
 		coreSvc:     coreSvc,
-		settingsSvc: service.NewSettingsService(cfg),
-		authSvc:     service.NewAuthService(),
+		settingsSvc: settingsSvc,
+		authSvc:     service.NewAuthService(settingsSvc), // 注入 SettingsService，复用缓存
 		coreMgr:     coreMgr,
 		pingSvc:     service.NewPingService(),
 	}

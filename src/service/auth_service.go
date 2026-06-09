@@ -15,11 +15,13 @@ import (
 )
 
 // AuthService 认证服务（登录、JWT、TOTP、密码管理）
-type AuthService struct{}
+type AuthService struct {
+	settingsSvc *SettingsService
+}
 
-// NewAuthService 创建 AuthService 实例
-func NewAuthService() *AuthService {
-	return &AuthService{}
+// NewAuthService 创建 AuthService 实例，注入 SettingsService 以复用内存缓存
+func NewAuthService(settingsSvc *SettingsService) *AuthService {
+	return &AuthService{settingsSvc: settingsSvc}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -77,9 +79,10 @@ func (s *AuthService) Login(username, password, totpCode string) (*database.User
 // GenerateToken 为指定用户签发 JWT Token
 // 使用用户专属的 JWTSecret（HS256），过期时间从 app_settings 读取
 func (s *AuthService) GenerateToken(user *database.User) (string, error) {
-	// 从 app_settings 读取 JWT 过期时间（小时）
+	// 从 SettingsService 缓存读取 JWT 过期时间（小时）
+	// 使用内存缓存（DCL），零 DB I/O，修改后无需重启即可对新 JWT 生效
 	expireHours := 24 // 默认 24 小时
-	if val := getSettingValue("jwt_expire_hours"); val != "" {
+	if val := s.settingsSvc.GetSettingFast("jwt_expire_hours"); val != "" {
 		if h, err := strconv.Atoi(val); err == nil && h > 0 {
 			expireHours = h
 		}
@@ -314,13 +317,4 @@ func generateRandomHex(n int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
-}
-
-// getSettingValue 从 app_settings 表读取指定 key 的值（不存在则返回空字符串）
-func getSettingValue(key string) string {
-	var setting database.AppSetting
-	if err := database.DB.Where("key = ?", key).First(&setting).Error; err != nil {
-		return ""
-	}
-	return setting.Value
 }

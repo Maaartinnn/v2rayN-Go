@@ -18,6 +18,7 @@ import (
 	"net"
 	"regexp"
 	"strings"
+	"sync"
 
 	"v2rayn-go/config"
 	"v2rayn-go/database"
@@ -32,11 +33,52 @@ var basePathPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 // SettingsService 配置管理业务逻辑层
 type SettingsService struct {
 	cfg *config.AppConfig
+
+	// 应用设置的内存缓存，避免每次 JWT 签发都查库
+	// 由 GetSettingFast 读取，由 UpdateSettings 写入更新
+	cacheMu   sync.RWMutex
+	cacheData map[string]string
 }
 
 // NewSettingsService 创建配置服务
 func NewSettingsService(cfg *config.AppConfig) *SettingsService {
-	return &SettingsService{cfg: cfg}
+	return &SettingsService{
+		cfg:       cfg,
+		cacheData: make(map[string]string), // 提前分配，避免 nil 判断
+	}
+}
+
+// GetSettingFast 带双重检查锁定（DCL）的缓存优先读取。
+//
+// 首次调用时从 DB 回填缓存，后续调用 RWMutex.RLock + map 读取（纳秒级，零 DB I/O）。
+// DCL 防止并发请求瞬间穿透到 DB：只有第一个穿透请求会查库，其余等待并从缓存读取。
+//
+// 使用场景：JWT 签发等高频调用路径，避免每次都查 app_settings 表。
+func (s *SettingsService) GetSettingFast(key string) string {
+	// 第一次检查：快速路径，无锁读取
+	s.cacheMu.RLock()
+	if v, ok := s.cacheData[key]; ok {
+		s.cacheMu.RUnlock()
+		return v
+	}
+	s.cacheMu.RUnlock()
+
+	// 缓存未命中，加写锁
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
+
+	// 第二次检查（DCL）：加锁期间可能已被其他 goroutine 回填
+	if v, ok := s.cacheData[key]; ok {
+		return v
+	}
+
+	// 穿透到 DB，回填缓存
+	var setting database.AppSetting
+	if err := database.DB.Where("key = ?", key).First(&setting).Error; err != nil {
+		return ""
+	}
+	s.cacheData[key] = setting.Value
+	return setting.Value
 }
 
 // GetSettings 获取当前配置（合并 config.json 字段 + app_settings 数据库表）
@@ -172,6 +214,10 @@ func (s *SettingsService) UpdateSettings(req *UpdateSettingsRequest) error {
 		if err := upsertAppSetting("jwt_expire_hours", val); err != nil {
 			return fmt.Errorf("failed to save jwt_expire_hours: %w", err)
 		}
+		// 立即更新缓存，无需重启即可对新 JWT 生效
+		s.cacheMu.Lock()
+		s.cacheData["jwt_expire_hours"] = val
+		s.cacheMu.Unlock()
 	}
 
 	// CustomBasePath：判空 → trim → 正则校验 → 写入 app_settings
