@@ -205,6 +205,32 @@ func getSettingFromDB(key string) string {
 	return setting.Value
 }
 
+// redirectWriter 包装 http.ResponseWriter，拦截 3xx 重定向并补回 base path 前缀。
+//
+// Go 的 ServeMux 在精确匹配（{$}）路径缺失尾部斜杠时会自动发出 301 重定向，
+// 例如 /my-secret/api/profiles 被 withBasePath 剥离为 /api/profiles，
+// ServeMux 发现它不匹配 GET /api/profiles/{$}，于是 301 到 /api/profiles/。
+// 但这个 Location 缺少 /my-secret 前缀，浏览器直接访问 /api/profiles/ 会 404。
+//
+// 解决方案：用 redirectWriter 包装 ResponseWriter，拦截所有 3xx 重定向，
+// 对以 "/" 开头的相对路径自动补回前缀。绝对 URL（如 https://github.com/...）不受影响。
+type redirectWriter struct {
+	http.ResponseWriter
+	prefix string
+}
+
+func (w *redirectWriter) WriteHeader(code int) {
+	// 拦截所有 3xx 重定向（300-399），覆盖 301/302/303/307/308 等
+	if code >= 300 && code < 400 {
+		location := w.Header().Get("Location")
+		// 只处理相对路径（以 / 开头），绝对 URL（如 https://github.com/...）不动
+		if location != "" && location[0] == '/' {
+			w.Header().Set("Location", w.prefix+location)
+		}
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
 // withBasePath 为 HTTP handler 添加自定义路由前缀
 // basePath 存储格式为纯路径名（无斜杠），如 "my-secret"，空字符串表示无前缀
 // 当 basePath 为空时直接返回原 handler（无额外开销）
@@ -233,7 +259,8 @@ func withBasePath(basePath string, handler http.Handler) http.Handler {
 			if r.URL.Path == "" {
 				r.URL.Path = "/"
 			}
-			handler.ServeHTTP(w, r)
+			// 用 redirectWriter 包装，拦截 ServeMux 自动发出的 3xx 重定向并补回前缀
+			handler.ServeHTTP(&redirectWriter{ResponseWriter: w, prefix: prefix}, r)
 		} else if r.URL.Path == "/" {
 			// 根路径重定向到 basePath
 			http.Redirect(w, r, prefix+"/", http.StatusFound)
