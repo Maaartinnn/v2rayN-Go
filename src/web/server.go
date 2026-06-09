@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -86,39 +87,49 @@ func (s *Server) Start() error {
 	// 5. 读取 app_settings 中的服务器配置
 	basePath := getSettingFromDB("custom_base_path")
 
-	// 6. 预处理 index.html：将占位符 __INJECT_BASE_PATH__ 替换为实际的 custom_base_path
-	//    一次性执行并缓存结果（哈希路由模式下只需返回 index.html，无需 SPA fallback）
+	// 6. 使用 html/template 解析 index.html 模板，注入 custom_base_path
 	//
-	// 注意：必须从原始 StaticFiles（embed.FS）读取，因为 fs.Sub() 返回的类型
-	// 不实现 fs.ReadFileFS 接口，类型断言会 panic
-	rawIndexHTML, err := fs.ReadFile(StaticFiles, "dist/index.html")
-	if err != nil {
-		return fmt.Errorf("failed to read embedded index.html: %w", err)
-	}
+	// html/template 的优势：
+	//   - 安全性：自动上下文感知转义（JS 字符串上下文中会安全处理）
+	//   - 鲁棒性：不受 Vite 压缩/格式化影响，模板语法 {{ .BasePath }} 在任何位置都有效
+	//   - 可扩展性：未来可注入更多环境变量，无需修改替换逻辑
+	//   - Option("missingkey=error")：拼写错误时 Fail Fast，而非静默渲染为空字符串
+	//
 	// basePath 格式为纯路径名（如 "my-secret"），注入时需要加上 "/" 前缀
-	// 空字符串表示无前缀，直接注入空字符串
 	injectVal := basePath
 	if injectVal != "" {
 		injectVal = "/" + injectVal
 	}
-	modifiedIndexHTML := bytes.Replace(rawIndexHTML, []byte("__INJECT_BASE_PATH__"), []byte(injectVal), 1)
+
+	tmpl, err := template.New("index.html").Option("missingkey=error").ParseFS(StaticFiles, "dist/index.html")
+	if err != nil {
+		return fmt.Errorf("failed to parse index.html template: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, map[string]string{"BasePath": injectVal}); err != nil {
+		return fmt.Errorf("failed to execute index.html template: %w", err)
+	}
+	modifiedIndexHTML := buf.Bytes()
 	slog.Info("index.html base path injected", "base_path", injectVal)
 
-	// 7. 注册静态文件路由
+	// 7. 注册精确路由（Go 1.22+ {$} 语法）
 	// 哈希路由模式下，浏览器只请求根路径和 /assets/... 静态资源，无需 SPA 路由降级
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
+	//
+	// indexHandler：精确匹配根路径，返回注入了 base path 的 index.html
+	indexHandler := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(modifiedIndexHTML)
+	}
 
-		// 精确匹配根路径 → 返回注入了 base path 的 index.html
-		if path == "/" {
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.Write(modifiedIndexHTML)
-			return
-		}
-
-		// 其他所有请求（/assets/xxx.js、/favicon.svg 等）→ 交给静态文件服务器
-		http.FileServerFS(staticFS).ServeHTTP(w, r)
-	})
+	// "{$}" 精确匹配根路径，不再匹配 /assets 等子路径
+	mux.HandleFunc("GET {$}", indexHandler)
+	if injectVal != "" {
+		// 精确匹配带前缀的根路径（如 /my-secret/）
+		mux.HandleFunc("GET "+injectVal+"/{$}", indexHandler)
+	}
+	// 静态文件 fallback（/assets/xxx.js、/favicon.svg 等）
+	mux.Handle("GET /", http.FileServerFS(staticFS))
 
 	// 8. 启动日志广播（使用 context.Background 支持优雅退出）
 	go wsHandler.LogBroadcaster(context.Background())

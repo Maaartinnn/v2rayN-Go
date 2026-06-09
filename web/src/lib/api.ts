@@ -1,9 +1,5 @@
 import axios from 'axios'
-
-// 读取 Go 后端注入的 custom_base_path（如 "/my-secret"）
-// 本地开发时值为字面量 '__INJECT_BASE_PATH__'，视为空字符串
-const basePath =
-  window.__BASE_PATH__ === '__INJECT_BASE_PATH__' ? '' : (window.__BASE_PATH__ || '')
+import { basePath } from './basePath'
 
 const api = axios.create({
   baseURL: `${basePath}/api`,

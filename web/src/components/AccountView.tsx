@@ -12,10 +12,7 @@ import { Lock, Shield, LogOut } from 'lucide-react'
 import { authApi } from '../lib/api'
 import { useT } from '../lib/i18n'
 import { useStore } from '../store'
-
-// 读取 Go 后端注入的 custom_base_path，用于退出登录后重定向到正确的路径
-const basePath =
-  window.__BASE_PATH__ === '__INJECT_BASE_PATH__' ? '' : (window.__BASE_PATH__ || '')
+import { basePath } from '../lib/basePath'
 
 export function AccountView() {
   const t = useT()
