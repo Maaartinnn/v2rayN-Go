@@ -1,5 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { Router, Switch, Route, useLocation } from 'wouter'
+// wouter v3 的 useHashLocation 需要从子路径导入
+import { useHashLocation } from 'wouter/use-hash-location'
 import { Sidebar } from './components/Sidebar'
 import { HomeView } from './components/HomeView'
 import { NodesView } from './components/NodesView'
@@ -49,10 +51,9 @@ function FullScreenLoader() {
   )
 }
 
-// 读取 Go 后端注入的 custom_base_path（如 "/my-secret"）
-// 本地开发时值为字面量 '__INJECT_BASE_PATH__'，视为空字符串
-const basePath =
-  window.__BASE_PATH__ === '__INJECT_BASE_PATH__' ? '' : (window.__BASE_PATH__ || '')
+// 注：路由使用哈希模式（useHashLocation），不再需要 basePath 配置
+// URL 格式：https://host:port/my-secret/#/nodes
+// 浏览器只向服务器发送 /my-secret/，#/ 后面由前端处理
 
 export default function App() {
   // ── Auth 状态 ────────────────────────────────────────────────────
@@ -78,9 +79,13 @@ export default function App() {
   }, [])
 
   // ── 仅在已认证后初始化业务逻辑 ────────────────────────────────────
-  // Router 包裹整个应用，使所有 <Link> 和 useLocation() 自动感知 base 前缀
+  // Router 使用哈希模式（useHashLocation）：
+  // - URL 格式：https://host:port/my-secret/#/nodes
+  // - 浏览器只向服务器发送 /my-secret/（或 /），#/ 后面的部分由前端路由处理
+  // - 彻底消除 custom_base_path 下的 SPA 路由匹配问题
+  // - 所有 <Link> 和 useLocation() 自动适配
   return (
-    <Router base={basePath}>
+    <Router hook={useHashLocation}>
       {/* ToastContainer 放在顶层，确保登录页也能看到通知 */}
       <ToastContainer />
       {authState === 'loading' ? (
