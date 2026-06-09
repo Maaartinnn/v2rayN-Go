@@ -134,9 +134,13 @@ export const authApi = {
   me: () => api.get('/auth/me'),
   changePassword: (data: { old_password: string; new_password: string }) =>
     api.post('/change-password', data),
-  enableTOTP: () => api.post('/totp/enable'),
+  // enableTOTP: 生成 TOTP 密钥并返回 otpauth URL（前端渲染二维码）
+  // issuer 可选，为空时后端使用默认值 "v2rayN-Go"
+  enableTOTP: (issuer?: string) => api.post('/totp/enable', { issuer: issuer || '' }),
+  // verifyTOTP: 验证 TOTP 动态码并正式启用两步验证
   verifyTOTP: (code: string) => api.post('/totp/verify', { code }),
-  disableTOTP: (password: string) => api.post('/totp/disable', { password }),
+  // disableTOTP: 使用 TOTP 验证码（非密码）关闭两步验证
+  disableTOTP: (totpCode: string) => api.post('/totp/disable', { totp_code: totpCode }),
   revokeAllSessions: () => api.post('/sessions/revoke-all'),
 }
 

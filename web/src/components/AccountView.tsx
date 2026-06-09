@@ -5,7 +5,8 @@
 //   2. 两步验证 TOTP（开关 + 二维码 + 动态码验证）
 //   3. 会话管理（退出登录 / 注销所有设备）
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useBlurSave } from '../lib/useBlurSave'
 import { motion } from 'framer-motion'
 import { QRCodeSVG } from 'qrcode.react'
 import { Lock, Shield, LogOut } from 'lucide-react'
@@ -185,17 +186,36 @@ function ChangePasswordCard({ t, addToast, cardStyle, labelStyle, inputStyle, fo
 // 子组件：TOTP 两步验证卡片
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ──────────────────────────────────────────────────────────────────────────────
+// TOTP 两步验证卡片
+//
+// 交互状态机：未启用 → 配置中（扫码验证） → 已启用
+//   - Issuer 输入框：useBlurSave 失焦自动保存 + 失败回滚
+//   - 关闭两步验证：需要 TOTP 验证码（非密码）
+// ──────────────────────────────────────────────────────────────────────────────
 function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyle, focusBlur }: any) {
   const [totpSetup, setTotpSetup] = useState<{ secret: string; otpauth_url: string } | null>(null)
   const [verifyCode, setVerifyCode] = useState('')
-  const [disablePassword, setDisablePassword] = useState('')
+  const [disableCode, setDisableCode] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // 开启 TOTP 流程
+  // Issuer 失焦自动保存（draft / committed 双值模式，失败自动回滚）
+  // 后端校验：长度 ≤ 100，仅允许安全字符（字母数字下划线连字符点空格）
+  const issuerBlur = useBlurSave<string>(
+    '',
+    useCallback(async (val: string) => {
+      // 调用后端生成新密钥，返回新的 otpauth_url → 二维码自动更新
+      const res = await authApi.enableTOTP(val)
+      setTotpSetup(res.data)
+    }, []),
+    { validate: (v: string) => v.length <= 100 }
+  )
+
+  // 点击"启用"：调用 API 生成密钥 + 显示二维码
   const handleEnable = async () => {
     setLoading(true)
     try {
-      const res = await authApi.enableTOTP()
+      const res = await authApi.enableTOTP(issuerBlur.draft)
       setTotpSetup(res.data)
     } catch (err: any) {
       addToast(err.response?.data?.error || 'Error', 'error')
@@ -204,7 +224,7 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
     }
   }
 
-  // 验证并激活 TOTP
+  // 确认启用：验证 6 位动态码后正式激活 TOTP
   const handleVerify = async () => {
     if (verifyCode.length !== 6) return
     setLoading(true)
@@ -221,15 +241,15 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
     }
   }
 
-  // 关闭 TOTP
+  // 关闭两步验证：需要 TOTP 验证码（非密码）
   const handleDisable = async () => {
-    if (!disablePassword) return
+    if (disableCode.length !== 6) return
     setLoading(true)
     try {
-      await authApi.disableTOTP(disablePassword)
+      await authApi.disableTOTP(disableCode)
       addToast(t('account.totp_disabled_ok'), 'success')
       setUser((u: any) => u ? { ...u, totp_enabled: false } : u)
-      setDisablePassword('')
+      setDisableCode('')
     } catch (err: any) {
       addToast(err.response?.data?.error || 'Error', 'error')
     } finally {
@@ -262,11 +282,12 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
             fontFamily: 'var(--font-heading)',
           }}
         >
+          {/* 状态徽章：已启用 / 未启用 */}
           {isEnabled ? t('account.totp_enabled') : t('account.totp_disabled')}
         </span>
       </div>
 
-      {/* 已启用 + 未在配置中 → 显示关闭入口 */}
+      {/* ── 已启用状态 → 显示 TOTP 验证码关闭入口 ───────────────────── */}
       {isEnabled && !totpSetup && (
         <div className="space-y-3">
           <p className="text-xs" style={{ color: 'var(--color-muted-foreground)' }}>
@@ -274,51 +295,90 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
           </p>
           <div className="flex items-center gap-2">
             <input
-              type="password"
-              value={disablePassword}
-              onChange={e => setDisablePassword(e.target.value)}
-              placeholder={t('account.old_password')}
-              className="flex-1 px-3 py-2 text-sm rounded-lg outline-none transition-colors"
+              type="text"
+              value={disableCode}
+              onChange={e => setDisableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder={t('account.totp_enter_code')}
+              maxLength={6}
+              inputMode="numeric"
+              className="flex-1 px-3 py-2 text-sm rounded-lg outline-none transition-colors tracking-[0.5em]"
               style={inputStyle}
               {...focusBlur}
             />
+            {/* 按钮文案："禁用"（动作），不是"已禁用"（状态） */}
             <button
               onClick={handleDisable}
-              disabled={loading || !disablePassword}
+              disabled={loading || disableCode.length !== 6}
               className="btn-danger px-4 py-2 text-sm"
             >
-              {t('common.disabled')}
+              {t('account.totp_disable_btn')}
             </button>
           </div>
         </div>
       )}
 
-      {/* 未启用 + 未在配置中 → 显示开启按钮 */}
+      {/* ── 未启用状态 → Issuer 输入框 + 启用按钮 ───────────────────── */}
       {!isEnabled && !totpSetup && (
-        <button
-          onClick={handleEnable}
-          disabled={loading}
-          className="btn-primary px-4 py-2 text-sm"
-        >
-          {loading ? '...' : t('common.enabled')}
-        </button>
+        <div className="space-y-3">
+          {/* Issuer 输入框（失焦自动保存 + 修改失败自动回滚） */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium" style={labelStyle}>{t('account.totp_issuer')}</label>
+            <input
+              type="text"
+              value={issuerBlur.draft}
+              onChange={e => issuerBlur.setDraft(e.target.value)}
+              onBlur={issuerBlur.handleBlur}
+              onKeyDown={e => { if (e.key === 'Enter') issuerBlur.handleBlur() }}
+              placeholder="v2rayN-Go"
+              maxLength={100}
+              className="w-full px-3 py-2 text-sm rounded-lg outline-none transition-colors"
+              style={inputStyle}
+              {...focusBlur}
+            />
+          </div>
+          {/* 按钮文案："启用"（动作），不是"已启用"（状态） */}
+          <button
+            onClick={handleEnable}
+            disabled={loading}
+            className="btn-primary px-4 py-2 text-sm"
+          >
+            {loading ? '...' : t('account.totp_enable_btn')}
+          </button>
+        </div>
       )}
 
-      {/* 配置中（已调用 enable，等待验证）→ 显示二维码 + 动态码输入 */}
+      {/* ── 配置中 → Issuer 输入框（失焦刷新二维码）+ 二维码 + 动态码 ─ */}
       {totpSetup && (
         <div className="space-y-4">
+          {/* Issuer 输入框：失焦时自动重新调用 API，二维码同步更新 */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium" style={labelStyle}>{t('account.totp_issuer')}</label>
+            <input
+              type="text"
+              value={issuerBlur.draft}
+              onChange={e => issuerBlur.setDraft(e.target.value)}
+              onBlur={issuerBlur.handleBlur}
+              onKeyDown={e => { if (e.key === 'Enter') issuerBlur.handleBlur() }}
+              placeholder="v2rayN-Go"
+              maxLength={100}
+              className="w-full px-3 py-2 text-sm rounded-lg outline-none transition-colors"
+              style={inputStyle}
+              {...focusBlur}
+            />
+          </div>
+
           <p className="text-xs" style={{ color: 'var(--color-muted-foreground)' }}>
             {t('account.totp_scan')}
           </p>
 
-          {/* 二维码 */}
+          {/* 前端生成二维码（qrcode.react），otpauth_url 由后端返回 */}
           <div className="flex justify-center">
             <div className="p-3 rounded-lg" style={{ backgroundColor: '#fff' }}>
               <QRCodeSVG value={totpSetup.otpauth_url} size={160} />
             </div>
           </div>
 
-          {/* 密钥（可手动输入） */}
+          {/* 密钥（可手动输入到 Authenticator） */}
           <div className="space-y-1">
             <label className="text-xs font-medium" style={labelStyle}>{t('account.totp_secret_label')}</label>
             <code
@@ -333,7 +393,7 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
             </code>
           </div>
 
-          {/* 动态码输入 + 确认按钮 */}
+          {/* 6 位动态码输入 + 确认按钮（仅 6 位数字时可点） */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium" style={labelStyle}>{t('account.totp_enter_code')}</label>
             <div className="flex items-center gap-2">
@@ -357,7 +417,7 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
             </div>
           </div>
 
-          {/* 取消配置 */}
+          {/* 取消配置，返回未启用状态 */}
           <button
             onClick={() => { setTotpSetup(null); setVerifyCode('') }}
             className="btn-ghost text-xs"

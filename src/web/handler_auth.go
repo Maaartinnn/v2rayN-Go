@@ -131,6 +131,7 @@ func (h *AuthHandler) handleChangePassword(w http.ResponseWriter, r *http.Reques
 
 // ──────────────────────────────────────────────────────────────────────────────
 // POST /api/totp/enable
+// 请求体: { "issuer": "MyApp" }（可选，为空时使用默认值 "v2rayN-Go"）
 // 生成 TOTP 密钥并返回 otpauth URL（前端渲染二维码）
 // ──────────────────────────────────────────────────────────────────────────────
 func (h *AuthHandler) handleEnableTOTP(w http.ResponseWriter, r *http.Request) {
@@ -140,9 +141,16 @@ func (h *AuthHandler) handleEnableTOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	secret, otpauthURL, err := h.authSvc.EnableTOTP(user.UUID)
+	var req struct {
+		Issuer string `json:"issuer"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+
+	secret, otpauthURL, err := h.authSvc.EnableTOTP(user.UUID, req.Issuer)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusBadRequest)
+		mapServiceError(w, err)
 		return
 	}
 
@@ -182,8 +190,8 @@ func (h *AuthHandler) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // POST /api/totp/disable
-// 请求体: { "password": "xxx" }
-// 需要密码确认，关闭后清空 TOTP 密钥
+// 请求体: { "totp_code": "123456" }
+// 需要 TOTP 验证码确认，关闭后清空 TOTP 密钥
 // ──────────────────────────────────────────────────────────────────────────────
 func (h *AuthHandler) handleDisableTOTP(w http.ResponseWriter, r *http.Request) {
 	user := getUserFromContext(r)
@@ -193,14 +201,14 @@ func (h *AuthHandler) handleDisableTOTP(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var req struct {
-		Password string `json:"password"`
+		TOTPCode string `json:"totp_code"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return
 	}
 
-	if err := h.authSvc.DisableTOTP(user.UUID, req.Password); err != nil {
-		jsonError(w, err.Error(), http.StatusBadRequest)
+	if err := h.authSvc.DisableTOTP(user.UUID, req.TOTPCode); err != nil {
+		mapServiceError(w, err)
 		return
 	}
 

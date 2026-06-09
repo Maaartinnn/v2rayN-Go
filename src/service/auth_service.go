@@ -4,7 +4,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"v2rayn-go/database"
@@ -217,10 +219,15 @@ func (s *AuthService) RotateJWTSecret(userUUID string) error {
 // TOTP 两步验证
 // ──────────────────────────────────────────────────────────────────────────────
 
-// EnableTOTP 为用户生成 TOTP 密钥，暂存到数据库（但 TOTPEnabled 仍为 false）
-// 返回 secret 字符串和 otpauth:// URI，前端自行渲染二维码
-// 调用方需通过 VerifyAndActivateTOTP 验证后才真正启用
-func (s *AuthService) EnableTOTP(userUUID string) (secret, otpauthURL string, err error) {
+var issuerPattern = regexp.MustCompile(`^[a-zA-Z0-9_\-. ]*$`)
+
+// EnableTOTP 为用户生成 TOTP 密钥，暂存到数据库（但 TOTPEnabled 仍为 false）。
+// 返回 secret 字符串和 otpauth:// URI，前端自行渲染二维码。
+// 调用方需通过 VerifyAndActivateTOTP 验证后才真正启用。
+//
+// issuer 参数允许自定义 Authenticator 中显示的发行者名称（如 "MyApp"），
+// 方便用户在多个 TOTP 账户中区分来源。为空时使用默认值 "v2rayN-Go"。
+func (s *AuthService) EnableTOTP(userUUID, issuer string) (secret, otpauthURL string, err error) {
 	var user database.User
 	if err := database.DB.Where("uuid = ?", userUUID).First(&user).Error; err != nil {
 		return "", "", fmt.Errorf("user not found")
@@ -230,10 +237,23 @@ func (s *AuthService) EnableTOTP(userUUID string) (secret, otpauthURL string, er
 		return "", "", fmt.Errorf("totp already enabled")
 	}
 
+	// 防恶意输入：长度限制 100 字符
+	issuer = strings.TrimSpace(issuer)
+	if len(issuer) > 100 {
+		return "", "", NewValidation("issuer too long (max 100 characters)", nil)
+	}
+	// 防恶意输入：仅允许安全字符（字母数字下划线连字符点空格）
+	if issuer != "" && !issuerPattern.MatchString(issuer) {
+		return "", "", NewValidation("issuer contains invalid characters", nil)
+	}
+	if issuer == "" {
+		issuer = "v2rayN-Go"
+	}
+
 	// 使用 pquerna/otp 生成 TOTP 密钥
-	// 配置：发行者 = "v2rayN-Go"，账户名 = 用户名
+	// 配置：发行者 = issuer，账户名 = 用户名
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      "v2rayN-Go",
+		Issuer:      issuer,
 		AccountName: user.Username,
 	})
 	if err != nil {
@@ -274,16 +294,21 @@ func (s *AuthService) VerifyAndActivateTOTP(userUUID, code string) error {
 }
 
 // DisableTOTP 关闭用户的 TOTP 两步验证
-// 需要当前密码确认（安全起见）
-func (s *AuthService) DisableTOTP(userUUID, password string) error {
+// 需要当前 TOTP 验证码确认（比密码更安全，防止密码泄露后被绕过）
+func (s *AuthService) DisableTOTP(userUUID, totpCode string) error {
 	var user database.User
 	if err := database.DB.Where("uuid = ?", userUUID).First(&user).Error; err != nil {
 		return fmt.Errorf("user not found")
 	}
 
-	// 验证密码
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return fmt.Errorf("invalid password")
+	// 校验 TOTP 验证码格式（6 位纯数字）
+	if len(totpCode) != 6 || !isDigitsOnly(totpCode) {
+		return NewValidation("invalid totp code: must be exactly 6 digits", nil)
+	}
+
+	// 验证 TOTP 验证码（必须在允许的时间窗口内）
+	if !totp.Validate(totpCode, user.TOTPSecret) {
+		return fmt.Errorf("invalid totp code")
 	}
 
 	// 清空 TOTP 密钥 + 关闭开关
@@ -291,6 +316,16 @@ func (s *AuthService) DisableTOTP(userUUID, password string) error {
 		"totp_secret":  "",
 		"totp_enabled": false,
 	}).Error
+}
+
+// isDigitsOnly 检查字符串是否全部由数字组成
+func isDigitsOnly(s string) bool {
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
