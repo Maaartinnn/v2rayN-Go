@@ -380,6 +380,8 @@ cd web && npm run dev
   </picture>
 </a>
 
+![Alt](https://repobeats.axiom.co/api/embed/f60cb6d477a941a2b86dce4d2ee54b43c05b9adf.svg "Repobeats analytics image")
+
 ## 📄 License
 
 [GNU General Public License v3.0](LICENSE)

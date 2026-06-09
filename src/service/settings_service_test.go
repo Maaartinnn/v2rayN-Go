@@ -4,11 +4,15 @@ import (
 	"testing"
 
 	"v2rayn-go/config"
+	"v2rayn-go/database"
 )
 
 // ========== SettingsService 测试 ==========
 
 func TestGetSettings_IncludesCoreConfigDebug(t *testing.T) {
+	database.InitTestDB()
+	t.Cleanup(database.CleanupTestDB)
+
 	cfg := &config.AppConfig{
 		ListenIP:        "127.0.0.1",
 		WebPort:         2017,
@@ -34,6 +38,9 @@ func TestGetSettings_IncludesCoreConfigDebug(t *testing.T) {
 }
 
 func TestGetSettings_CoreConfigDebug_DefaultFalse(t *testing.T) {
+	database.InitTestDB()
+	t.Cleanup(database.CleanupTestDB)
+
 	cfg := config.DefaultConfig()
 	cfg.AppDir = t.TempDir()
 
@@ -46,6 +53,9 @@ func TestGetSettings_CoreConfigDebug_DefaultFalse(t *testing.T) {
 }
 
 func TestUpdateSettings_CoreConfigDebug_Enable(t *testing.T) {
+	database.InitTestDB()
+	t.Cleanup(database.CleanupTestDB)
+
 	cfg := config.DefaultConfig()
 	cfg.AppDir = t.TempDir()
 
@@ -71,6 +81,9 @@ func TestUpdateSettings_CoreConfigDebug_Enable(t *testing.T) {
 }
 
 func TestUpdateSettings_CoreConfigDebug_Disable(t *testing.T) {
+	database.InitTestDB()
+	t.Cleanup(database.CleanupTestDB)
+
 	cfg := config.DefaultConfig()
 	cfg.AppDir = t.TempDir()
 	cfg.CoreConfigDebug = true
@@ -92,6 +105,9 @@ func TestUpdateSettings_CoreConfigDebug_Disable(t *testing.T) {
 }
 
 func TestUpdateSettings_CoreConfigDebug_NilIgnored(t *testing.T) {
+	database.InitTestDB()
+	t.Cleanup(database.CleanupTestDB)
+
 	cfg := config.DefaultConfig()
 	cfg.AppDir = t.TempDir()
 	cfg.CoreConfigDebug = true
