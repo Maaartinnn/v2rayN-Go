@@ -123,7 +123,7 @@ func (s *Server) Start() error {
 	}
 
 	// "{$}" 精确匹配根路径，不再匹配 /assets 等子路径
-	mux.HandleFunc("GET {$}", indexHandler)
+	mux.HandleFunc("GET /{$}", indexHandler)
 	if injectVal != "" {
 		// 精确匹配带前缀的根路径（如 /my-secret/）
 		mux.HandleFunc("GET "+injectVal+"/{$}", indexHandler)
