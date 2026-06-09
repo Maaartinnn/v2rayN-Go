@@ -11,6 +11,8 @@
   <img src="https://img.shields.io/github/release/Maaartinnn/v2rayN-Go" alt="Release">
 </p>
 
+![Alt](https://repobeats.axiom.co/api/embed/f60cb6d477a941a2b86dce4d2ee54b43c05b9adf.svg "Repobeats analytics image")
+
 > English | **[中文](README.md)**
 
 ---
@@ -379,8 +381,6 @@ cd web && npm run dev
     <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Maaartinnn/v2rayN-Go&type=date&legend=top-left" />
   </picture>
 </a>
-
-![Alt](https://repobeats.axiom.co/api/embed/f60cb6d477a941a2b86dce4d2ee54b43c05b9adf.svg "Repobeats analytics image")
 
 ## 📄 License
 
