@@ -54,6 +54,16 @@ All core features are implemented and tested.
   - 安全收益：消除 SSRF、消除内存溢出风险、图片零网络传输
 - Go 后端全部测试通过（7 packages）
 - 前端 TypeScript 编译无错误
+- **JWT 过期时间内存缓存（2026-06-10）**：
+  - `SettingsService.GetSettingFast()`：DCL 双重检查锁定缓存，零 DB I/O
+  - `AuthService` 注入 `SettingsService`，修改过期时间无需重启立即生效
+  - 4 个测试用例全部通过
+- **TOTP 自定义密钥改造（2026-06-10）**：
+  - 删除 Issuer 逻辑，Issuer 固定 "v2rayN-Go"，前端自行拼接 otpauth URL（encodeURIComponent 转义）
+  - 新增 `POST /api/totp/check`：Base32 校验 + 数据清洗（大写去空格）+ 长度 16-128
+  - `VerifyAndActivateTOTP` 新增可选 secret 参数，非空时先校验格式写入 DB 再验证动态码
+  - 前端 TOTPCard 重写：useBlurSave + /check 校验回滚 + 二维码前端拼接 + 关闭改为 TOTP 验证码
+  - 通用 `useBlurSave` Hook（draft/committed 双值模式 + 竞态防护 + 失败自动回滚）
 - **custom_base_path 前端感知修复（2026-06-09）**：
   - `html/template` 注入 base path（`Option("missingkey=error")` Fail Fast）
   - 前端公共模块 `lib/basePath.ts` 统一导出，消除重复判断
@@ -71,6 +81,8 @@ All core features are implemented and tested.
 ## Current Status
 - 安全改造计划四阶段全部完成
 - custom_base_path 前端感知修复完成（html/template + 哈希路由 + redirectWriter）
+- TOTP 自定义密钥改造完成（/check 接口 + Base32 校验 + 二维码前端拼接）
+- JWT 过期时间内存缓存完成（DCL + SettingsService 缓存）
 - Go 测试全部通过，TypeScript 编译无错误
 - 项目稳定运行
 
@@ -98,3 +110,7 @@ All core features are implemented and tested.
 - **redirectWriter**：拦截 3xx 重定向补回前缀，只处理相对路径，绝对 URL 不动
 - **哈希路由**：wouter `useHashLocation`，消除 custom_base_path 下的 SPA 路由匹配问题
 - **前端公共 basePath 模块**：`lib/basePath.ts` 统一导出，兼容本地 dev（字面量判断）
+- **GetSettingFast DCL 缓存**：`SettingsService` 双重检查锁定，JWT 签发零 DB I/O
+- **TOTP 自定义密钥**：`/api/totp/check` 纯校验不写库 + 数据清洗（大写去空格）+ Base32 校验
+- **useBlurSave Hook**：draft/committed 双值模式 + 竞态防护 + 失败自动回滚
+- **otpauth URL 前端拼接**：`encodeURIComponent` 转义 issuer/username，issuer 固定 "v2rayN-Go"

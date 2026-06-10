@@ -1,9 +1,16 @@
 # Active Context
 
 ## Current Work Focus
-custom_base_path 前端感知修复完成：html/template 注入 + 哈希路由 + 3xx 重定向前缀补回 + 测试用例。
+TOTP 自定义密钥 + JWT 过期时间内存缓存 + custom_base_path 全部完成。
 
 ## Recent Changes
+
+### TOTP 自定义密钥改造（2026-06-10）
+- **删除 Issuer 逻辑**：后端 `EnableTOTP` 回退为无参数版，Issuer 固定 "v2rayN-Go"，前端自行拼接 otpauth URL（`encodeURIComponent` 转义特殊字符）
+- **新增 `CheckTOTPSecret`**：后端 `POST /api/totp/check` 校验自定义密钥格式（Base32 RFC 4648 + 长度 16-128 + 数据清洗大写去空格），返回 `{valid, secret}`
+- **`VerifyAndActivateTOTP` 改造**：新增可选 `secret` 参数，非空时先校验格式写入 DB 再验证动态码
+- **前端 TOTPCard 重写**：useBlurSave + /api/totp/check 校验回滚；点击"启用"才展开配置面板；二维码前端拼接；关闭改为 TOTP 验证码
+- **JWT 过期时间内存缓存**：`SettingsService` 新增 `GetSettingFast`（DCL 双重检查锁定），`AuthService` 注入 `SettingsService`，修改过期时间无需重启立即生效
 
 ### custom_base_path 前端感知修复（2026-06-09）
 
