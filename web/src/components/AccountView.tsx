@@ -190,33 +190,52 @@ function ChangePasswordCard({ t, addToast, cardStyle, labelStyle, inputStyle, fo
 // TOTP 两步验证卡片
 //
 // 交互状态机：未启用 → 配置中（扫码验证） → 已启用
-//   - Issuer 输入框：useBlurSave 失焦自动保存 + 失败回滚
+//   - 点击"启用" → 调 /api/totp/enable → 返回随机 secret
+//   - 配置中：自定义密钥（useBlurSave + /api/totp/check 校验回滚）
+//   - 二维码：前端拼接 otpauth URL（issuer 固定 "v2rayN-Go"，特殊字符 encodeURIComponent 转义）
 //   - 关闭两步验证：需要 TOTP 验证码（非密码）
 // ──────────────────────────────────────────────────────────────────────────────
 function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyle, focusBlur }: any) {
-  const [totpSetup, setTotpSetup] = useState<{ secret: string; otpauth_url: string } | null>(null)
+  const [secret, setSecret] = useState('')           // 当前使用的密钥（API 返回的随机值或用户自定义）
   const [verifyCode, setVerifyCode] = useState('')
   const [disableCode, setDisableCode] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showSetup, setShowSetup] = useState(false)   // 是否显示配置面板
 
-  // Issuer 失焦自动保存（draft / committed 双值模式，失败自动回滚）
-  // 后端校验：长度 ≤ 100，仅允许安全字符（字母数字下划线连字符点空格）
-  const issuerBlur = useBlurSave<string>(
+  // 构建 otpauth URL（前端拼接，不依赖后端）
+  // 格式：otpauth://totp/{issuer}:{username}?secret={secret}&issuer={issuer}
+  // issuer 固定为 "v2rayN-Go"，特殊字符用 encodeURIComponent 转义
+  const buildOtpauthUrl = (sec: string) => {
+    const issuer = 'v2rayN-Go'
+    const username = user?.username || 'user'
+    return `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(username)}?secret=${encodeURIComponent(sec)}&issuer=${encodeURIComponent(issuer)}`
+  }
+
+  // 自定义密钥：失焦 → 调 /api/totp/check → valid 则更新二维码，否则回滚
+  const secretBlur = useBlurSave<string>(
     '',
     useCallback(async (val: string) => {
-      // 调用后端生成新密钥，返回新的 otpauth_url → 二维码自动更新
-      const res = await authApi.enableTOTP(val)
-      setTotpSetup(res.data)
+      // 调 /api/totp/check 校验密钥格式
+      const res = await authApi.checkTOTPSecret(val)
+      if (res.data.valid) {
+        // 校验通过，用清洗后的密钥更新 secret → 二维码自动刷新
+        setSecret(res.data.secret)
+      } else {
+        // 校验失败，抛出让 useBlurSave 回滚到 committed 值
+        throw new Error('invalid secret')
+      }
     }, []),
-    { validate: (v: string) => v.length <= 100 }
+    { validate: (v: string) => v.length <= 150 } // 前端粗校验，精确校验由后端 /check 接口负责
   )
 
-  // 点击"启用"：调用 API 生成密钥 + 显示二维码
+  // 点击"启用"：调用 API 生成随机密钥 → 显示配置面板
   const handleEnable = async () => {
     setLoading(true)
     try {
-      const res = await authApi.enableTOTP(issuerBlur.draft)
-      setTotpSetup(res.data)
+      const res = await authApi.enableTOTP()
+      setSecret(res.data.secret)
+      secretBlur.setDraft(res.data.secret)
+      setShowSetup(true)
     } catch (err: any) {
       addToast(err.response?.data?.error || 'Error', 'error')
     } finally {
@@ -224,16 +243,20 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
     }
   }
 
-  // 确认启用：验证 6 位动态码后正式激活 TOTP
+  // 确认启用：验证 6 位动态码 + 可选自定义密钥 → 正式激活 TOTP
   const handleVerify = async () => {
     if (verifyCode.length !== 6) return
     setLoading(true)
     try {
-      await authApi.verifyTOTP(verifyCode)
+      // 传入 secret（可能是用户自定义的或 API 返回的随机值）
+      // 后端如果收到非空 secret 会先校验格式再写入 DB
+      await authApi.verifyTOTP(verifyCode, secret)
       addToast(t('account.totp_enabled_ok'), 'success')
       setUser((u: any) => u ? { ...u, totp_enabled: true } : u)
-      setTotpSetup(null)
+      setShowSetup(false)
       setVerifyCode('')
+      setSecret('')
+      secretBlur.setDraft('')
     } catch (err: any) {
       addToast(err.response?.data?.error || 'Error', 'error')
     } finally {
@@ -282,13 +305,12 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
             fontFamily: 'var(--font-heading)',
           }}
         >
-          {/* 状态徽章：已启用 / 未启用 */}
           {isEnabled ? t('account.totp_enabled') : t('account.totp_disabled')}
         </span>
       </div>
 
-      {/* ── 已启用状态 → 显示 TOTP 验证码关闭入口 ───────────────────── */}
-      {isEnabled && !totpSetup && (
+      {/* ── 已启用状态 → TOTP 验证码关闭入口 ─────────────────────────── */}
+      {isEnabled && (
         <div className="space-y-3">
           <p className="text-xs" style={{ color: 'var(--color-muted-foreground)' }}>
             {t('account.totp_disable_confirm')}
@@ -305,7 +327,6 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
               style={inputStyle}
               {...focusBlur}
             />
-            {/* 按钮文案："禁用"（动作），不是"已禁用"（状态） */}
             <button
               onClick={handleDisable}
               disabled={loading || disableCode.length !== 6}
@@ -317,50 +338,31 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
         </div>
       )}
 
-      {/* ── 未启用状态 → Issuer 输入框 + 启用按钮 ───────────────────── */}
-      {!isEnabled && !totpSetup && (
-        <div className="space-y-3">
-          {/* Issuer 输入框（失焦自动保存 + 修改失败自动回滚） */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium" style={labelStyle}>{t('account.totp_issuer')}</label>
-            <input
-              type="text"
-              value={issuerBlur.draft}
-              onChange={e => issuerBlur.setDraft(e.target.value)}
-              onBlur={issuerBlur.handleBlur}
-              onKeyDown={e => { if (e.key === 'Enter') issuerBlur.handleBlur() }}
-              placeholder="v2rayN-Go"
-              maxLength={100}
-              className="w-full px-3 py-2 text-sm rounded-lg outline-none transition-colors"
-              style={inputStyle}
-              {...focusBlur}
-            />
-          </div>
-          {/* 按钮文案："启用"（动作），不是"已启用"（状态） */}
-          <button
-            onClick={handleEnable}
-            disabled={loading}
-            className="btn-primary px-4 py-2 text-sm"
-          >
-            {loading ? '...' : t('account.totp_enable_btn')}
-          </button>
-        </div>
+      {/* ── 未启用状态 → 启用按钮（点击后展开配置面板）───────────────── */}
+      {!isEnabled && !showSetup && (
+        <button
+          onClick={handleEnable}
+          disabled={loading}
+          className="btn-primary px-4 py-2 text-sm"
+        >
+          {loading ? '...' : t('account.totp_enable_btn')}
+        </button>
       )}
 
-      {/* ── 配置中 → Issuer 输入框（失焦刷新二维码）+ 二维码 + 动态码 ─ */}
-      {totpSetup && (
+      {/* ── 配置中 → 自定义密钥 + 二维码 + 动态码 ──────────────────────── */}
+      {!isEnabled && showSetup && (
         <div className="space-y-4">
-          {/* Issuer 输入框：失焦时自动重新调用 API，二维码同步更新 */}
+          {/* 自定义密钥输入框（useBlurSave：失焦 → /api/totp/check 校验 → 回滚/生效） */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium" style={labelStyle}>{t('account.totp_issuer')}</label>
+            <label className="text-xs font-medium" style={labelStyle}>{t('account.totp_custom_secret')}</label>
             <input
               type="text"
-              value={issuerBlur.draft}
-              onChange={e => issuerBlur.setDraft(e.target.value)}
-              onBlur={issuerBlur.handleBlur}
-              onKeyDown={e => { if (e.key === 'Enter') issuerBlur.handleBlur() }}
-              placeholder="v2rayN-Go"
-              maxLength={100}
+              value={secretBlur.draft}
+              onChange={e => secretBlur.setDraft(e.target.value)}
+              onBlur={secretBlur.handleBlur}
+              onKeyDown={e => { if (e.key === 'Enter') secretBlur.handleBlur() }}
+              placeholder={t('account.totp_custom_secret_placeholder')}
+              maxLength={150}
               className="w-full px-3 py-2 text-sm rounded-lg outline-none transition-colors"
               style={inputStyle}
               {...focusBlur}
@@ -371,14 +373,16 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
             {t('account.totp_scan')}
           </p>
 
-          {/* 前端生成二维码（qrcode.react），otpauth_url 由后端返回 */}
+          {/* 二维码：前端拼接 otpauth URL，issuer 固定 "v2rayN-Go"，特殊字符转义 */}
           <div className="flex justify-center">
             <div className="p-3 rounded-lg" style={{ backgroundColor: '#fff' }}>
-              <QRCodeSVG value={totpSetup.otpauth_url} size={160} />
+              {secret && (
+                <QRCodeSVG value={buildOtpauthUrl(secret)} size={160} />
+              )}
             </div>
           </div>
 
-          {/* 密钥（可手动输入到 Authenticator） */}
+          {/* 密钥展示（只读，显示当前使用的密钥值） */}
           <div className="space-y-1">
             <label className="text-xs font-medium" style={labelStyle}>{t('account.totp_secret_label')}</label>
             <code
@@ -389,11 +393,11 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
                 fontFamily: 'monospace',
               }}
             >
-              {totpSetup.secret}
+              {secret}
             </code>
           </div>
 
-          {/* 6 位动态码输入 + 确认按钮（仅 6 位数字时可点） */}
+          {/* 6 位动态码输入 + 确认按钮 */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium" style={labelStyle}>{t('account.totp_enter_code')}</label>
             <div className="flex items-center gap-2">
@@ -417,9 +421,9 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
             </div>
           </div>
 
-          {/* 取消配置，返回未启用状态 */}
+          {/* 返回 */}
           <button
-            onClick={() => { setTotpSetup(null); setVerifyCode('') }}
+            onClick={() => { setShowSetup(false); setVerifyCode(''); setSecret(''); secretBlur.setDraft('') }}
             className="btn-ghost text-xs"
           >
             {t('common.back')}

@@ -22,6 +22,7 @@ func (h *AuthHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/login", h.handleLogin)
 	mux.HandleFunc("POST /api/change-password", h.handleChangePassword)
 	mux.HandleFunc("POST /api/totp/enable", h.handleEnableTOTP)
+	mux.HandleFunc("POST /api/totp/check", h.handleCheckTOTP)
 	mux.HandleFunc("POST /api/totp/verify", h.handleVerifyTOTP)
 	mux.HandleFunc("POST /api/totp/disable", h.handleDisableTOTP)
 	mux.HandleFunc("POST /api/sessions/revoke-all", h.handleRevokeAll)
@@ -131,8 +132,7 @@ func (h *AuthHandler) handleChangePassword(w http.ResponseWriter, r *http.Reques
 
 // ──────────────────────────────────────────────────────────────────────────────
 // POST /api/totp/enable
-// 请求体: { "issuer": "MyApp" }（可选，为空时使用默认值 "v2rayN-Go"）
-// 生成 TOTP 密钥并返回 otpauth URL（前端渲染二维码）
+// 无请求体，生成随机 TOTP 密钥并返回 secret + otpauth URL（前端渲染二维码）
 // ──────────────────────────────────────────────────────────────────────────────
 func (h *AuthHandler) handleEnableTOTP(w http.ResponseWriter, r *http.Request) {
 	user := getUserFromContext(r)
@@ -141,14 +141,7 @@ func (h *AuthHandler) handleEnableTOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req struct {
-		Issuer string `json:"issuer"`
-	}
-	if !decodeJSON(w, r, &req) {
-		return
-	}
-
-	secret, otpauthURL, err := h.authSvc.EnableTOTP(user.UUID, req.Issuer)
+	secret, otpauthURL, err := h.authSvc.EnableTOTP(user.UUID)
 	if err != nil {
 		mapServiceError(w, err)
 		return
@@ -161,9 +154,33 @@ func (h *AuthHandler) handleEnableTOTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// POST /api/totp/check
+// 请求体: { "secret": "JBSWY3DPEHPK3PXP" }
+// 校验自定义 TOTP 密钥格式（不写数据库，仅校验 + 清洗）
+// 响应: { "valid": true, "secret": "CLEANED" } 或 { "valid": false, "secret": "original" }
+// ──────────────────────────────────────────────────────────────────────────────
+func (h *AuthHandler) handleCheckTOTP(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Secret string `json:"secret"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+
+	valid, cleaned := h.authSvc.CheckTOTPSecret(req.Secret)
+	jsonOK(w, map[string]any{
+		"valid":  valid,
+		"secret": cleaned,
+	})
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // POST /api/totp/verify
-// 请求体: { "code": "123456" }
+// 请求体: { "code": "123456", "secret": "JBSWY3D..." }（secret 可选）
 // 验证通过后正式启用 TOTP
+//   - secret 非空 → 使用自定义密钥（后端校验 + 写入 DB），再验证动态码
+//   - secret 为空 → 使用 DB 中已有的密钥（由 enable 生成的随机密钥）验证
+//
 // ──────────────────────────────────────────────────────────────────────────────
 func (h *AuthHandler) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
 	user := getUserFromContext(r)
@@ -173,14 +190,15 @@ func (h *AuthHandler) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Code string `json:"code"`
+		Code   string `json:"code"`
+		Secret string `json:"secret"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return
 	}
 
-	if err := h.authSvc.VerifyAndActivateTOTP(user.UUID, req.Code); err != nil {
-		jsonError(w, err.Error(), http.StatusBadRequest)
+	if err := h.authSvc.VerifyAndActivateTOTP(user.UUID, req.Code, req.Secret); err != nil {
+		mapServiceError(w, err)
 		return
 	}
 

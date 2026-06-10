@@ -16,6 +16,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// base32Pattern Base32 格式校验（RFC 4648，大写字母 A-Z + 数字 2-7 + 可选的 = 填充）
+var base32Pattern = regexp.MustCompile(`^[A-Z2-7]+=*$`)
+
 // AuthService 认证服务（登录、JWT、TOTP、密码管理）
 type AuthService struct {
 	settingsSvc *SettingsService
@@ -219,15 +222,10 @@ func (s *AuthService) RotateJWTSecret(userUUID string) error {
 // TOTP 两步验证
 // ──────────────────────────────────────────────────────────────────────────────
 
-var issuerPattern = regexp.MustCompile(`^[a-zA-Z0-9_\-. ]*$`)
-
-// EnableTOTP 为用户生成 TOTP 密钥，暂存到数据库（但 TOTPEnabled 仍为 false）。
-// 返回 secret 字符串和 otpauth:// URI，前端自行渲染二维码。
+// EnableTOTP 为用户生成随机 TOTP 密钥，暂存到数据库（但 TOTPEnabled 仍为 false）。
+// 返回 secret 字符串和 otpauth:// URI（前端渲染二维码用）。
 // 调用方需通过 VerifyAndActivateTOTP 验证后才真正启用。
-//
-// issuer 参数允许自定义 Authenticator 中显示的发行者名称（如 "MyApp"），
-// 方便用户在多个 TOTP 账户中区分来源。为空时使用默认值 "v2rayN-Go"。
-func (s *AuthService) EnableTOTP(userUUID, issuer string) (secret, otpauthURL string, err error) {
+func (s *AuthService) EnableTOTP(userUUID string) (secret, otpauthURL string, err error) {
 	var user database.User
 	if err := database.DB.Where("uuid = ?", userUUID).First(&user).Error; err != nil {
 		return "", "", fmt.Errorf("user not found")
@@ -237,23 +235,10 @@ func (s *AuthService) EnableTOTP(userUUID, issuer string) (secret, otpauthURL st
 		return "", "", fmt.Errorf("totp already enabled")
 	}
 
-	// 防恶意输入：长度限制 100 字符
-	issuer = strings.TrimSpace(issuer)
-	if len(issuer) > 100 {
-		return "", "", NewValidation("issuer too long (max 100 characters)", nil)
-	}
-	// 防恶意输入：仅允许安全字符（字母数字下划线连字符点空格）
-	if issuer != "" && !issuerPattern.MatchString(issuer) {
-		return "", "", NewValidation("issuer contains invalid characters", nil)
-	}
-	if issuer == "" {
-		issuer = "v2rayN-Go"
-	}
-
-	// 使用 pquerna/otp 生成 TOTP 密钥
-	// 配置：发行者 = issuer，账户名 = 用户名
+	// 使用 pquerna/otp 生成随机 TOTP 密钥
+	// Issuer 固定为 "v2rayN-Go"，前端可自行拼接自定义的 otpauth URL
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      issuer,
+		Issuer:      "v2rayN-Go",
 		AccountName: user.Username,
 	})
 	if err != nil {
@@ -268,12 +253,65 @@ func (s *AuthService) EnableTOTP(userUUID, issuer string) (secret, otpauthURL st
 	return key.Secret(), key.URL(), nil
 }
 
-// VerifyAndActivateTOTP 验证用户输入的 TOTP 动态码，正确后正式启用 TOTP
-// 使用默认时间窗口配置（前后各 1 个周期 = ±30 秒），容忍手机时间漂移
-func (s *AuthService) VerifyAndActivateTOTP(userUUID, code string) error {
+// CheckTOTPSecret 校验自定义 TOTP 密钥是否合法（不写数据库，仅校验）。
+// 返回 (valid bool, cleanedSecret string)：
+//   - valid=true  → 密钥格式合法，cleanedSecret 为清洗后的大写无空格值
+//   - valid=false → 密钥格式不合法，cleanedSecret 为原始输入值（供前端回滚用）
+//
+// 校验规则：
+//  1. 数据清洗：大写化 + 去除所有空格
+//  2. 仅允许 Base32 字符（A-Z, 2-7, = 填充符）
+//  3. 长度 16-128 字符（排除填充符后）
+func (s *AuthService) CheckTOTPSecret(secret string) (bool, string) {
+	// 数据清洗：大写化 + 去除所有空格
+	cleaned := strings.ToUpper(strings.ReplaceAll(secret, " ", ""))
+
+	// 空值 → 不合法
+	if cleaned == "" {
+		return false, secret
+	}
+
+	// Base32 格式校验（RFC 4648）
+	if !base32Pattern.MatchString(cleaned) {
+		return false, secret
+	}
+
+	// 长度校验（去掉填充符 = 后）
+	coreLen := len(strings.TrimRight(cleaned, "="))
+	if coreLen < 16 || coreLen > 128 {
+		return false, secret
+	}
+
+	return true, cleaned
+}
+
+// VerifyAndActivateTOTP 验证用户输入的 TOTP 动态码，正确后正式启用 TOTP。
+//
+// secret 参数为可选的自定义密钥（用户在前端"自定义密钥"输入框中填写的值）：
+//   - 非空 → 先用 CheckTOTPSecret 校验格式，通过后写入 DB 替换随机密钥，再验证动态码
+//   - 空字符串 → 使用 DB 中已有的密钥（由 EnableTOTP 生成的随机密钥）验证
+//
+// 使用默认时间窗口配置（前后各 1 个周期 = ±30 秒），容忍手机时间漂移。
+func (s *AuthService) VerifyAndActivateTOTP(userUUID, code, secret string) error {
 	var user database.User
 	if err := database.DB.Where("uuid = ?", userUUID).First(&user).Error; err != nil {
 		return fmt.Errorf("user not found")
+	}
+
+	// 如果用户提供了自定义密钥，先校验格式并写入 DB
+	if secret != "" {
+		valid, cleaned := s.CheckTOTPSecret(secret)
+		if !valid {
+			return NewValidation("invalid secret: must be Base32 format, 16-128 chars", nil)
+		}
+		// 将清洗后的自定义密钥写入 DB（替换之前 EnableTOTP 生成的随机密钥）
+		if err := database.DB.Model(&user).Update("totp_secret", cleaned).Error; err != nil {
+			return fmt.Errorf("failed to save custom secret: %w", err)
+		}
+		// 重新加载用户以获取最新的 TOTPSecret
+		if err := database.DB.Where("uuid = ?", userUUID).First(&user).Error; err != nil {
+			return fmt.Errorf("failed to reload user: %w", err)
+		}
 	}
 
 	if user.TOTPSecret == "" {

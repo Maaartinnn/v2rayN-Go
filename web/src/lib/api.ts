@@ -134,11 +134,14 @@ export const authApi = {
   me: () => api.get('/auth/me'),
   changePassword: (data: { old_password: string; new_password: string }) =>
     api.post('/change-password', data),
-  // enableTOTP: 生成 TOTP 密钥并返回 otpauth URL（前端渲染二维码）
-  // issuer 可选，为空时后端使用默认值 "v2rayN-Go"
-  enableTOTP: (issuer?: string) => api.post('/totp/enable', { issuer: issuer || '' }),
-  // verifyTOTP: 验证 TOTP 动态码并正式启用两步验证
-  verifyTOTP: (code: string) => api.post('/totp/verify', { code }),
+  // enableTOTP: 生成随机 TOTP 密钥，返回 {secret, otpauth_url}
+  enableTOTP: () => api.post('/totp/enable'),
+  // checkTOTPSecret: 校验自定义 TOTP 密钥格式（不写数据库，仅校验 + 清洗）
+  // 返回 {valid: true/false, secret: "CLEANED_ORIGINAL"}
+  checkTOTPSecret: (secret: string) => api.post('/totp/check', { secret }),
+  // verifyTOTP: 验证动态码并正式启用两步验证
+  // secret 可选：传了则使用自定义密钥（后端校验 + 写入 DB），不传则使用 DB 中已有密钥
+  verifyTOTP: (code: string, secret?: string) => api.post('/totp/verify', { code, secret: secret || '' }),
   // disableTOTP: 使用 TOTP 验证码（非密码）关闭两步验证
   disableTOTP: (totpCode: string) => api.post('/totp/disable', { totp_code: totpCode }),
   revokeAllSessions: () => api.post('/sessions/revoke-all'),
