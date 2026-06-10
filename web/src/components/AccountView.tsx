@@ -359,13 +359,17 @@ function TOTPCard({ t, addToast, user, setUser, cardStyle, labelStyle, inputStyl
               type="text"
               value={secretBlur.draft}
               onChange={e => secretBlur.setDraft(e.target.value)}
-              onBlur={secretBlur.handleBlur}
-              onKeyDown={e => { if (e.key === 'Enter') secretBlur.handleBlur() }}
               placeholder={t('account.totp_custom_secret_placeholder')}
               maxLength={150}
               className="w-full px-3 py-2 text-sm rounded-lg outline-none transition-colors"
               style={inputStyle}
               {...focusBlur}
+              // 事件组合：边框重置 + 业务校验同时生效
+              onBlur={(e) => {
+                focusBlur.onBlur(e)          // 外观：边框恢复默认
+                secretBlur.handleBlur()      // 业务：触发 /api/totp/check 校验
+              }}
+              onKeyDown={e => { if (e.key === 'Enter') secretBlur.handleBlur() }}
             />
           </div>
 
