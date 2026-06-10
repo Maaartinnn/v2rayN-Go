@@ -261,7 +261,7 @@ func (s *AuthService) EnableTOTP(userUUID string) (secret, otpauthURL string, er
 // 校验规则：
 //  1. 数据清洗：大写化 + 去除所有空格
 //  2. 仅允许 Base32 字符（A-Z, 2-7, = 填充符）
-//  3. 长度 16-128 字符（排除填充符后）
+//  3. 长度 16-64 字符（排除填充符后）
 func (s *AuthService) CheckTOTPSecret(secret string) (bool, string) {
 	// 数据清洗：大写化 + 去除所有空格
 	cleaned := strings.ToUpper(strings.ReplaceAll(secret, " ", ""))
@@ -278,7 +278,7 @@ func (s *AuthService) CheckTOTPSecret(secret string) (bool, string) {
 
 	// 长度校验（去掉填充符 = 后）
 	coreLen := len(strings.TrimRight(cleaned, "="))
-	if coreLen < 16 || coreLen > 128 {
+	if coreLen < 16 || coreLen > 64 {
 		return false, secret
 	}
 
